@@ -84,6 +84,11 @@ the cluster-build script starts on its own** — you do **not** need to RDP/Bast
 sign in to kick it off. The build runs **~4–5 hours** (add ~1 hour if Azure Local updates
 are available), then the script window closes itself.
 
+> The `LocalBox-Client` VM is a standalone **workgroup** machine — it is never domain-joined.
+> The auto-logon uses the **local** admin account, so `DefaultDomainName` is the VM's own
+> computer name (not a domain). The nested `jumpstart.local` Active Directory exists only
+> inside the cluster's management VM (`AzLMGMT`) and never involves this host.
+
 > Security note: while `vmAutologon` is on, the admin password sits in the Winlogon registry
 > in plaintext for the duration of the build. The logon script **removes** the autologon
 > registry keys (`AutoAdminLogon`, `DefaultUserName`, `DefaultPassword`, `DefaultDomainName`)
