@@ -30,7 +30,7 @@
             "value": "tenantId-staging"
         },
         "witnessType": {
-            "value": "Cloud"
+            "value": "No Witness"
         },
         "clusterWitnessStorageAccountName": {
             "value": "ClusterWitnessStorageAccountName-staging"

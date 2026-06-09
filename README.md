@@ -13,14 +13,14 @@ deploy time.
 
 ## What it deploys
 
-| Layer | Component | Role |
-| --- | --- | --- |
-| Azure | `LocalBox-Client` VM (`Standard_E32s_v6`) | Hyper-V host — the only large billable compute |
-| Azure | 8 × 256 GB Premium SSD (P30 tier) | Storage pool for the nested VMs |
-| Azure | VNet, NSG, **Bastion**, **NAT Gateway**, Key Vault, Log Analytics | Supporting infrastructure (no public IP on the VM) |
-| Azure | `LocalBox-Mgmt` Windows 11 VM (`Standard_D4s_v5`) | Optional management jumpbox (Trusted Launch) |
-| Nested | `AzLHOST1`, `AzLHOST2` | The two Azure Local cluster nodes |
-| Nested | `AzLMGMT` | Hosts the Domain Controller, RRAS/BGP router, Windows Admin Center |
+| Layer  | Component                                                         | Role                                                               |
+| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Azure  | `LocalBox-Client` VM (`Standard_E32s_v6`)                         | Hyper-V host — the only large billable compute                     |
+| Azure  | 8 × 256 GB Premium SSD (P30 tier)                                 | Storage pool for the nested VMs                                    |
+| Azure  | VNet, NSG, **Bastion**, **NAT Gateway**, Key Vault, Log Analytics | Supporting infrastructure (no public IP on the VM)                 |
+| Azure  | `LocalBox-Mgmt` Windows 11 VM (`Standard_D4s_v5`)                 | Optional management jumpbox (Trusted Launch)                       |
+| Nested | `AzLHOST1`, `AzLHOST2`                                            | The two Azure Local cluster nodes                                  |
+| Nested | `AzLMGMT`                                                         | Hosts the Domain Controller, RRAS/BGP router, Windows Admin Center |
 
 Default regions: Azure infrastructure in **`swedencentral`**, the Azure Local instance
 registered in **`westeurope`** (Sweden Central is not a supported Azure Local region).
@@ -120,13 +120,13 @@ az deployment group create -g rg-localbox -f bicep/main.bicep \
 All of these are on by default and toggleable in
 [bicep/main.bicepparam](bicep/main.bicepparam):
 
-| Feature | Default | Param |
-| --- | --- | --- |
-| P30 disk performance tier (8 × 256 GB) | on | `host/host.bicep` `dataDiskPerformanceTier` |
-| Windows 11 management jumpbox | on | `deployManagementVm` |
-| Bastion + NAT Gateway (no public IP) | on | `deployBastion` |
-| Auto-build the cluster after VM setup | on | `autoDeployClusterResource` |
-| Client VM size | `Standard_E32s_v6` | `vmSize` |
+| Feature                                | Default            | Param                                       |
+| -------------------------------------- | ------------------ | ------------------------------------------- |
+| P30 disk performance tier (8 × 256 GB) | on                 | `host/host.bicep` `dataDiskPerformanceTier` |
+| Windows 11 management jumpbox          | on                 | `deployManagementVm`                        |
+| Bastion + NAT Gateway (no public IP)   | on                 | `deployBastion`                             |
+| Auto-build the cluster after VM setup  | on                 | `autoDeployClusterResource`                 |
+| Client VM size                         | `Standard_E32s_v6` | `vmSize`                                    |
 
 Identity values (`tenantId`, `spnProviderId`) and the admin password are **never stored**
 in the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password from the

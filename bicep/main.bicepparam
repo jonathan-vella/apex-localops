@@ -28,7 +28,7 @@ param location = 'swedencentral'
 param azureLocalInstanceLocation = 'westeurope'
 
 // --- Client VM (data disks default to the P30 tier in host/host.bicep) ---
-param vmSize = 'Standard_E32s_v6'
+param vmSize = 'Standard_E64s_v6'
 param enableAzureSpotPricing = false
 
 // --- Connectivity: Bastion ON => no public IP on the VM; NAT Gateway egress ---

@@ -5,6 +5,7 @@ param vmName string = 'LocalBox-Client'
 @allowed([
   'Standard_E32s_v5'
   'Standard_E32s_v6'
+  'Standard_E64s_v6'
 ])
 param vmSize string = 'Standard_E32s_v5'
 
@@ -87,11 +88,12 @@ param vmAutologon bool = false
 param enableAzureSpotPricing bool = false
 
 // JS-LOCAL CUSTOMIZATION: performance-tier override for the client-VM data disks.
-@description('Performance tier for the eight 256 GB client-VM data disks. \'P30\' delivers 5,000 IOPS / 200 MB/s per disk (billed at the P30 rate regardless of the 256 GB size). Set to an empty string to keep the size-default P15 baseline.')
+@description('Performance tier for the 256 GB client-VM data disks. \'P30\' delivers 5,000 IOPS / 200 MB/s per disk (billed at the P30 rate regardless of the 256 GB size). Set to an empty string to keep the size-default P15 baseline.')
 param dataDiskPerformanceTier string = 'P30'
 
 // JS-LOCAL CUSTOMIZATION: fixed data-disk geometry required by the nested S2D pool.
-var dataDiskCount = 8
+// 12 x 256 GB = 3 TB V: pool, sized for the 3-node Azure Local cluster's S2D footprint.
+var dataDiskCount = 12
 var dataDiskSizeGB = 256
 
 var encodedPassword = base64(windowsAdminPassword)

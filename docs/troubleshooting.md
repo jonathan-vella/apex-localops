@@ -47,12 +47,12 @@ New-AzResourceGroupDeployment -ResourceGroupName <rg> `
 `deploy.sh` preflight is intentionally strict. Each failure maps to a real, expensive-to-
 discover problem:
 
-| Message | Fix |
-| --- | --- |
-| `main.bicep does not compile` | Run `az bicep build --file bicep/main.bicep` and fix the error. |
-| `spnProviderId did not resolve` | Run `./scripts/check-providers.sh`, or `export LOCALBOX_SPN_PROVIDER_ID=<guid>`. |
-| `not registered: <providers>` | Run `./scripts/check-providers.sh` and wait for registration. |
-| `staging/witness SA is in 'X' but azureLocalInstanceLocation='Y'` | Delete the mislocated `localbox<hash>` account, then redeploy. |
+| Message                                                           | Fix                                                                              |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `main.bicep does not compile`                                     | Run `az bicep build --file bicep/main.bicep` and fix the error.                  |
+| `spnProviderId did not resolve`                                   | Run `./scripts/check-providers.sh`, or `export LOCALBOX_SPN_PROVIDER_ID=<guid>`. |
+| `not registered: <providers>`                                     | Run `./scripts/check-providers.sh` and wait for registration.                    |
+| `staging/witness SA is in 'X' but azureLocalInstanceLocation='Y'` | Delete the mislocated `localbox<hash>` account, then redeploy.                   |
 
 Bypass with `--skip-preflight` only if you understand the consequence.
 
