@@ -163,6 +163,32 @@ preflight() {
     fi
   fi
 
+  # 5) Host VM vCPU quota. The 3-node default needs a 64-vCPU Esv6 SKU; a quota shortfall
+  #    otherwise surfaces only after the ~18 min ARM deploy. Fails when clearly insufficient,
+  #    warns when it can't be determined.
+  local sku reqcpu ver famval qlimit qcur qavail
+  sku=$(grep -E "^param vmSize" "$PARAMS" 2>/dev/null | sed -E "s/.*=[[:space:]]*'([^']*)'.*/\1/")
+  reqcpu=$(printf '%s' "$sku" | sed -E 's/^Standard_E([0-9]+)s_v[0-9]+$/\1/')
+  ver=$(printf '%s' "$sku" | sed -E 's/.*_(v[0-9]+)$/\1/')
+  famval="standardES${ver}Family"
+  if [[ "$reqcpu" =~ ^[0-9]+$ ]]; then
+    qlimit=$(az vm list-usage --location "$LOCATION" --query "[?name.value=='${famval}'].limit | [0]" -o tsv 2>/dev/null || true)
+    qcur=$(az vm list-usage --location "$LOCATION" --query "[?name.value=='${famval}'].currentValue | [0]" -o tsv 2>/dev/null || true)
+    if [[ "$qlimit" =~ ^[0-9]+$ && "$qcur" =~ ^[0-9]+$ ]]; then
+      qavail=$((qlimit - qcur))
+      if (( qavail < reqcpu )); then
+        echo "  [FAIL] insufficient ${famval} quota in ${LOCATION}: need ${reqcpu} vCPU, ${qavail} free (limit ${qlimit}, used ${qcur})." >&2
+        echo "         Request a quota increase, or deploy a smaller SKU/region." >&2
+        failures=$((failures + 1))
+      else
+        echo "  [ok]   vCPU quota: ${qavail} free in ${famval}/${LOCATION} (need ${reqcpu})"
+      fi
+    else
+      echo "  [warn] could not read ${famval} quota in ${LOCATION}; confirm ${reqcpu:-64} vCPU is available before deploying." >&2
+      warnings=$((warnings + 1))
+    fi
+  fi
+
   echo
   if (( failures > 0 )); then
     echo "Preflight found $failures blocking issue(s). Fix them, or re-run with --skip-preflight." >&2
@@ -251,6 +277,10 @@ Azure-visible deployment state; track it without Bastion/RDP using:
 Success = the Microsoft.AzureStackHCI/clusters resource reaches
 provisioningState 'Succeeded' (or the RG 'DeploymentProgress' tag
 becomes 'Completed').
+
+If the in-VM build fails, re-run just the cluster cloud deployment
+(without rebuilding the nodes):  $SCRIPT_DIR/recover-cluster.sh
+Tear everything down (stops all billing):  $SCRIPT_DIR/cleanup.sh
 ────────────────────────────────────────────────────────────────────
 EOF
 
