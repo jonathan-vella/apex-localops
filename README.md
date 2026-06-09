@@ -20,10 +20,10 @@ Pick a profile with three aligned parameters in [bicep/main.bicepparam](bicep/ma
 (or override per deploy with `-p`). The deploy preflight enforces that the node count and
 host SKU are coherent.
 
-| Profile | `clusterNodeCount` | `vmSize` | `dataDiskCount` | Witness | Notes |
-| ------- | ------------------ | -------- | --------------- | ------- | ----- |
-| **3-node (default)** | `3` | `Standard_E64s_v6` (64 vCPU / 512 GB) | `12` (3 TB) | **None** (odd quorum) | Works under a `Deny allowSharedKeyAccess` storage policy. |
-| **2-node** | `2` | `Standard_E32s_v6` (32 vCPU / 256 GB) | `8` (2 TB) | **Cloud witness** | Cheaper (~half the compute), but the cloud witness needs **shared-key** storage — only use where no `Deny allowSharedKeyAccess` policy applies. |
+| Profile              | `clusterNodeCount` | `vmSize`                              | `dataDiskCount` | Witness               | Notes                                                                                                                                           |
+| -------------------- | ------------------ | ------------------------------------- | --------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **3-node (default)** | `3`                | `Standard_E64s_v6` (64 vCPU / 512 GB) | `12` (3 TB)     | **None** (odd quorum) | Works under a `Deny allowSharedKeyAccess` storage policy.                                                                                       |
+| **2-node**           | `2`                | `Standard_E32s_v6` (32 vCPU / 256 GB) | `8` (2 TB)      | **Cloud witness**     | Cheaper (~half the compute), but the cloud witness needs **shared-key** storage — only use where no `Deny allowSharedKeyAccess` policy applies. |
 
 ```bash
 # Deploy the 2-node profile without editing files:

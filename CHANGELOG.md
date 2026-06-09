@@ -28,7 +28,7 @@ in `bicep/main.bicepparam` for reproducible deploys.
 ### Added
 
 - **Selectable cluster topology via `clusterNodeCount`** (2 or 3) - one parameter now drives
-  the node count *and* the witness type at deploy time, so both topologies ship from a
+  the node count _and_ the witness type at deploy time, so both topologies ship from a
   single branch:
   - `clusterNodeCount = 3` (default): three nodes, **no witness**, pair with
     `Standard_E64s_v6` + `dataDiskCount = 12`.
