@@ -27,8 +27,21 @@ param windowsAdminPassword = readEnvironmentVariable('LOCALBOX_ADMIN_PASSWORD', 
 param location = 'swedencentral'
 param azureLocalInstanceLocation = 'westeurope'
 
-// --- Client VM (data disks default to the P30 tier in host/host.bicep) ---
+// --- Cluster topology PROFILE ----------------------------------------------------------
+// Default = 3-node, NO witness, E64 host. Pick one profile (keep the three values aligned):
+//
+//   3-node (default, witnessless — best when storage shared-key access is restricted):
+//     clusterNodeCount = 3 ; vmSize = 'Standard_E64s_v6' ; dataDiskCount = 12
+//
+//   2-node (cloud witness — only where storage shared-key access is ALLOWED; a
+//   `Deny allowSharedKeyAccess` policy will fail the cloud-witness validation):
+//     clusterNodeCount = 2 ; vmSize = 'Standard_E32s_v6' ; dataDiskCount = 8
+//
+// Override per deploy without editing this file, e.g.:
+//   az deployment group create ... -p clusterNodeCount=2 vmSize=Standard_E32s_v6 dataDiskCount=8
+param clusterNodeCount = 3
 param vmSize = 'Standard_E64s_v6'
+param dataDiskCount = 12
 param enableAzureSpotPricing = false
 
 // --- Connectivity: Bastion ON => no public IP on the VM; NAT Gateway egress ---

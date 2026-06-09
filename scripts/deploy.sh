@@ -163,7 +163,25 @@ preflight() {
     fi
   fi
 
-  # 5) Host VM vCPU quota. The 3-node default needs a 64-vCPU Esv6 SKU; a quota shortfall
+  # 5) Topology coherence: clusterNodeCount must match the host SKU's RAM. Three 96 GB
+  #    nodes + the 28 GB management host (~316 GB) need a 512 GB SKU (E64); two nodes
+  #    (~220 GB) fit on a 256 GB SKU (E32). A 3-node-on-E32 combo cannot boot the nodes.
+  local nodes sku0 ramclass
+  nodes=$(grep -E "^param clusterNodeCount" "$PARAMS" 2>/dev/null | sed -E 's/.*=[[:space:]]*([0-9]+).*/\1/')
+  sku0=$(grep -E "^param vmSize" "$PARAMS" 2>/dev/null | sed -E "s/.*=[[:space:]]*'([^']*)'.*/\1/")
+  ramclass=$(printf '%s' "$sku0" | sed -E 's/^Standard_E([0-9]+)s_v[0-9]+$/\1/')
+  if [[ "$nodes" == "3" && "$ramclass" =~ ^[0-9]+$ && "$ramclass" -lt 64 ]]; then
+    echo "  [FAIL] clusterNodeCount=3 needs a 512 GB host (Standard_E64s_v6); vmSize='$sku0' is too small." >&2
+    echo "         Use vmSize=Standard_E64s_v6, or set clusterNodeCount=2 for the E32 profile." >&2
+    failures=$((failures + 1))
+  elif [[ "$nodes" == "2" && "$ramclass" =~ ^[0-9]+$ && "$ramclass" -ge 64 ]]; then
+    echo "  [warn] clusterNodeCount=2 on '$sku0' works but over-provisions RAM; E32s_v6 is sufficient." >&2
+    warnings=$((warnings + 1))
+  else
+    echo "  [ok]   topology coherence (clusterNodeCount=${nodes:-3} vs ${sku0})"
+  fi
+
+  # 6) Host VM vCPU quota. The 3-node default needs a 64-vCPU Esv6 SKU; a quota shortfall
   #    otherwise surfaces only after the ~18 min ARM deploy. Fails when clearly insufficient,
   #    warns when it can't be determined.
   local sku reqcpu ver famval qlimit qcur qavail

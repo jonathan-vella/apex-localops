@@ -6,6 +6,15 @@ Sweden Central) and approximate.
 
 ## TL;DR
 
+Two selectable profiles (`clusterNodeCount` in `bicep/main.bicepparam`):
+
+| Profile | Nodes | Host SKU | Data disks | Witness | RAM committed |
+| ------- | ----- | -------- | ---------- | ------- | ------------- |
+| **3-node (default)** | 3 × 96 GB | `Standard_E64s_v6` (512 GB) | 12 × 256 GB = 3 TB | none (odd quorum) | ~316 GB |
+| **2-node** | 2 × 96 GB | `Standard_E32s_v6` (256 GB) | 8 × 256 GB = 2 TB | cloud witness | ~220 GB |
+
+The table below details the **default 3-node profile**:
+
 | Layer    | What you size     | Value                                     | Why                                  |
 | -------- | ----------------- | ----------------------------------------- | ------------------------------------ |
 | Azure VM | SKU               | `Standard_E64s_v6` (64 vCPU / 512 GB)     | Must fit ~316 GB of nested VM RAM.   |
@@ -15,14 +24,15 @@ Sweden Central) and approximate.
 | Nested   | Management host   | `AzLMGMT` @ 28 GB / 20 vCPU               | Hosts DC + router + WAC.             |
 | Nested   | S2D storage       | 3 nodes × 4 × 170 GB dynamic VHDX         | Software-defined storage pool.       |
 
-**You cannot shrink the VM below E64 (512 GB RAM).** The nested workload commits ~316 GB;
-anything smaller (e.g. E32 at 256 GB) will not boot all three nodes.
+**On the default profile you cannot shrink the VM below E64 (512 GB RAM).** The 3-node
+workload commits ~316 GB; E32 (256 GB) cannot boot all three nodes. To use E32, switch to
+the **2-node profile** (`clusterNodeCount = 2`, which also enables a cloud witness).
 
-> **Why 3 nodes?** An odd number of nodes gives the cluster odd quorum, so it needs **no
-> witness** at all. That removes the cloud-witness storage account entirely — which is what
-> an `allowSharedKeyAccess = false` storage policy would otherwise block (the cloud witness
-> requires shared-key auth). A 2-node cluster *must* have a witness; a 3-node cluster must
-> not.
+> **Why 3 nodes by default?** An odd number of nodes gives the cluster odd quorum, so it
+> needs **no witness** at all. That removes the cloud-witness storage account entirely —
+> which is what an `allowSharedKeyAccess = false` storage policy would otherwise block (the
+> cloud witness requires shared-key auth). A 2-node cluster *must* have a witness; a 3-node
+> cluster must not. Choose 2-node only where shared-key storage is permitted.
 
 ## Host VM
 

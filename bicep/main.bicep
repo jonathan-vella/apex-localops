@@ -57,6 +57,18 @@ param natGatewayName string = 'LocalBox-NatGateway'
 ])
 param vmSize string = 'Standard_E32s_v6'
 
+@description('Number of nested Azure Local cluster nodes. 3 = odd quorum, NO witness needed (default; pair with Standard_E64s_v6). 2 = requires a cloud witness (pair with Standard_E32s_v6, and only where storage shared-key access is allowed).')
+@allowed([
+  2
+  3
+])
+param clusterNodeCount int = 3
+
+@description('Number of 256 GB P30 data disks on the host VM (the V: storage pool). 12 suits the 3-node cluster; 8 is enough for 2 nodes.')
+@minValue(8)
+@maxValue(32)
+param dataDiskCount int = 12
+
 @description('Option to enable spot pricing for the LocalBox Client VM')
 param enableAzureSpotPricing bool = false
 
@@ -157,6 +169,8 @@ module hostDeployment 'host/host.bicep' = {
     resourceTags: resourceTags
     enableAzureSpotPricing: enableAzureSpotPricing
     azureLocalInstanceLocation: azureLocalInstanceLocation
+    clusterNodeCount: clusterNodeCount
+    dataDiskCount: dataDiskCount
   }
 }
 

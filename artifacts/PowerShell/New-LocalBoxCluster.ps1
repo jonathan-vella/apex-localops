@@ -4,6 +4,15 @@ $starttime = Get-Date
 # Import Configuration data file
 $Global:LocalBoxConfig = Import-PowerShellDataFile -Path $Env:LocalBoxConfigFile
 
+# apex-localops: honor the requested cluster node count (2 or 3). The config defines three
+# nodes (AzLHOST1-3); a 2-node deployment trims to the first two. Everything downstream
+# (VM creation, Arc registration, and the generated physicalNodes list) iterates this
+# array, so the count propagates automatically.
+if ($env:clusterNodeCount -eq '2') {
+    Write-Host "clusterNodeCount=2: trimming NodeHostConfig to AzLHOST1 + AzLHOST2 (cloud witness)."
+    $Global:LocalBoxConfig.NodeHostConfig = @($Global:LocalBoxConfig.NodeHostConfig[0..1])
+}
+
 #region Main
 $HostVMPath = $LocalBoxConfig.HostVMPath
 $InternalSwitch = $LocalBoxConfig.InternalSwitch

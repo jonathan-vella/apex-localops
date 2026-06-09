@@ -9,6 +9,16 @@ $Env:LocalBoxDir = "C:\LocalBox"
 $LocalBoxConfig = Import-PowerShellDataFile -Path $Env:LocalBoxConfigFile
 Start-Transcript -Path "$($LocalBoxConfig.Paths.LogsDir)\Generate-ARM-Template.log"
 
+# apex-localops: honor the requested cluster node count (2 or 3). Trim to the first two
+# nodes for a 2-node cluster so the generated physicalNodes list matches the cluster that
+# New-LocalBoxCluster.ps1 actually builds. witnessType is set below to match.
+if ($env:clusterNodeCount -eq '2') {
+    $LocalBoxConfig.NodeHostConfig = @($LocalBoxConfig.NodeHostConfig[0..1])
+    $witnessTypeValue = 'Cloud'
+} else {
+    $witnessTypeValue = 'No Witness'
+}
+
 # Add necessary role assignments
 # $ErrorActionPreference = "Continue"
 # New-AzRoleAssignment -ObjectId $env:spnProviderId -RoleDefinitionName "Azure Connected Machine Resource Manager" -ResourceGroup $env:resourceGroup -ErrorAction Continue
@@ -90,3 +100,4 @@ $AzLocalParams = "$env:LocalBoxDir\azlocal.parameters.json"
 (Get-Content -Path $AzLocalParams) -replace 'customLocation-staging', $LocalBoxConfig.rbCustomLocationName | Set-Content -Path $AzLocalParams
 (Get-Content -Path $AzLocalParams) -replace 'location-staging', $env:azureLocation | Set-Content -Path $AzLocalParams
 (Get-Content -Path $AzLocalParams) -replace 'tenantId-staging', $env:tenantId | Set-Content -Path $AzLocalParams
+(Get-Content -Path $AzLocalParams) -replace 'witnessType-staging', $witnessTypeValue | Set-Content -Path $AzLocalParams

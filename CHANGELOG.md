@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format is based on
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
 in `bicep/main.bicepparam` for reproducible deploys.
 
+## [v1.2.0] - 2026-06-09
+
+### Added
+
+- **Selectable cluster topology via `clusterNodeCount`** (2 or 3) - one parameter now drives
+  the node count *and* the witness type at deploy time, so both topologies ship from a
+  single branch:
+  - `clusterNodeCount = 3` (default): three nodes, **no witness**, pair with
+    `Standard_E64s_v6` + `dataDiskCount = 12`.
+  - `clusterNodeCount = 2`: two nodes, **cloud witness**, pair with `Standard_E32s_v6` +
+    `dataDiskCount = 8`. Use only where storage shared-key access is permitted.
+- `vmSize` and `dataDiskCount` are now first-class `main.bicep` parameters (the disk count
+  was previously a hard-coded variable).
+- `deploy.sh` preflight check: **topology coherence** - fails a 3-node-on-E32 combo (cannot
+  boot) and warns on 2-node-on-E64 (over-provisioned) before the ~18 min deploy.
+
+### Changed
+
+- `Bootstrap.ps1` accepts `-clusterNodeCount` and exports it; `New-LocalBoxCluster.ps1` and
+  `Generate-ARM-Template.ps1` trim the node list to two when requested; the generated
+  `azlocal.parameters.json` `witnessType` is now substituted at runtime (`Cloud` vs
+  `No Witness`) instead of being hard-coded.
+
+> The default deployed topology is unchanged from v1.1.x (3-node, witnessless, E64).
+
 ## [v1.1.1] - 2026-06-09
 
 Operational tooling and safety checks. No change to the deployed topology, so a `v1.1.0`
@@ -67,6 +92,7 @@ Initial release - a self-contained packaging of the Arc Jumpstart **LocalBox** s
 - Docs, CC BY 4.0 `LICENSE` + `ATTRIBUTION.md`, and a `validate` CI workflow (Bicep
   build/lint + ShellCheck).
 
+[v1.2.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.1.0
 [v1.0.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.0.0

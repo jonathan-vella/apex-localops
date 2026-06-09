@@ -91,9 +91,19 @@ param enableAzureSpotPricing bool = false
 @description('Performance tier for the 256 GB client-VM data disks. \'P30\' delivers 5,000 IOPS / 200 MB/s per disk (billed at the P30 rate regardless of the 256 GB size). Set to an empty string to keep the size-default P15 baseline.')
 param dataDiskPerformanceTier string = 'P30'
 
-// JS-LOCAL CUSTOMIZATION: fixed data-disk geometry required by the nested S2D pool.
-// 12 x 256 GB = 3 TB V: pool, sized for the 3-node Azure Local cluster's S2D footprint.
-var dataDiskCount = 12
+@description('Number of nested Azure Local cluster nodes (2 or 3). Passed to Bootstrap.ps1; 2 trims the node list and uses a cloud witness, 3 uses no witness.')
+@allowed([
+  2
+  3
+])
+param clusterNodeCount int = 3
+
+@description('Number of 256 GB P30 data disks attached to the host VM (the V: storage pool).')
+@minValue(8)
+@maxValue(32)
+param dataDiskCount int = 12
+
+// JS-LOCAL CUSTOMIZATION: data-disk geometry for the nested S2D pool.
 var dataDiskSizeGB = 256
 
 var encodedPassword = base64(windowsAdminPassword)
@@ -234,7 +244,7 @@ resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2022-03-01' =
       fileUris: [
         uri(templateBaseUrl, 'artifacts/PowerShell/Bootstrap.ps1')
       ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -tenantId ${tenantId} -subscriptionId ${subscription().subscriptionId} -spnProviderId ${spnProviderId} -resourceGroup ${resourceGroup().name} -azureLocation ${azureLocalInstanceLocation} -stagingStorageAccountName ${stagingStorageAccountName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -registerCluster ${registerCluster} -deployAKSArc ${deployAKSArc} -deployResourceBridge ${deployResourceBridge} -natDNS ${natDNS} -rdpPort ${rdpPort} -autoDeployClusterResource ${autoDeployClusterResource} -autoUpgradeClusterResource ${autoUpgradeClusterResource} -vmAutologon ${vmAutologon}'
+      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -tenantId ${tenantId} -subscriptionId ${subscription().subscriptionId} -spnProviderId ${spnProviderId} -resourceGroup ${resourceGroup().name} -azureLocation ${azureLocalInstanceLocation} -stagingStorageAccountName ${stagingStorageAccountName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -registerCluster ${registerCluster} -deployAKSArc ${deployAKSArc} -deployResourceBridge ${deployResourceBridge} -natDNS ${natDNS} -rdpPort ${rdpPort} -autoDeployClusterResource ${autoDeployClusterResource} -autoUpgradeClusterResource ${autoUpgradeClusterResource} -vmAutologon ${vmAutologon} -clusterNodeCount ${clusterNodeCount}'
     }
   }
 }

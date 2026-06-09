@@ -7,13 +7,34 @@ the Bicep templates, the in-VM cluster-build automation, and a guided deploy/mon
 experience all live here, so the build does not depend on any third-party repository at
 deploy time.
 
-> **What you get:** one `LocalBox-Client` Hyper-V host VM that nests a 3-node Azure Local
-> cluster (`AzLHOST1`/`AzLHOST2`/`AzLHOST3`) plus a management host (`AzLMGMT`) running a
-> domain controller, router, and Windows Admin Center — and an optional Windows 11 jumpbox.
-> The 3-node topology has odd quorum, so it needs **no cluster witness** (no witness storage
-> account — which sidesteps any `allowSharedKeyAccess` storage policy).
+> **What you get:** one `LocalBox-Client` Hyper-V host VM that nests an Azure Local cluster
+> plus a management host (`AzLMGMT`) running a domain controller, router, and Windows Admin
+> Center — and an optional Windows 11 jumpbox. The cluster topology is **selectable** via
+> `clusterNodeCount` (see [Cluster topology profiles](#cluster-topology-profiles)); the
+> default 3-node layout needs **no cluster witness** (odd quorum), which sidesteps any
+> `allowSharedKeyAccess` storage policy.
+
+## Cluster topology profiles
+
+Pick a profile with three aligned parameters in [bicep/main.bicepparam](bicep/main.bicepparam)
+(or override per deploy with `-p`). The deploy preflight enforces that the node count and
+host SKU are coherent.
+
+| Profile | `clusterNodeCount` | `vmSize` | `dataDiskCount` | Witness | Notes |
+| ------- | ------------------ | -------- | --------------- | ------- | ----- |
+| **3-node (default)** | `3` | `Standard_E64s_v6` (64 vCPU / 512 GB) | `12` (3 TB) | **None** (odd quorum) | Works under a `Deny allowSharedKeyAccess` storage policy. |
+| **2-node** | `2` | `Standard_E32s_v6` (32 vCPU / 256 GB) | `8` (2 TB) | **Cloud witness** | Cheaper (~half the compute), but the cloud witness needs **shared-key** storage — only use where no `Deny allowSharedKeyAccess` policy applies. |
+
+```bash
+# Deploy the 2-node profile without editing files:
+./scripts/deploy.sh   # after setting the three params, or:
+az deployment group create -g rg-localbox -f bicep/main.bicep -p bicep/main.bicepparam \
+  -p clusterNodeCount=2 -p vmSize=Standard_E32s_v6 -p dataDiskCount=8
+```
 
 ## What it deploys
+
+(Values below show the **default 3-node profile**.)
 
 | Layer  | Component                                                         | Role                                                               |
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -32,7 +53,8 @@ Both are overridable. Sizing rationale: [docs/sizing-guidance.md](docs/sizing-gu
 
 - **Owner** (or Contributor + User Access Administrator) on the target subscription.
 - **Azure CLI ≥ 2.65** (`az --version`) and Bicep (`az bicep upgrade`).
-- **64 vCPUs** of `Standard_E64s_v6` quota in your infra region.
+- Host-VM vCPU quota in your infra region: **64** of `Standard_E64s_v6` (3-node default) or
+  **32** of `Standard_E32s_v6` (2-node profile).
 - A strong Windows admin password (14–123 chars; 3 of lower/upper/digit/special).
   **Avoid `$`** — it breaks the in-VM LogonScript.
 
