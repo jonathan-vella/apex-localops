@@ -11,7 +11,26 @@ monitor and the in-VM logs:
 In-VM logs live at `C:\LocalBox\Logs\` (reachable via Bastion, or remotely with
 `az vm run-command`). The master log is `New-LocalBoxCluster.log`.
 
+## Cluster witness and the `allowSharedKeyAccess` policy
+
+This repo defaults to a **3-node** cluster specifically so that **no witness is required**
+(odd quorum). That avoids the Azure Local **cloud witness**, which creates a storage
+account and authenticates to it with a **shared (account) key**. If your tenant enforces a
+policy that sets `allowSharedKeyAccess = false` on storage accounts, a cloud witness will
+fail validation with `Test-AzStackHciClusterWitness` / `UpdateDeploymentSettingsDataFailed`
+— and you cannot fix it by toggling the account, because the policy re-applies.
+
+- **Default (3 nodes):** `witnessType = "No Witness"` in `artifacts/azlocal.parameters.json`
+  — nothing to configure, no witness storage account, no shared-key dependency.
+- **If you switch back to 2 nodes:** a witness becomes mandatory. With a shared-key-deny
+  policy in place, a cloud witness will not work; use a **file-share witness** instead
+  (set `witnessType` accordingly and provide `witnessPath`), or exempt the witness storage
+  account from the policy.
+
 ## Cluster build fails: `InvalidResourceLocation` on the `localbox<hash>` storage account
+
+> Applies only when using a **cloud witness** (2-node clusters). The default 3-node config
+> has no witness storage account and is not affected.
 
 **Symptom** (in `New-LocalBoxCluster.log`, around "Step 10/11"):
 
@@ -62,14 +81,14 @@ Bypass with `--skip-preflight` only if you understand the consequence.
 SkuNotAvailable / OperationNotAllowed: ... quota ...
 ```
 
-You lack `Standard_E32s_v6` (or `_v5`) capacity in the region. Check and request:
+You lack `Standard_E64s_v6` capacity in the region. Check and request:
 
 ```bash
-az vm list-usage --location swedencentral -o table | grep -iE "ESv6|ESv5"
+az vm list-usage --location swedencentral -o table | grep -iE "ESv6"
 ```
 
-Either request a quota increase, switch family via `-p vmSize=Standard_E32s_v5`, or choose
-another infra region with `-l <region>`.
+Either request a quota increase (the 3-node default needs 64 vCPUs), or choose another
+infra region with `-l <region>`.
 
 ## Password rejected
 

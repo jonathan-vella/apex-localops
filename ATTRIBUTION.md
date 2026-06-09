@@ -20,17 +20,22 @@ Per CC BY 4.0 §3(a)(1)(B), the following modifications were made to the origina
 - **Self-hosting:** the in-VM `artifacts/` tree is vendored into this repository and the
   Bicep `templateBaseUrl` is repointed at this repo's raw URLs (added a `githubRepo`
   parameter), removing the `microsoft/azure_arc` runtime dependency at deploy time.
-- **Storage / disks:** the eight client data disks are pre-created at the **P30**
-  performance tier and attached.
+- **3-node witnessless cluster:** the nested Azure Local cluster runs **three** nodes
+  (`AzLHOST1`/`AzLHOST2`/`AzLHOST3`, `witnessType = "No Witness"`) instead of the upstream
+  two-node + cloud-witness design, giving odd quorum with no witness storage account.
+- **Host VM size:** the client VM defaults to `Standard_E64s_v6` (64 vCPU / 512 GB) to fit
+  the three 96 GB nodes plus the management host.
+- **Storage / disks:** the client data disks are pre-created at the **P30** performance
+  tier and attached; the count is raised to **12** (3 TB pool) for the 3-node S2D footprint.
 - **Management jumpbox:** added an optional **Windows 11** management VM
   (`mgmt/managementVm.bicep`, Trusted Launch) reachable over Azure Bastion.
 - **Connectivity defaults:** Bastion + NAT Gateway enabled by default (no public IP on the
   client VM).
 - **Region defaults:** Azure infrastructure defaults to `swedencentral`; the Azure Local
   instance registers in `westeurope`.
-- **Cluster-witness region fix:** the staging/witness storage account is provisioned in the
-  Azure Local instance region to prevent an `InvalidResourceLocation` failure during the
-  in-VM cloud deployment.
+- **Cluster-witness region fix:** when a cloud witness *is* used, the staging/witness
+  storage account is provisioned in the Azure Local instance region to prevent an
+  `InvalidResourceLocation` failure during the in-VM cloud deployment.
 - **Tooling:** added `scripts/deploy.sh` (preflight + secure password handling + runtime
   identity resolution + monitor hand-off), `scripts/monitor.sh` (observes the in-VM build),
   and `scripts/check-providers.sh`.

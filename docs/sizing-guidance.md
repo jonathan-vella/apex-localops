@@ -6,40 +6,49 @@ Sweden Central) and approximate.
 
 ## TL;DR
 
-| Layer    | What you size     | Value                                    | Why                                  |
-| -------- | ----------------- | ---------------------------------------- | ------------------------------------ |
-| Azure VM | SKU               | `Standard_E32s_v6` (32 vCPU / 256 GB)    | Must fit ~220 GB of nested VM RAM.   |
-| Azure VM | OS disk           | 1024 GB Premium SSD (P30)                | Windows Server + VHDX image cache.   |
-| Azure VM | Data disks        | 8 × 256 GB Premium SSD (P30 tier) = 2 TB | Pooled into `V:` for all nested VMs. |
-| Nested   | Azure Local nodes | `AzLHOST1` + `AzLHOST2` @ 96 GB each     | The 2-node cluster.                  |
-| Nested   | Management host   | `AzLMGMT` @ 28 GB / 20 vCPU              | Hosts DC + router + WAC.             |
-| Nested   | S2D storage       | 2 nodes × 4 × 170 GB dynamic VHDX        | Software-defined storage pool.       |
+| Layer    | What you size     | Value                                     | Why                                  |
+| -------- | ----------------- | ----------------------------------------- | ------------------------------------ |
+| Azure VM | SKU               | `Standard_E64s_v6` (64 vCPU / 512 GB)     | Must fit ~316 GB of nested VM RAM.   |
+| Azure VM | OS disk           | 1024 GB Premium SSD (P30)                 | Windows Server + VHDX image cache.   |
+| Azure VM | Data disks        | 12 × 256 GB Premium SSD (P30 tier) = 3 TB | Pooled into `V:` for all nested VMs. |
+| Nested   | Azure Local nodes | `AzLHOST1`/`AzLHOST2`/`AzLHOST3` @ 96 GB   | The 3-node cluster (no witness).     |
+| Nested   | Management host   | `AzLMGMT` @ 28 GB / 20 vCPU               | Hosts DC + router + WAC.             |
+| Nested   | S2D storage       | 3 nodes × 4 × 170 GB dynamic VHDX         | Software-defined storage pool.       |
 
-**You cannot shrink the VM below E32 (256 GB RAM).** The nested workload commits ~220 GB;
-anything smaller (e.g. E16 at 128 GB) will not boot the cluster.
+**You cannot shrink the VM below E64 (512 GB RAM).** The nested workload commits ~316 GB;
+anything smaller (e.g. E32 at 256 GB) will not boot all three nodes.
+
+> **Why 3 nodes?** An odd number of nodes gives the cluster odd quorum, so it needs **no
+> witness** at all. That removes the cloud-witness storage account entirely — which is what
+> an `allowSharedKeyAccess = false` storage policy would otherwise block (the cloud witness
+> requires shared-key auth). A 2-node cluster *must* have a witness; a 3-node cluster must
+> not.
 
 ## Host VM
 
 LocalBox runs **everything inside one Azure VM** (`LocalBox-Client`), a Windows Server
-Hyper-V host. The template allows exactly two SKUs:
+Hyper-V host. The template allows these SKUs:
 
-| SKU                | vCPU | RAM    | Notes                                      |
-| ------------------ | ---- | ------ | ------------------------------------------ |
-| `Standard_E32s_v5` | 32   | 256 GB | Proven, widely available.                  |
-| `Standard_E32s_v6` | 32   | 256 GB | **Default**; newer silicon, similar price. |
+| SKU                | vCPU | RAM    | Notes                                            |
+| ------------------ | ---- | ------ | ------------------------------------------------ |
+| `Standard_E32s_v5` | 32   | 256 GB | 2-node only — too small for the 3-node default.  |
+| `Standard_E32s_v6` | 32   | 256 GB | 2-node only — too small for the 3-node default.  |
+| `Standard_E64s_v6` | 64   | 512 GB | **Default**; required for the 3-node cluster.    |
 
-**RAM is the binding constraint.** The three top-level nested VMs commit
-`96 + 96 + 28 = 220 GB`, leaving ~36 GB for the host OS and Hyper-V — a deliberate, tight
-fit. Pick `_v6` where you have quota; fall back to `_v5` if v6 capacity is constrained.
+**RAM is the binding constraint.** The four top-level nested VMs commit
+`96 + 96 + 96 + 28 = 316 GB`, leaving ~196 GB for the host OS and Hyper-V — comfortable
+headroom on E64. E32 (256 GB) cannot hold three 96 GB nodes plus the 28 GB management host,
+so the default is `E64s_v6`. (If you drop back to a 2-node cluster you can use `E32s_v6`,
+but then a witness is mandatory.)
 
 ## Disks
 
-One OS disk + eight data disks, all Premium SSD (LRS):
+One OS disk + twelve data disks, all Premium SSD (LRS):
 
 | Disk      | Size        | Tier                         | Caching   | Purpose                                         |
 | --------- | ----------- | ---------------------------- | --------- | ----------------------------------------------- |
 | OS (`C:`) | 1024 GB     | P30                          | ReadWrite | Windows Server, tooling, VHDX image cache.      |
-| Data 0–7  | 256 GB each | **P30 (perf-tier override)** | None      | Striped into the `V:` pool for nested VM VHDXs. |
+| Data 0–11 | 256 GB each | **P30 (perf-tier override)** | None      | Striped into the `V:` pool for nested VM VHDXs. |
 
 > **P30 on a 256 GB disk is a performance-tier override.** A 256 GB Premium SSD bills at
 > the **P15** baseline (1,100 IOPS / 125 MB/s). Setting each disk's performance `tier` to
@@ -47,19 +56,21 @@ One OS disk + eight data disks, all Premium SSD (LRS):
 > rate (~$148.68/disk/mo). This is encoded in `bicep/host/host.bicep`. To revert to the
 > P15 baseline, clear `dataDiskPerformanceTier` there.
 
-The eight disks form a ~2 TB Storage Spaces pool (`V:`) where the nested VMs live. Each
-Azure Local node presents 4 dynamic VHDX disks of 170 GB (`2 × 4 × 170 = 1,360 GB` of S2D
-capacity) plus node OS VHDXs and the management VMs. **Do not reduce disk count or size** —
+The twelve disks form a ~3 TB Storage Spaces pool (`V:`) where the nested VMs live. Each
+Azure Local node presents 4 dynamic VHDX disks of 170 GB (`3 × 4 × 170 = 2,040 GB` of S2D
+capacity) plus node OS VHDXs and the management VMs. The disk count was raised from 8 to 12
+to give the third node's S2D footprint headroom. **Do not reduce disk count or size** —
 the S2D pool and image cache assume this layout.
 
 ## Nested Azure Local (inside the VM)
 
 ```mermaid
 graph TB
-    subgraph VM["LocalBox-Client · Standard_E32s_v6 · 32 vCPU / 256 GB"]
+    subgraph VM["LocalBox-Client · Standard_E64s_v6 · 64 vCPU / 512 GB"]
         subgraph HV["Hyper-V host · Windows Server"]
             H1["AzLHOST1<br/>node · 96 GB"]
             H2["AzLHOST2<br/>node · 96 GB"]
+            H3["AzLHOST3<br/>node · 96 GB"]
             subgraph MGMT["AzLMGMT · 28 GB · 20 vCPU"]
                 DC["Domain Controller · 2 GB"]
                 RR["RRAS / BGP router · 2 GB"]
@@ -69,11 +80,11 @@ graph TB
     end
 ```
 
-| Nested VM               | RAM             | Role                                            |
-| ----------------------- | --------------- | ----------------------------------------------- |
-| `AzLHOST1` / `AzLHOST2` | 96 GB each      | Azure Local cluster nodes                       |
-| `AzLMGMT`               | 28 GB / 20 vCPU | Nested Hyper-V host for management VMs          |
-| → DC / router / WAC     | 2 / 2 / 10 GB   | Run **inside** `AzLMGMT`'s 28 GB (not additive) |
+| Nested VM                          | RAM             | Role                                            |
+| ---------------------------------- | --------------- | ----------------------------------------------- |
+| `AzLHOST1` / `AzLHOST2` / `AzLHOST3` | 96 GB each    | Azure Local cluster nodes (3 → no witness)      |
+| `AzLMGMT`                          | 28 GB / 20 vCPU | Nested Hyper-V host for management VMs          |
+| → DC / router / WAC                | 2 / 2 / 10 GB   | Run **inside** `AzLMGMT`'s 28 GB (not additive) |
 
 ## Regions
 
@@ -81,7 +92,7 @@ LocalBox uses **two** region parameters; Sweden Central is valid for only one:
 
 | Parameter                                       | Set to          | Notes                                                              |
 | ----------------------------------------------- | --------------- | ------------------------------------------------------------------ |
-| `location` (VM, disks, VNet, …)                 | `swedencentral` | Your infra region; needs Esv6/Esv5 quota.                          |
+| `location` (VM, disks, VNet, …)                 | `swedencentral` | Your infra region; needs Esv6 quota (64 vCPU).                     |
 | `azureLocalInstanceLocation` (Arc registration) | `westeurope`    | **`swedencentral` is not supported** for the Azure Local instance. |
 
 Supported `azureLocalInstanceLocation` values: `australiaeast`, `southcentralus`, `eastus`,
@@ -95,22 +106,24 @@ supported.
 
 | Item                                       | Monthly              |
 | ------------------------------------------ | -------------------- |
-| VM `E32s_v6` (Windows)                     | ~$2,718              |
+| VM `E64s_v6` (Windows)                     | ~$5,436              |
 | OS disk P30 (1024 GB)                      | ~$149                |
-| 8 × data disk P30 (256 GB, tier override)  | ~$1,189              |
+| 12 × data disk P30 (256 GB, tier override) | ~$1,784              |
 | Bastion (Basic) + NAT Gateway + public IPs | ~$179                |
 | Windows 11 jumpbox `D4s_v5` + OS disk      | ~$303                |
-| **Total**                                  | **≈ $4,540 / month** |
+| **Total**                                  | **≈ $7,850 / month** |
 
 ### Cost-control scenarios (client VM + P30 disks only)
 
 | Usage pattern            | Monthly  |
 | ------------------------ | -------- |
-| 24/7 always on           | ≈ $4,060 |
-| 8 hrs/day × 22 workdays  | ≈ $1,997 |
-| Spot pricing, 24/7       | ≈ $1,844 |
-| Deallocated (disks only) | ≈ $1,342 |
+| 24/7 always on           | ≈ $7,370 |
+| 8 hrs/day × 22 workdays  | ≈ $3,240 |
+| Spot pricing, 24/7       | ≈ $2,940 |
+| Deallocated (disks only) | ≈ $1,933 |
 
 > **Disks, Bastion, and NAT bill even when the VMs are deallocated.** Stopping the VM saves
 > compute only; delete the resource group to stop everything. The P30 tier override adds
-> ~$855/mo over the P15 baseline — drop it if your lab doesn't need 5,000 IOPS/disk.
+> ~$1,282/mo over the P15 baseline (12 disks) — drop it if your lab doesn't need 5,000
+> IOPS/disk. Switching back to a 2-node `E32s_v6` cluster roughly halves the compute cost
+> but reintroduces the witness requirement.

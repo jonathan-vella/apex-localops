@@ -7,19 +7,21 @@ the Bicep templates, the in-VM cluster-build automation, and a guided deploy/mon
 experience all live here, so the build does not depend on any third-party repository at
 deploy time.
 
-> **What you get:** one `LocalBox-Client` Hyper-V host VM that nests a 2-node Azure Local
-> cluster (`AzLHOST1`/`AzLHOST2`) plus a management host (`AzLMGMT`) running a domain
-> controller, router, and Windows Admin Center — and an optional Windows 11 jumpbox.
+> **What you get:** one `LocalBox-Client` Hyper-V host VM that nests a 3-node Azure Local
+> cluster (`AzLHOST1`/`AzLHOST2`/`AzLHOST3`) plus a management host (`AzLMGMT`) running a
+> domain controller, router, and Windows Admin Center — and an optional Windows 11 jumpbox.
+> The 3-node topology has odd quorum, so it needs **no cluster witness** (no witness storage
+> account — which sidesteps any `allowSharedKeyAccess` storage policy).
 
 ## What it deploys
 
 | Layer  | Component                                                         | Role                                                               |
 | ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Azure  | `LocalBox-Client` VM (`Standard_E32s_v6`)                         | Hyper-V host — the only large billable compute                     |
-| Azure  | 8 × 256 GB Premium SSD (P30 tier)                                 | Storage pool for the nested VMs                                    |
+| Azure  | `LocalBox-Client` VM (`Standard_E64s_v6`, 64 vCPU / 512 GB)       | Hyper-V host — the only large billable compute                     |
+| Azure  | 12 × 256 GB Premium SSD (P30 tier) = 3 TB                         | Storage pool for the nested VMs                                    |
 | Azure  | VNet, NSG, **Bastion**, **NAT Gateway**, Key Vault, Log Analytics | Supporting infrastructure (no public IP on the VM)                 |
 | Azure  | `LocalBox-Mgmt` Windows 11 VM (`Standard_D4s_v5`)                 | Optional management jumpbox (Trusted Launch)                       |
-| Nested | `AzLHOST1`, `AzLHOST2`                                            | The two Azure Local cluster nodes                                  |
+| Nested | `AzLHOST1`, `AzLHOST2`, `AzLHOST3`                                | The three Azure Local cluster nodes (no witness needed)            |
 | Nested | `AzLMGMT`                                                         | Hosts the Domain Controller, RRAS/BGP router, Windows Admin Center |
 
 Default regions: Azure infrastructure in **`swedencentral`**, the Azure Local instance
@@ -30,7 +32,7 @@ Both are overridable. Sizing rationale: [docs/sizing-guidance.md](docs/sizing-gu
 
 - **Owner** (or Contributor + User Access Administrator) on the target subscription.
 - **Azure CLI ≥ 2.65** (`az --version`) and Bicep (`az bicep upgrade`).
-- **32 vCPUs** of `Standard_E32s_v6` (or `_v5`) quota in your infra region.
+- **64 vCPUs** of `Standard_E64s_v6` quota in your infra region.
 - A strong Windows admin password (14–123 chars; 3 of lower/upper/digit/special).
   **Avoid `$`** — it breaks the in-VM LogonScript.
 
@@ -120,13 +122,13 @@ az deployment group create -g rg-localbox -f bicep/main.bicep \
 All of these are on by default and toggleable in
 [bicep/main.bicepparam](bicep/main.bicepparam):
 
-| Feature                                | Default            | Param                                       |
-| -------------------------------------- | ------------------ | ------------------------------------------- |
-| P30 disk performance tier (8 × 256 GB) | on                 | `host/host.bicep` `dataDiskPerformanceTier` |
-| Windows 11 management jumpbox          | on                 | `deployManagementVm`                        |
-| Bastion + NAT Gateway (no public IP)   | on                 | `deployBastion`                             |
-| Auto-build the cluster after VM setup  | on                 | `autoDeployClusterResource`                 |
-| Client VM size                         | `Standard_E32s_v6` | `vmSize`                                    |
+| Feature                                 | Default            | Param                                       |
+| --------------------------------------- | ------------------ | ------------------------------------------- |
+| P30 disk performance tier (12 × 256 GB) | on                 | `host/host.bicep` `dataDiskPerformanceTier` |
+| Windows 11 management jumpbox           | on                 | `deployManagementVm`                        |
+| Bastion + NAT Gateway (no public IP)    | on                 | `deployBastion`                             |
+| Auto-build the cluster after VM setup   | on                 | `autoDeployClusterResource`                 |
+| Client VM size                          | `Standard_E64s_v6` | `vmSize`                                    |
 
 Identity values (`tenantId`, `spnProviderId`) and the admin password are **never stored**
 in the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password from the
@@ -134,8 +136,8 @@ in the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password
 
 ## Cost
 
-The `Standard_E32s_v6` host plus 8 × P30 data disks dominate the bill. With Bastion, NAT
-Gateway, and the Windows 11 jumpbox enabled, expect roughly **$4,500/month at 24×7** in
+The `Standard_E64s_v6` host plus 12 × P30 data disks dominate the bill. With Bastion, NAT
+Gateway, and the Windows 11 jumpbox enabled, expect roughly **$7,850/month at 24×7** in
 Sweden Central (approximate, retail pay-as-you-go). Disks, Bastion, and NAT bill **even
 when the VMs are stopped** — delete the resource group to stop all charges. Full breakdown:
 [docs/sizing-guidance.md](docs/sizing-guidance.md).

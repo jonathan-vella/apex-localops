@@ -8,7 +8,7 @@ cost: [sizing-guidance.md](sizing-guidance.md).
 
 - **Owner** (or Contributor + User Access Administrator) on the target subscription.
 - **Azure CLI ≥ 2.65** (`az --version`) and Bicep (`az bicep upgrade`).
-- **32 vCPUs** of `Standard_E32s_v6` (or `_v5`) quota in your infra region.
+- **64 vCPUs** of `Standard_E64s_v6` quota in your infra region.
 - A strong Windows admin password (14–123 chars; 3 of lower/upper/digit/special).
   **Avoid `$`** — it breaks the in-VM LogonScript.
 
@@ -37,11 +37,11 @@ anywhere — but you can export it to override: `export LOCALBOX_SPN_PROVIDER_ID
 ## 3. Check quota
 
 ```bash
-az vm list-usage --location swedencentral -o table | grep -iE "ESv6|ESv5"
+az vm list-usage --location swedencentral -o table | grep -iE "ESv6"
 ```
 
-You need **32** available vCPUs in the chosen family. Request an increase before deploying
-if needed.
+You need **64** available vCPUs in the `Standard_ESv6` family. Request an increase before
+deploying if needed.
 
 ## 4. Deploy
 
