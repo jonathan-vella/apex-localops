@@ -1,0 +1,24 @@
+# Local parameter overrides (never commit tenant-specific values)
+*.local.bicepparam
+*.local.json
+
+# Bicep build output
+*.json.tmp
+main.json
+
+# Azure CLI / deploy scratch
+.azure/
+*.log
+
+# Secrets — defense in depth (the repo never stores these by design)
+*.pfx
+*.pem
+.env
+.env.*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

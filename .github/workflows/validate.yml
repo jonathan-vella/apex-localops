@@ -1,0 +1,56 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bicep:
+    name: Bicep build + lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bicep CLI
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Bicep build (compile)
+        run: az bicep build --file bicep/main.bicep --stdout > /dev/null
+
+      - name: Bicep lint
+        run: |
+          # Fail the job if the linter emits any Error-level diagnostics.
+          az bicep lint --file bicep/main.bicep 2> lint.txt || true
+          cat lint.txt
+          if grep -qiE "Error( |:|s)" lint.txt; then
+            echo "::error::Bicep lint reported errors"
+            exit 1
+          fi
+
+  shell:
+    name: Shell script checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Syntax check (bash -n)
+        run: |
+          for s in scripts/*.sh; do
+            bash -n "$s" && echo "ok: $s"
+          done
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./scripts
+          severity: warning
