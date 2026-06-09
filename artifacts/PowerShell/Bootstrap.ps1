@@ -59,6 +59,10 @@ if ($vmAutologon -eq "true") {
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "AutoAdminLogon" "1"
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultUserName" $adminUsername
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultPassword" $adminPassword
+  # apex-localops: set DefaultDomainName to the local computer so the headless auto-logon
+  # resolves the local account reliably. Without it, AutoAdminLogon can silently fall back
+  # to the interactive logon screen - which forces a manual sign-in to start the build.
+  Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultDomainName" $env:COMPUTERNAME
 
 } else {
 

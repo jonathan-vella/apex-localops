@@ -76,10 +76,25 @@ az deployment group create -g rg-localbox \
   -f bicep/main.bicep -p bicep/main.bicepparam
 ```
 
-## 5. Monitor the in-VM cluster build
+## 5. The in-VM build starts automatically (no manual login)
+
+After the ARM deploy, the client VM runs `Bootstrap.ps1`, installs Hyper-V, and reboots.
+Because `vmAutologon = true` (the default), the VM then **auto-logs-in as the admin user and
+the cluster-build script starts on its own** — you do **not** need to RDP/Bastion in and
+sign in to kick it off. The build runs **~4–5 hours** (add ~1 hour if Azure Local updates
+are available), then the script window closes itself.
+
+> Security note: while `vmAutologon` is on, the admin password sits in the Winlogon registry
+> in plaintext for the duration of the build. The logon script **removes** the autologon
+> registry keys (`AutoAdminLogon`, `DefaultUserName`, `DefaultPassword`, `DefaultDomainName`)
+> as soon as the build completes. To disable auto-login entirely, deploy with
+> `-p vmAutologon=false` — but then you must connect and sign in once to start the build.
+
+## 6. Monitor the in-VM cluster build
 
 The ARM deploy finishes in ~18 min, but the nested cluster then builds **inside the VM for
-2–4 hours** with no Azure-visible deployment state. Track it from outside the VM:
+2–4 hours** with no Azure-visible deployment state. Track it from outside the VM (no login
+required):
 
 ```bash
 ./scripts/monitor.sh                 # poll until a terminal state
@@ -91,13 +106,13 @@ Success = the `Microsoft.AzureStackHCI/clusters` resource reaches
 `provisioningState = Succeeded` (or the resource-group `DeploymentProgress` tag becomes
 `Completed`).
 
-## 6. Connect
+## 7. Connect
 
 Once the cluster is up, **connect over Azure Bastion** in the portal — the client VM has no
 public IP. You can Bastion into either `LocalBox-Client` or the Windows 11 jumpbox
 (`LocalBox-Mgmt`). Windows Admin Center runs inside the nested `AzLMGMT` host.
 
-## 7. Clean up (stops billing)
+## 8. Clean up (stops billing)
 
 Disks, Bastion, and NAT bill even when the VM is deallocated. To stop **all** charges,
 delete the resource group:

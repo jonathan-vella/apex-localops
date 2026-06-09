@@ -95,6 +95,12 @@ client VM then runs `Bootstrap.ps1` (a custom script extension) which builds the
 nested Azure Local cluster **inside the VM for 2–4 hours** — a phase that has **no
 Azure-visible deployment state**.
 
+That in-VM build **starts itself** — no manual login. With `vmAutologon = true` (the
+default), the VM auto-logs-in as the admin user after the Hyper-V reboot and the
+cluster-build script runs automatically; the autologon registry keys are removed once the
+build finishes. Deploy with `-p vmAutologon=false` to opt out (then you must sign in once
+to start the build).
+
 `scripts/monitor.sh` makes that phase observable without Bastion/RDP. It reads:
 
 - the `DeploymentProgress` / `DeploymentStatus` **resource-group tags** the in-VM scripts

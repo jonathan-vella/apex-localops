@@ -23,7 +23,7 @@ Connect-AzAccount -Identity -Tenant $Env:tenantId -Subscription $Env:subscriptio
 #############################################################
 
 $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-$keys = @("AutoAdminLogon", "DefaultUserName", "DefaultPassword")
+$keys = @("AutoAdminLogon", "DefaultUserName", "DefaultPassword", "DefaultDomainName")
 
 foreach ($key in $keys) {
     try {
