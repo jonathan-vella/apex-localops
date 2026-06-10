@@ -84,13 +84,13 @@ $decodedPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::From
 # Download SFF scripts + vendored network script from this repo
 #######################################################################
 $downloads = @{
-  'SffConfig.psd1'            = 'artifacts/sff/PowerShell/SffConfig.psd1'
-  'Sff-Common.ps1'            = 'artifacts/sff/PowerShell/Sff-Common.ps1'
-  'Stage-SffArtifacts.ps1'    = 'artifacts/sff/PowerShell/Stage-SffArtifacts.ps1'
-  'New-SffTestVm.ps1'         = 'artifacts/sff/PowerShell/New-SffTestVm.ps1'
-  'Save-OwnershipVoucher.ps1' = 'artifacts/sff/PowerShell/Save-OwnershipVoucher.ps1'
+  'SffConfig.psd1'               = 'artifacts/sff/PowerShell/SffConfig.psd1'
+  'Sff-Common.ps1'               = 'artifacts/sff/PowerShell/Sff-Common.ps1'
+  'Stage-SffArtifacts.ps1'       = 'artifacts/sff/PowerShell/Stage-SffArtifacts.ps1'
+  'New-SffTestVm.ps1'            = 'artifacts/sff/PowerShell/New-SffTestVm.ps1'
+  'Save-OwnershipVoucher.ps1'    = 'artifacts/sff/PowerShell/Save-OwnershipVoucher.ps1'
   'Get-OwnershipVoucher-Ssh.ps1' = 'artifacts/sff/PowerShell/Get-OwnershipVoucher-Ssh.ps1'
-  'set-network.ps1'           = 'artifacts/sff/vendor/set-network.ps1'
+  'set-network.ps1'              = 'artifacts/sff/vendor/set-network.ps1'
 }
 foreach ($d in $downloads.GetEnumerator()) {
   $dest = Join-Path $rootDir $d.Key

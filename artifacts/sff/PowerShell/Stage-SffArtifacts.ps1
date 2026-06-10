@@ -46,8 +46,8 @@ if (-not $hvGateway) { $hvGateway = $cfg.Network.Gateway }
 $roeBlob = $cfg.Artifacts.RoeIsoBlob
 $roeZipBlob = if ($cfg.Artifacts.RoeZipBlob) { $cfg.Artifacts.RoeZipBlob } else { 'roe.zip' }
 $configuratorBlobs = if ($cfg.Artifacts.ConfiguratorBlobs) { $cfg.Artifacts.ConfiguratorBlobs }
-  elseif ($cfg.Artifacts.ConfiguratorBlob) { @($cfg.Artifacts.ConfiguratorBlob) }
-  else { @('configurator.msi', 'configurator.msix') }
+elseif ($cfg.Artifacts.ConfiguratorBlob) { @($cfg.Artifacts.ConfiguratorBlob) }
+else { @('configurator.msi', 'configurator.msix') }
 
 #######################################################################
 # Remove the one-time autologon keys
@@ -135,7 +135,7 @@ function Resolve-IsoFromZip {
     Write-SffLog "Extracting $ZipPath (this can take a few minutes for a multi-GB image)..."
     Expand-Archive -Path $ZipPath -DestinationPath $extractDir -Force
     $iso = Get-ChildItem $extractDir -Recurse -Filter *.iso -ErrorAction SilentlyContinue |
-      Sort-Object Length -Descending | Select-Object -First 1
+    Sort-Object Length -Descending | Select-Object -First 1
     if ($iso) { Write-SffLog "Found ISO in archive: $($iso.FullName)"; return $iso.FullName }
     Write-SffLog "No .iso found inside $ZipPath." -Level WARN
   }

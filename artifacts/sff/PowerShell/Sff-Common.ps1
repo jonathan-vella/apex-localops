@@ -56,7 +56,8 @@ function Connect-SffAzure {
     if ($ctx -and $ctx.Subscription -and $ctx.Subscription.Id) {
       if (-not $SubscriptionId -or $ctx.Subscription.Id -eq $SubscriptionId) { return $ctx }
     }
-  } catch { }
+  }
+  catch { }
 
   # Connect with retry/backoff to ride out RBAC PROPAGATION LAG. The host runs Phase 2
   # almost immediately after its managed-identity role assignments are created, so the MI
