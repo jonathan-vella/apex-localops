@@ -171,26 +171,32 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Pr
 Write-Output "Registered scheduled task '$taskName' to run Phase 2 at logon."
 
 #######################################################################
-# Install Hyper-V (if needed), then reboot so Phase 2 resumes DECOUPLED
-# from this Custom Script Extension via autologon + the scheduled task.
+# Start Phase 2 WITHOUT blocking the CSE and WITHOUT a re-run reboot loop.
 #
-# Critical: do NOT run Stage-SffArtifacts.ps1 inline here. It polls the staging
-# account for the ROE artifacts for up to many hours, which would block the CSE
-# (and therefore the ARM deployment) for that entire wait. Rebooting lets the CSE
-# return promptly while the AtLogOn task runs Phase 2 in a real logon session -
-# the same proven path the first-run (Hyper-V-not-installed) flow already uses.
+# - First run (Hyper-V not yet installed): install Hyper-V and reboot once. The
+#   reboot completes the role install; autologon + the AtLogOn scheduled task then
+#   run Phase 2 in a real logon session. (Proven path.)
+# - Re-run (Hyper-V already installed): do NOT reboot. A CSE that reboots can be
+#   re-executed by the guest agent after the reboot and reboot again (loop). Also do
+#   NOT run Stage-SffArtifacts.ps1 inline - it polls for the ROE artifacts for hours,
+#   which would block the CSE (and the ARM deployment). Instead launch Phase 2 as a
+#   DETACHED background process and let the CSE return immediately.
 #######################################################################
 $hyperv = Get-WindowsFeature -Name Hyper-V
 if (-not $hyperv.Installed) {
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalling' -Status 'Installing Hyper-V role' -Config $cfg
   Write-Output 'Installing the Hyper-V role (a reboot will follow)...'
   Install-WindowsFeature -Name Hyper-V -IncludeManagementTools | Out-Null
+  Stop-Transcript
+  Write-Output 'Rebooting to complete Hyper-V installation (autologon + task run Phase 2)...'
+  Restart-Computer -Force
 }
 else {
-  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present; rebooting to resume Phase 2' -Config $cfg
-  Write-Output 'Hyper-V already installed; rebooting so the scheduled task resumes Phase 2.'
+  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present; starting Phase 2 (detached)' -Config $cfg
+  Write-Output 'Hyper-V already installed; launching Phase 2 as a detached background process (no reboot).'
+  Start-Process -FilePath 'powershell.exe' `
+    -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"$stageScript`"" `
+    -WindowStyle Hidden
+  Write-Output 'Phase 2 launched; the Custom Script Extension is returning now.'
+  Stop-Transcript
 }
-
-Stop-Transcript
-Write-Output 'Rebooting; autologon + the SffStageArtifacts task will run Phase 2 (decoupled from the CSE)...'
-Restart-Computer -Force
