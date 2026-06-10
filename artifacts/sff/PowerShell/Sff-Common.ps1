@@ -85,6 +85,12 @@ function New-SffDirectories {
   [CmdletBinding()]
   param([Parameter(Mandatory)] [hashtable]$Config)
   foreach ($p in $Config.Paths.GetEnumerator()) {
+    # Skip paths on a drive that does not exist yet (e.g. V: before the data disk is
+    # initialized in Bootstrap-Sff.ps1). Those are created explicitly after disk init.
+    $qualifier = Split-Path -Qualifier $p.Value -ErrorAction SilentlyContinue
+    if ($qualifier -and -not (Test-Path "$qualifier\")) {
+      continue
+    }
     if (-not (Test-Path $p.Value)) {
       New-Item -ItemType Directory -Force -Path $p.Value | Out-Null
     }

@@ -93,6 +93,9 @@ param nestedVmCpuCount int = 4
 @description('OS disk size (GB) for the nested SFF test VM. The Learn doc specifies 256.')
 param nestedVmDiskGB int = 256
 
+@description('Forces the bootstrap Custom Script Extension to re-run on each deployment. Defaults to a per-deployment timestamp; the bootstrap is idempotent so re-running is safe and lets a redeploy pick up a fixed script.')
+param bootstrapForceUpdateTag string = utcNow()
+
 @description('Name of the internal Hyper-V switch created on the host.')
 param hvSwitchName string = 'HV-Internal-NAT'
 
@@ -228,6 +231,7 @@ resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' =
     type: 'CustomScriptExtension'
     typeHandlerVersion: '1.10'
     autoUpgradeMinorVersion: true
+    forceUpdateTag: bootstrapForceUpdateTag
     protectedSettings: {
       fileUris: [
         uri(templateBaseUrl, 'artifacts/sff/PowerShell/Bootstrap-Sff.ps1')
