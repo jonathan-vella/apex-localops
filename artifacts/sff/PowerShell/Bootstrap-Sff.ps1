@@ -171,20 +171,26 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Pr
 Write-Output "Registered scheduled task '$taskName' to run Phase 2 at logon."
 
 #######################################################################
-# Install Hyper-V and reboot (autologon -> Phase 2 watcher)
+# Install Hyper-V (if needed), then reboot so Phase 2 resumes DECOUPLED
+# from this Custom Script Extension via autologon + the scheduled task.
+#
+# Critical: do NOT run Stage-SffArtifacts.ps1 inline here. It polls the staging
+# account for the ROE artifacts for up to many hours, which would block the CSE
+# (and therefore the ARM deployment) for that entire wait. Rebooting lets the CSE
+# return promptly while the AtLogOn task runs Phase 2 in a real logon session -
+# the same proven path the first-run (Hyper-V-not-installed) flow already uses.
 #######################################################################
 $hyperv = Get-WindowsFeature -Name Hyper-V
 if (-not $hyperv.Installed) {
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalling' -Status 'Installing Hyper-V role' -Config $cfg
   Write-Output 'Installing the Hyper-V role (a reboot will follow)...'
   Install-WindowsFeature -Name Hyper-V -IncludeManagementTools | Out-Null
-  Stop-Transcript
-  Write-Output 'Rebooting to complete Hyper-V installation...'
-  Restart-Computer -Force
 }
 else {
-  Write-Output 'Hyper-V already installed; starting Phase 2 directly.'
-  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present' -Config $cfg
-  Stop-Transcript
-  & powershell.exe -ExecutionPolicy Bypass -NoProfile -File $stageScript
+  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present; rebooting to resume Phase 2' -Config $cfg
+  Write-Output 'Hyper-V already installed; rebooting so the scheduled task resumes Phase 2.'
 }
+
+Stop-Transcript
+Write-Output 'Rebooting; autologon + the SffStageArtifacts task will run Phase 2 (decoupled from the CSE)...'
+Restart-Computer -Force
