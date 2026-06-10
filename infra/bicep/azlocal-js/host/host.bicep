@@ -103,6 +103,13 @@ param clusterNodeCount int = 3
 @maxValue(32)
 param dataDiskCount int = 12
 
+@description('Azure Local node OS image to install: \'latest\' (auto-discover newest published AzLocalYYMM) or a full AzLocalYYMM.vhdx URL to pin. Passed to Bootstrap.ps1.')
+param azureLocalImageUrl string = 'latest'
+
+@description('Windows Server image (VHDX URL) for the nested AzLMGMT management VMs (DC, router, Windows Admin Center). Passed to Bootstrap.ps1.')
+#disable-next-line no-hardcoded-env-urls // fixed public artifact blob endpoint, not a per-cloud ARM URL
+param windowsServerImageUrl string = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
+
 // JS-LOCAL CUSTOMIZATION: data-disk geometry for the nested S2D pool.
 var dataDiskSizeGB = 256
 
@@ -153,21 +160,23 @@ resource publicIpAddress 'Microsoft.Network/publicIpAddresses@2021-03-01' = if (
 // managed disks so a performance tier (P30) can be applied. The VM resource's inline
 // storageProfile.dataDisks[].managedDisk has no `tier` property -- the override only
 // exists on Microsoft.Compute/disks. Disks are then attached to the VM below.
-resource clientDataDisks 'Microsoft.Compute/disks@2023-04-02' = [for i in range(0, dataDiskCount): {
-  name: '${vmName}-DataDisk_${i}'
-  location: location
-  sku: {
-    name: 'Premium_LRS'
-  }
-  properties: {
-    creationData: {
-      createOption: 'Empty'
+resource clientDataDisks 'Microsoft.Compute/disks@2023-04-02' = [
+  for i in range(0, dataDiskCount): {
+    name: '${vmName}-DataDisk_${i}'
+    location: location
+    sku: {
+      name: 'Premium_LRS'
     }
-    diskSizeGB: dataDiskSizeGB
-    tier: empty(dataDiskPerformanceTier) ? null : dataDiskPerformanceTier
+    properties: {
+      creationData: {
+        createOption: 'Empty'
+      }
+      diskSizeGB: dataDiskSizeGB
+      tier: empty(dataDiskPerformanceTier) ? null : dataDiskPerformanceTier
+    }
+    tags: resourceTags
   }
-  tags: resourceTags
-}]
+]
 
 resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
   name: vmName
@@ -197,15 +206,17 @@ resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
         version: 'latest'
       }
       // JS-LOCAL CUSTOMIZATION: attach the pre-created P30-tier data disks (see clientDataDisks above).
-      dataDisks: [for i in range(0, dataDiskCount): {
-        lun: i
-        createOption: 'Attach'
-        caching: 'None'
-        writeAcceleratorEnabled: false
-        managedDisk: {
-          id: clientDataDisks[i].id
+      dataDisks: [
+        for i in range(0, dataDiskCount): {
+          lun: i
+          createOption: 'Attach'
+          caching: 'None'
+          writeAcceleratorEnabled: false
+          managedDisk: {
+            id: clientDataDisks[i].id
+          }
         }
-      }]
+      ]
     }
     networkProfile: {
       networkInterfaces: [
@@ -225,9 +236,11 @@ resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
     }
     priority: enableAzureSpotPricing ? 'Spot' : 'Regular'
     evictionPolicy: enableAzureSpotPricing ? 'Deallocate' : null
-    billingProfile: enableAzureSpotPricing ? {
-      maxPrice: -1
-    } : null
+    billingProfile: enableAzureSpotPricing
+      ? {
+          maxPrice: -1
+        }
+      : null
   }
 }
 
@@ -244,7 +257,7 @@ resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2022-03-01' =
       fileUris: [
         uri(templateBaseUrl, 'artifacts/PowerShell/Bootstrap.ps1')
       ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -tenantId ${tenantId} -subscriptionId ${subscription().subscriptionId} -spnProviderId ${spnProviderId} -resourceGroup ${resourceGroup().name} -azureLocation ${azureLocalInstanceLocation} -stagingStorageAccountName ${stagingStorageAccountName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -registerCluster ${registerCluster} -deployAKSArc ${deployAKSArc} -deployResourceBridge ${deployResourceBridge} -natDNS ${natDNS} -rdpPort ${rdpPort} -autoDeployClusterResource ${autoDeployClusterResource} -autoUpgradeClusterResource ${autoUpgradeClusterResource} -vmAutologon ${vmAutologon} -clusterNodeCount ${clusterNodeCount}'
+      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -tenantId ${tenantId} -subscriptionId ${subscription().subscriptionId} -spnProviderId ${spnProviderId} -resourceGroup ${resourceGroup().name} -azureLocation ${azureLocalInstanceLocation} -stagingStorageAccountName ${stagingStorageAccountName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -registerCluster ${registerCluster} -deployAKSArc ${deployAKSArc} -deployResourceBridge ${deployResourceBridge} -natDNS ${natDNS} -rdpPort ${rdpPort} -autoDeployClusterResource ${autoDeployClusterResource} -autoUpgradeClusterResource ${autoUpgradeClusterResource} -vmAutologon ${vmAutologon} -clusterNodeCount ${clusterNodeCount} -azureLocalImageUrl ${azureLocalImageUrl} -windowsServerImageUrl ${windowsServerImageUrl}'
     }
   }
 }

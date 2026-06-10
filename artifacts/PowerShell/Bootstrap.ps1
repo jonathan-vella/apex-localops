@@ -18,7 +18,9 @@ param (
   [string]$autoUpgradeClusterResource,
   [string]$debugEnabled,
   [string]$vmAutologon,
-  [string]$clusterNodeCount = '3'
+  [string]$clusterNodeCount = '3',
+  [string]$azureLocalImageUrl = 'latest',
+  [string]$windowsServerImageUrl = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
 )
 
 Write-Output "Input parameters:"
@@ -40,13 +42,16 @@ $PSBoundParameters
 [System.Environment]::SetEnvironmentVariable('registerCluster', $registerCluster, [System.EnvironmentVariableTarget]::Machine)
 [System.Environment]::SetEnvironmentVariable('natDNS', $natDNS, [System.EnvironmentVariableTarget]::Machine)
 [System.Environment]::SetEnvironmentVariable('clusterNodeCount', $clusterNodeCount, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable('azureLocalImageUrl', $azureLocalImageUrl, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable('windowsServerImageUrl', $windowsServerImageUrl, [System.EnvironmentVariableTarget]::Machine)
 [System.Environment]::SetEnvironmentVariable('LocalBoxDir', "C:\LocalBox", [System.EnvironmentVariableTarget]::Machine)
 [System.Environment]::SetEnvironmentVariable('LocalBoxLogsDir', "C:\LocalBox\Logs", [System.EnvironmentVariableTarget]::Machine)
 [System.Environment]::SetEnvironmentVariable('LocalBoxTestsDir', "C:\LocalBox\Tests", [System.EnvironmentVariableTarget]::Machine)
 
 if ($debugEnabled -eq "true") {
   [System.Environment]::SetEnvironmentVariable('ErrorActionPreference', "Break", [System.EnvironmentVariableTarget]::Machine)
-} else {
+}
+else {
   [System.Environment]::SetEnvironmentVariable('ErrorActionPreference', "Continue", [System.EnvironmentVariableTarget]::Machine)
 }
 
@@ -69,7 +74,8 @@ if ($vmAutologon -eq "true") {
   # interactive logon screen, forcing a manual sign-in to start the build.
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultDomainName" $env:COMPUTERNAME
 
-} else {
+}
+else {
 
   Write-Host "Not configuring VM Autologon"
 
@@ -171,9 +177,10 @@ $DeploymentProgressString = "Started bootstrap-script..."
 $tags = Get-AzResourceGroup -Name $resourceGroup | Select-Object -ExpandProperty Tags
 
 if ($null -ne $tags) {
-    $tags["DeploymentProgress"] = $DeploymentProgressString
-} else {
-    $tags = @{"DeploymentProgress" = $DeploymentProgressString}
+  $tags["DeploymentProgress"] = $DeploymentProgressString
+}
+else {
+  $tags = @{"DeploymentProgress" = $DeploymentProgressString }
 }
 
 $null = Set-AzResourceGroup -ResourceGroupName $resourceGroup -Tag $tags
@@ -197,7 +204,7 @@ Copy-Item $PsHome\Profile.ps1 -Destination "C:\Program Files\PowerShell\7\"
 $modules = @("Az.ConnectedMachine", "Az.ConnectedKubernetes", "Az.StackHCI", "Az.CustomLocation", "Azure.Arc.Jumpstart.Common", "Azure.Arc.Jumpstart.LocalBox", "Pester")
 
 foreach ($module in $modules) {
-    Install-PSResource -Name $module -Scope AllUsers -Quiet -AcceptLicense -TrustRepository
+  Install-PSResource -Name $module -Scope AllUsers -Quiet -AcceptLicense -TrustRepository
 }
 
 # Disabling Windows Server Manager Scheduled Task
@@ -231,9 +238,10 @@ $DeploymentProgressString = "Restarting and installing WinGet packages..."
 $tags = Get-AzResourceGroup -Name $resourceGroup | Select-Object -ExpandProperty Tags
 
 if ($null -ne $tags) {
-    $tags["DeploymentProgress"] = $DeploymentProgressString
-} else {
-    $tags = @{"DeploymentProgress" = $DeploymentProgressString}
+  $tags["DeploymentProgress"] = $DeploymentProgressString
+}
+else {
+  $tags = @{"DeploymentProgress" = $DeploymentProgressString }
 }
 
 $null = Set-AzResourceGroup -ResourceGroupName $resourceGroup -Tag $tags
@@ -278,13 +286,13 @@ $oobeValue = 1
 
 # Create the registry key and set the value for AllowTelemetry
 if (-not (Test-Path $telemetryPath)) {
-    New-Item -Path $telemetryPath -Force | Out-Null
+  New-Item -Path $telemetryPath -Force | Out-Null
 }
 Set-ItemProperty -Path $telemetryPath -Name $telemetryProperty -Value $telemetryValue
 
 # Create the registry key and set the value for DisablePrivacyExperience
 if (-not (Test-Path $oobePath)) {
-    New-Item -Path $oobePath -Force | Out-Null
+  New-Item -Path $oobePath -Force | Out-Null
 }
 Set-ItemProperty -Path $oobePath -Name $oobeProperty -Value $oobeValue
 
@@ -328,11 +336,12 @@ $ruleName = "Block RDP UDP 3389"
 $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
 
 if ($existingRule) {
-    Write-Host "Firewall rule '$ruleName' already exists. No changes made."
-} else {
-    # Create a new firewall rule to block UDP traffic on port 3389
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol UDP -LocalPort 3389 -Action Block -Enabled True
-    Write-Host "Firewall rule '$ruleName' created successfully. RDP UDP is now blocked."
+  Write-Host "Firewall rule '$ruleName' already exists. No changes made."
+}
+else {
+  # Create a new firewall rule to block UDP traffic on port 3389
+  New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol UDP -LocalPort 3389 -Action Block -Enabled True
+  Write-Host "Firewall rule '$ruleName' created successfully. RDP UDP is now blocked."
 }
 
 # Define the registry path
@@ -346,7 +355,7 @@ $registryValue = 1
 
 # Check if the registry path exists, if not, create it
 if (-not (Test-Path $registryPath)) {
-    New-Item -Path $registryPath -Force | Out-Null
+  New-Item -Path $registryPath -Force | Out-Null
 }
 
 # Set the registry key

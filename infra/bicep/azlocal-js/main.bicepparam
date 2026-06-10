@@ -53,6 +53,21 @@ param vmAutologon = true
 param autoDeployClusterResource = true
 param autoUpgradeClusterResource = false
 
+// --- Azure Local node OS image ---------------------------------------------------------
+// 'latest' (default) auto-installs the newest published AzLocalYYMM image at deploy time,
+// so each build gets the latest-and-greatest release. To PIN a release for reproducible
+// builds, set the full VHDX URL, e.g.:
+//   param azureLocalImageUrl = 'https://azlocalvhds.blob.core.windows.net/images/AzLocal2604.vhdx'
+param azureLocalImageUrl = 'latest'
+
+// --- Windows Server image for the nested AzLMGMT management VMs (DC, router, WAC) -------
+// Default = Windows Server 2022 (WinServerApril2024). To run the management VMs on a
+// different Server build, set a full VHDX URL - e.g. Windows Server 2025:
+//   param windowsServerImageUrl = 'https://azlocalvhds.blob.core.windows.net/images/ArcBox-Win2K25.vhdx'
+// NOTE: only the default (Server 2022) image is validated with the management-VM build
+// automation (AD DS / RRAS / Windows Admin Center). Other images may work but are untested.
+param windowsServerImageUrl = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
+
 // --- Windows 11 management/jumpbox VM (reached via Bastion) ---
 param deployManagementVm = true
 param managementVmSize = 'Standard_D4s_v5'

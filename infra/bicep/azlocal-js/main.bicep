@@ -43,6 +43,13 @@ param autoDeployClusterResource bool = true
 @description('Choice to enable automatic upgrade of Azure Local cluster resource after the client VM deployment is complete. Only applicable when autoDeployClusterResource is true. Default is false.')
 param autoUpgradeClusterResource bool = false
 
+@description('Azure Local node OS image to install on the cluster nodes. \'latest\' (default) auto-discovers and installs the newest published AzLocalYYMM image at deploy time, so every build gets the latest release. To pin a specific release for reproducible builds, set a full VHDX URL, e.g. \'https://azlocalvhds.blob.core.windows.net/images/AzLocal2604.vhdx\'.')
+param azureLocalImageUrl string = 'latest'
+
+@description('Windows Server image (VHDX URL) for the nested AzLMGMT management VMs (Domain Controller, RRAS/BGP router, Windows Admin Center). Default is Windows Server 2022 (WinServerApril2024). Point at a different Server VHDX to change the management OS, e.g. \'https://azlocalvhds.blob.core.windows.net/images/ArcBox-Win2K25.vhdx\' for Windows Server 2025. Only the default image is validated with the management-VM build automation.')
+#disable-next-line no-hardcoded-env-urls // fixed public artifact blob endpoint, not a per-cloud ARM URL
+param windowsServerImageUrl string = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
+
 @description('Enable automatic logon into LocalBox Virtual Machine')
 param vmAutologon bool = true
 
@@ -76,7 +83,6 @@ param enableAzureSpotPricing bool = false
 param governResourceTags bool = true
 
 @description('Tags to be added to all resources')
-
 param tags object = {
   Project: 'jumpstart_LocalBox'
 }
@@ -102,10 +108,12 @@ param deployManagementVm bool = true
 param managementVmSize string = 'Standard_D4s_v5'
 
 // if governResourceTags is true, add the following tags
-var resourceTags = governResourceTags ? union(tags, {
-    CostControl: 'Ignore'
-    SecurityControl: 'Ignore'
-}) : tags
+var resourceTags = governResourceTags
+  ? union(tags, {
+      CostControl: 'Ignore'
+      SecurityControl: 'Ignore'
+    })
+  : tags
 
 // apex-localops: artifacts are vendored at the repository root (artifacts/...), served
 // over raw.githubusercontent.com from this repo itself - no microsoft/azure_arc runtime
@@ -171,6 +179,8 @@ module hostDeployment 'host/host.bicep' = {
     azureLocalInstanceLocation: azureLocalInstanceLocation
     clusterNodeCount: clusterNodeCount
     dataDiskCount: dataDiskCount
+    azureLocalImageUrl: azureLocalImageUrl
+    windowsServerImageUrl: windowsServerImageUrl
   }
 }
 
@@ -189,6 +199,5 @@ module managementVmDeployment 'mgmt/managementVm.bicep' = if (deployManagementVm
 
 module customerUsageAttribution 'mgmt/customerUsageAttribution.bicep' = {
   name: 'pid-${customerUsageAttributionDeploymentName}'
-  params: {
-  }
+  params: {}
 }
