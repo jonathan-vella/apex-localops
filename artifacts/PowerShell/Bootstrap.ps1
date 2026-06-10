@@ -59,6 +59,15 @@ if ($vmAutologon -eq "true") {
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "AutoAdminLogon" "1"
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultUserName" $adminUsername
   Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultPassword" $adminPassword
+  # apex-localops: LocalBox-Client is a standalone WORKGROUP machine - it is never
+  # domain-joined (the nested jumpstart.local AD lives only inside AzLMGMT, not on this
+  # host). For a LOCAL-account auto-logon, DefaultDomainName must be the local computer
+  # name - this is exactly what Sysinternals Autologon writes for a local account, and it
+  # tells Winlogon to authenticate against the local SAM. Do NOT change this to a domain
+  # name / FQDN (e.g. jumpstart.local): the host is not in any domain, so that would break
+  # the headless logon. Omitting it can let AutoAdminLogon silently fall back to the
+  # interactive logon screen, forcing a manual sign-in to start the build.
+  Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultDomainName" $env:COMPUTERNAME
 
 } else {
 

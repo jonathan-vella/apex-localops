@@ -106,10 +106,10 @@ Pick a profile with three aligned parameters in [infra/bicep/azlocal-js/main.bic
 (or override per deploy with `-p`). The deploy preflight enforces that the node count and
 host SKU are coherent.
 
-| Profile | `clusterNodeCount` | `vmSize` | `dataDiskCount` | Witness | Notes |
-| ------- | ------------------ | -------- | --------------- | ------- | ----- |
-| **3-node (default)** | `3` | `Standard_E64s_v6` (64 vCPU / 512 GB) | `12` (3 TB) | **None** (odd quorum) | Works under a `Deny allowSharedKeyAccess` storage policy. |
-| **2-node** | `2` | `Standard_E32s_v6` (32 vCPU / 256 GB) | `8` (2 TB) | **Cloud witness** | Cheaper (~half the compute), but the cloud witness needs **shared-key** storage — only use where no `Deny allowSharedKeyAccess` policy applies. |
+| Profile              | `clusterNodeCount` | `vmSize`                              | `dataDiskCount` | Witness               | Notes                                                                                                                                           |
+| -------------------- | ------------------ | ------------------------------------- | --------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **3-node (default)** | `3`                | `Standard_E64s_v6` (64 vCPU / 512 GB) | `12` (3 TB)     | **None** (odd quorum) | Works under a `Deny allowSharedKeyAccess` storage policy.                                                                                       |
+| **2-node**           | `2`                | `Standard_E32s_v6` (32 vCPU / 256 GB) | `8` (2 TB)      | **Cloud witness**     | Cheaper (~half the compute), but the cloud witness needs **shared-key** storage — only use where no `Deny allowSharedKeyAccess` policy applies. |
 
 ```bash
 # Deploy the 2-node profile without editing files:
@@ -183,6 +183,12 @@ The ARM deployment finishes in **~18 minutes**, but that only provisions the VM.
 client VM then runs `Bootstrap.ps1` (a custom script extension) which builds the entire
 nested Azure Local cluster **inside the VM for 2–4 hours** — a phase that has **no
 Azure-visible deployment state**.
+
+That in-VM build **starts itself** — no manual login. With `vmAutologon = true` (the
+default), the VM auto-logs-in as the admin user after the Hyper-V reboot and the
+cluster-build script runs automatically; the autologon registry keys are removed once the
+build finishes. Deploy with `-p vmAutologon=false` to opt out (then you must sign in once
+to start the build).
 
 `scripts/monitor.sh` makes that phase observable without Bastion/RDP. It reads:
 

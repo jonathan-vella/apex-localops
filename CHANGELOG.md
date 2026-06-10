@@ -5,12 +5,30 @@ All notable changes to this project are documented here. The format is based on
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
 in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
+## [v1.2.1] - 2026-06-09
+
+### Fixed
+
+- **Headless auto-login reliability.** The in-VM build already starts itself via
+  `vmAutologon = true` (default) — the VM auto-logs-in after the Hyper-V reboot and the
+  cluster-build script runs with no manual sign-in. `Bootstrap.ps1` now also sets
+  `DefaultDomainName` (to the local computer name) alongside the existing autologon keys;
+  without it, `AutoAdminLogon` can silently fall back to the interactive logon screen and
+  force a manual login. `LocalBoxLogonScript.ps1` removes `DefaultDomainName` too in its
+  end-of-build cleanup.
+
+### Changed
+
+- Docs (README + deployment quickstart) now state explicitly that the 4–5 h build starts
+  automatically (no login required) and document the `vmAutologon=false` opt-out plus the
+  plaintext-password-in-registry security note.
+
 ## [v1.2.0] - 2026-06-09
 
 ### Added
 
 - **Selectable cluster topology via `clusterNodeCount`** (2 or 3) - one parameter now drives
-  the node count *and* the witness type at deploy time, so both topologies ship from a
+  the node count _and_ the witness type at deploy time, so both topologies ship from a
   single branch:
   - `clusterNodeCount = 3` (default): three nodes, **no witness**, pair with
     `Standard_E64s_v6` + `dataDiskCount = 12`.
@@ -92,6 +110,7 @@ Initial release - a self-contained packaging of the Arc Jumpstart **LocalBox** s
 - Docs, CC BY 4.0 `LICENSE` + `ATTRIBUTION.md`, and a `validate` CI workflow (Bicep
   build/lint + ShellCheck).
 
+[v1.2.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.1
 [v1.2.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.1.0
