@@ -26,9 +26,9 @@ $rootDir = 'C:\LocalSFF'
 $cfg = Get-SffConfig -ConfigPath (Join-Path $rootDir 'SffConfig.psd1')
 
 if (-not (Test-Path $Path)) { throw "Voucher file not found: $Path" }
-if (-not $KeyVaultName)  { $KeyVaultName  = [Environment]::GetEnvironmentVariable('SFF_KeyVaultName', 'Machine') }
+if (-not $KeyVaultName) { $KeyVaultName = [Environment]::GetEnvironmentVariable('SFF_KeyVaultName', 'Machine') }
 if (-not $ResourceGroup) { $ResourceGroup = [Environment]::GetEnvironmentVariable('SFF_ResourceGroup', 'Machine') }
-if (-not $KeyVaultName)  { throw 'KeyVaultName not provided and SFF_KeyVaultName env var is empty.' }
+if (-not $KeyVaultName) { throw 'KeyVaultName not provided and SFF_KeyVaultName env var is empty.' }
 
 Connect-SffAzure | Out-Null
 Import-Module Az.KeyVault -ErrorAction Stop

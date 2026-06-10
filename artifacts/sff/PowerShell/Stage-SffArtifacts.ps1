@@ -32,18 +32,18 @@ Start-Transcript -Path (Join-Path $logsDir 'Stage-SffArtifacts.log') -Append
 
 # --- Resolve context from the machine environment variables set in Phase 1 ---
 $resourceGroup = [Environment]::GetEnvironmentVariable('SFF_ResourceGroup', 'Machine')
-$stagingSa     = [Environment]::GetEnvironmentVariable('SFF_StagingStorageAccount', 'Machine')
-$container     = [Environment]::GetEnvironmentVariable('SFF_StagingContainer', 'Machine')
-$natDNS        = [Environment]::GetEnvironmentVariable('SFF_NatDNS', 'Machine')
-$hvSwitchName  = [Environment]::GetEnvironmentVariable('SFF_HvSwitchName', 'Machine')
-$hvSubnetPrefix= [Environment]::GetEnvironmentVariable('SFF_HvSubnetPrefix', 'Machine')
-$hvGateway     = [Environment]::GetEnvironmentVariable('SFF_HvGateway', 'Machine')
+$stagingSa = [Environment]::GetEnvironmentVariable('SFF_StagingStorageAccount', 'Machine')
+$container = [Environment]::GetEnvironmentVariable('SFF_StagingContainer', 'Machine')
+$natDNS = [Environment]::GetEnvironmentVariable('SFF_NatDNS', 'Machine')
+$hvSwitchName = [Environment]::GetEnvironmentVariable('SFF_HvSwitchName', 'Machine')
+$hvSubnetPrefix = [Environment]::GetEnvironmentVariable('SFF_HvSubnetPrefix', 'Machine')
+$hvGateway = [Environment]::GetEnvironmentVariable('SFF_HvGateway', 'Machine')
 
-if (-not $hvSwitchName)   { $hvSwitchName = $cfg.Network.SwitchName }
+if (-not $hvSwitchName) { $hvSwitchName = $cfg.Network.SwitchName }
 if (-not $hvSubnetPrefix) { $hvSubnetPrefix = $cfg.Network.SubnetPrefix }
-if (-not $hvGateway)      { $hvGateway = $cfg.Network.Gateway }
+if (-not $hvGateway) { $hvGateway = $cfg.Network.Gateway }
 
-$roeBlob          = $cfg.Artifacts.RoeIsoBlob
+$roeBlob = $cfg.Artifacts.RoeIsoBlob
 $configuratorBlob = $cfg.Artifacts.ConfiguratorBlob
 
 #######################################################################
@@ -63,14 +63,15 @@ Set-SffProgress -ResourceGroup $resourceGroup -Progress 'NetworkConfiguring' -St
 try {
   $dns = ($cfg.Network.DnsServers + $natDNS) | Where-Object { $_ } | Select-Object -Unique
   & (Join-Path $rootDir 'set-network.ps1') `
-      -SwitchName $hvSwitchName `
-      -Mode 'WinNAT' `
-      -SubnetPrefix $hvSubnetPrefix `
-      -Gateway $hvGateway `
-      -NatName $hvSwitchName `
-      -DnsServers $dns
+    -SwitchName $hvSwitchName `
+    -Mode 'WinNAT' `
+    -SubnetPrefix $hvSubnetPrefix `
+    -Gateway $hvGateway `
+    -NatName $hvSwitchName `
+    -DnsServers $dns
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'NetworkConfigured' -Status "$hvSwitchName ready" -Config $cfg
-} catch {
+}
+catch {
   Write-SffLog "Network configuration failed: $($_.Exception.Message)" -Level ERROR
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'Failed' -Status "Network configuration failed: $($_.Exception.Message)" -Config $cfg
   Stop-Transcript
@@ -82,9 +83,9 @@ try {
 #######################################################################
 Import-Module Az.Storage -ErrorAction Stop
 $incomingDir = $cfg.Paths.IncomingDir
-$isoDir      = $cfg.Paths.IsoDir
-$toolsDir    = $cfg.Paths.ToolsDir
-$isoLocal          = Join-Path $isoDir $roeBlob
+$isoDir = $cfg.Paths.IsoDir
+$toolsDir = $cfg.Paths.ToolsDir
+$isoLocal = Join-Path $isoDir $roeBlob
 $configuratorLocal = Join-Path $toolsDir $configuratorBlob
 
 function Get-StagedArtifact {
@@ -104,7 +105,8 @@ function Get-StagedArtifact {
       Get-AzStorageBlobContent -Container $container -Blob $BlobName -Destination $Destination -Context $ctx -Force | Out-Null
       return $true
     }
-  } catch {
+  }
+  catch {
     Write-SffLog "Artifact check for $BlobName failed: $($_.Exception.Message)" -Level WARN
   }
   return $false
@@ -115,7 +117,7 @@ $deadline = (Get-Date).AddHours($MaxWaitHours)
 $haveIso = $false
 $haveConfigurator = $false
 while ((Get-Date) -lt $deadline) {
-  if (-not $haveIso)          { $haveIso = Get-StagedArtifact -BlobName $roeBlob -Destination $isoLocal }
+  if (-not $haveIso) { $haveIso = Get-StagedArtifact -BlobName $roeBlob -Destination $isoLocal }
   if (-not $haveConfigurator) { $haveConfigurator = Get-StagedArtifact -BlobName $configuratorBlob -Destination $configuratorLocal }
   if ($haveIso -and $haveConfigurator) { break }
   Start-Sleep -Seconds $PollIntervalSeconds
@@ -136,10 +138,12 @@ if ($haveConfigurator -and (Test-Path $configuratorLocal)) {
   try {
     Write-SffLog "Installing Configurator App from $configuratorLocal"
     Start-Process msiexec.exe -Wait -ArgumentList "/i `"$configuratorLocal`" /quiet /norestart"
-  } catch {
+  }
+  catch {
     Write-SffLog "Configurator App silent install failed (run it manually from $configuratorLocal): $($_.Exception.Message)" -Level WARN
   }
-} else {
+}
+else {
   Write-SffLog "Configurator App not staged; the voucher step will require it on the host." -Level WARN
 }
 

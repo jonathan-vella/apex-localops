@@ -1,0 +1,83 @@
+name: sync-azure-local-sff-docs
+
+# Mirrors ONLY the azure-local/small-form-factor docs folder from
+# MicrosoftDocs/azure-stack-docs into docs/azure-local-sff/upstream and pushes the
+# result directly to main. Uses a partial (blobless) sparse checkout so we never
+# pull the thousands of unrelated files in that large repo.
+#
+# Note: pushing straight to main requires that branch protection on main does NOT
+# mandate a pull request for this actor. If it does, switch to a pull-request flow.
+
+on:
+  schedule:
+    # Every Monday at 06:30 UTC (offset from the skills sync). Adjust to taste.
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-azure-local-sff-docs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync SFF docs and push to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Mirror upstream SFF docs into docs/azure-local-sff/upstream
+        id: mirror
+        env:
+          UPSTREAM_REPO: https://github.com/MicrosoftDocs/azure-stack-docs
+          UPSTREAM_SUBDIR: azure-local/small-form-factor
+          DEST_DIR: docs/azure-local-sff/upstream
+        run: |
+          set -euo pipefail
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          # Blobless + sparse clone: fetch only the small-form-factor subtree.
+          git clone --depth 1 --filter=blob:none --sparse "$UPSTREAM_REPO" "$tmp/upstream"
+          git -C "$tmp/upstream" sparse-checkout set "$UPSTREAM_SUBDIR"
+
+          src="$tmp/upstream/$UPSTREAM_SUBDIR"
+          if [[ ! -d "$src" ]]; then
+            echo "::error::Upstream path '$UPSTREAM_SUBDIR' not found in $UPSTREAM_REPO. Did the repo layout change?"
+            exit 1
+          fi
+
+          upstream_sha="$(git -C "$tmp/upstream" rev-parse --short HEAD)"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+
+          mkdir -p "$DEST_DIR"
+          rsync -a --delete --exclude='.git' "$src/" "$DEST_DIR/"
+
+      - name: Commit and push if changed
+        env:
+          UPSTREAM_SHA: ${{ steps.mirror.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A -- docs/azure-local-sff/upstream
+
+          if git diff --cached --quiet; then
+            echo "No SFF doc changes to sync. Up to date with MicrosoftDocs/azure-stack-docs@${UPSTREAM_SHA}."
+            exit 0
+          fi
+
+          echo "Changes detected:"
+          git diff --cached --name-status -- docs/azure-local-sff/upstream
+
+          git commit -m "chore(docs): sync Azure Local SFF docs from MicrosoftDocs/azure-stack-docs@${UPSTREAM_SHA}"
+          git push origin HEAD:main

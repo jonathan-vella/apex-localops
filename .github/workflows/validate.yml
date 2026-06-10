@@ -36,6 +36,19 @@ jobs:
             exit 1
           fi
 
+      - name: Bicep build (SFF profile)
+        run: az bicep build --file infra/bicep/azlocal-sff/main.bicep --stdout > /dev/null
+
+      - name: Bicep lint (SFF profile)
+        run: |
+          # Fail the job if the linter emits any Error-level diagnostics.
+          az bicep lint --file infra/bicep/azlocal-sff/main.bicep 2> lint-sff.txt || true
+          cat lint-sff.txt
+          if grep -qiE "Error( |:|s)" lint-sff.txt; then
+            echo "::error::Bicep lint reported errors (SFF profile)"
+            exit 1
+          fi
+
   shell:
     name: Shell script checks
     runs-on: ubuntu-latest

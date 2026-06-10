@@ -120,9 +120,11 @@ resource networkInterface 'Microsoft.Network/networkInterfaces@2024-07-01' = {
             id: subnetId
           }
           privateIPAllocationMethod: 'Dynamic'
-          publicIPAddress: deployBastion == false ? {
-            id: publicIpAddress.id
-          } : null
+          publicIPAddress: deployBastion == false
+            ? {
+                id: publicIpAddress.id
+              }
+            : null
         }
       }
     ]

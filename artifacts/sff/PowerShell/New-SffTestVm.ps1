@@ -35,19 +35,19 @@ Start-Transcript -Path (Join-Path $cfg.Paths.LogsDir 'New-SffTestVm.log') -Appen
 
 # --- Resolve parameters (explicit args win, else env vars, else config defaults) ---
 $resourceGroup = [Environment]::GetEnvironmentVariable('SFF_ResourceGroup', 'Machine')
-if (-not $NestedVmName)     { $NestedVmName = [Environment]::GetEnvironmentVariable('SFF_NestedVmName', 'Machine'); if (-not $NestedVmName) { $NestedVmName = $cfg.NestedVm.Name } }
-if (-not $MemoryStartupMB)  { $MemoryStartupMB = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmMemoryMB', 'Machine')); if (-not $MemoryStartupMB) { $MemoryStartupMB = $cfg.NestedVm.MemoryMB } }
-if (-not $CpuCount)         { $CpuCount = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmCpuCount', 'Machine')); if (-not $CpuCount) { $CpuCount = $cfg.NestedVm.CpuCount } }
-if (-not $DiskGB)           { $DiskGB = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmDiskGB', 'Machine')); if (-not $DiskGB) { $DiskGB = $cfg.NestedVm.DiskGB } }
-if (-not $SwitchName)       { $SwitchName = [Environment]::GetEnvironmentVariable('SFF_HvSwitchName', 'Machine'); if (-not $SwitchName) { $SwitchName = $cfg.Network.SwitchName } }
-if (-not $RoeTimeoutMinutes){ $RoeTimeoutMinutes = $cfg.NestedVm.RoeTimeoutMinutes }
+if (-not $NestedVmName) { $NestedVmName = [Environment]::GetEnvironmentVariable('SFF_NestedVmName', 'Machine'); if (-not $NestedVmName) { $NestedVmName = $cfg.NestedVm.Name } }
+if (-not $MemoryStartupMB) { $MemoryStartupMB = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmMemoryMB', 'Machine')); if (-not $MemoryStartupMB) { $MemoryStartupMB = $cfg.NestedVm.MemoryMB } }
+if (-not $CpuCount) { $CpuCount = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmCpuCount', 'Machine')); if (-not $CpuCount) { $CpuCount = $cfg.NestedVm.CpuCount } }
+if (-not $DiskGB) { $DiskGB = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmDiskGB', 'Machine')); if (-not $DiskGB) { $DiskGB = $cfg.NestedVm.DiskGB } }
+if (-not $SwitchName) { $SwitchName = [Environment]::GetEnvironmentVariable('SFF_HvSwitchName', 'Machine'); if (-not $SwitchName) { $SwitchName = $cfg.Network.SwitchName } }
+if (-not $RoeTimeoutMinutes) { $RoeTimeoutMinutes = $cfg.NestedVm.RoeTimeoutMinutes }
 if ($CpuCount -lt 4) { $CpuCount = 4 }   # enforce the gate minimum
 
-$vhdPath   = Join-Path $cfg.Paths.VhdDir "$NestedVmName.vhdx"
+$vhdPath = Join-Path $cfg.Paths.VhdDir "$NestedVmName.vhdx"
 $serialLog = Join-Path $cfg.Paths.LogsDir "$NestedVmName-serial.log"
-$pipeName  = "$NestedVmName-com1"
-$imds      = $cfg.NestedVm.ImdsAddress
-$roePattern= $cfg.NestedVm.RoeSuccessPattern
+$pipeName = "$NestedVmName-com1"
+$imds = $cfg.NestedVm.ImdsAddress
+$roePattern = $cfg.NestedVm.RoeSuccessPattern
 
 if (-not (Test-Path $IsoPath)) { throw "ROE ISO not found at: $IsoPath" }
 
@@ -66,8 +66,8 @@ if (Test-Path $vhdPath) { Remove-Item -Path $vhdPath -Force -ErrorAction Silentl
 New-Item -ItemType Directory -Force -Path (Split-Path $vhdPath) | Out-Null
 New-VHD -Path $vhdPath -SizeBytes ($DiskGB * 1GB) -Dynamic | Out-Null
 New-VM -Name $NestedVmName -Generation 2 `
-       -MemoryStartupBytes ($MemoryStartupMB * 1MB) `
-       -VHDPath $vhdPath -SwitchName $SwitchName | Out-Null
+  -MemoryStartupBytes ($MemoryStartupMB * 1MB) `
+  -VHDPath $vhdPath -SwitchName $SwitchName | Out-Null
 
 # --- Static memory + >= 4 vCPU ---
 Set-VMMemory -VMName $NestedVmName -DynamicMemoryEnabled $false
@@ -98,7 +98,7 @@ Write-SffLog "Applied IMDS deny ACL ($imds) on the nested adapter."
 
 # --- Verify the four-point success gate before boot ---
 $gen = (Get-VM -Name $NestedVmName).Generation
-$sb  = (Get-VMFirmware -VMName $NestedVmName).SecureBoot
+$sb = (Get-VMFirmware -VMName $NestedVmName).SecureBoot
 $tpm = (Get-VMSecurity  -VMName $NestedVmName).TpmEnabled
 $cpu = (Get-VMProcessor -VMName $NestedVmName).Count
 Write-SffLog "Gate check => Generation=$gen  SecureBoot=$sb  TpmEnabled=$tpm  vCPU=$cpu"
@@ -121,7 +121,8 @@ $readerJob = Start-Job -ScriptBlock {
       $line = $reader.ReadLine()
       if ($null -ne $line) { Add-Content -Path $log -Value $line }
     }
-  } catch {
+  }
+  catch {
     Add-Content -Path $log -Value "[serial-reader] $($_.Exception.Message)"
   }
 } -ArgumentList $pipeName, $serialLog
@@ -152,7 +153,8 @@ if ($roeOk) {
   $vmIp = ''
   try {
     $vmIp = (Get-VMNetworkAdapter -VMName $NestedVmName).IPAddresses | Where-Object { $_ -match '^\d+\.' } | Select-Object -First 1
-  } catch { }
+  }
+  catch { }
   $next = @"
 Nested SFF test VM '$NestedVmName' booted the Maintenance OS successfully.
 Next (guided) step - download the ownership voucher:
@@ -164,7 +166,8 @@ See docs/sff-runbook.md for portal machine provisioning.
 "@
   Set-Content -Path (Join-Path $cfg.Paths.LogsDir 'NEXT-STEPS.txt') -Value $next
   Write-SffLog $next
-} else {
+}
+else {
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'RoeTimeout' -Status "No '$roePattern' within $RoeTimeoutMinutes min; verify via Hyper-V console / Configurator App" -Config $cfg
   Write-SffLog "ROE success string not observed within $RoeTimeoutMinutes min. The VM may still be healthy - verify via the Hyper-V console; serial log: $serialLog" -Level WARN
 }

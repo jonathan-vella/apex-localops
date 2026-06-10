@@ -53,48 +53,54 @@ resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = {
         addressPrefix
       ]
     }
-    subnets: deployBastion == true ? [
-      {
-        name: subnetName
-        properties: {
-          addressPrefix: subnetAddressPrefix
-          privateEndpointNetworkPolicies: 'Enabled'
-          privateLinkServiceNetworkPolicies: 'Enabled'
-          networkSecurityGroup: {
-            id: networkSecurityGroup.id
+    subnets: deployBastion == true
+      ? [
+          {
+            name: subnetName
+            properties: {
+              addressPrefix: subnetAddressPrefix
+              privateEndpointNetworkPolicies: 'Enabled'
+              privateLinkServiceNetworkPolicies: 'Enabled'
+              networkSecurityGroup: {
+                id: networkSecurityGroup.id
+              }
+              natGateway: deployBastion
+                ? {
+                    id: natGateway.id
+                  }
+                : null
+              defaultOutboundAccess: false
+            }
           }
-          natGateway: deployBastion ? {
-            id: natGateway.id
-          } : null
-          defaultOutboundAccess: false
-        }
-      }
-      {
-        name: 'AzureBastionSubnet'
-        properties: {
-          addressPrefix: bastionSubnetIpPrefix
-          networkSecurityGroup: {
-            id: bastionNetworkSecurityGroup.id
+          {
+            name: 'AzureBastionSubnet'
+            properties: {
+              addressPrefix: bastionSubnetIpPrefix
+              networkSecurityGroup: {
+                id: bastionNetworkSecurityGroup.id
+              }
+            }
           }
-        }
-      }
-    ] : [
-      {
-        name: subnetName
-        properties: {
-          addressPrefix: subnetAddressPrefix
-          privateEndpointNetworkPolicies: 'Enabled'
-          privateLinkServiceNetworkPolicies: 'Enabled'
-          networkSecurityGroup: {
-            id: networkSecurityGroup.id
+        ]
+      : [
+          {
+            name: subnetName
+            properties: {
+              addressPrefix: subnetAddressPrefix
+              privateEndpointNetworkPolicies: 'Enabled'
+              privateLinkServiceNetworkPolicies: 'Enabled'
+              networkSecurityGroup: {
+                id: networkSecurityGroup.id
+              }
+              natGateway: deployBastion
+                ? {
+                    id: natGateway.id
+                  }
+                : null
+              defaultOutboundAccess: false
+            }
           }
-          natGateway: deployBastion ? {
-            id: natGateway.id
-          } : null
-          defaultOutboundAccess: false
-        }
-      }
-    ]
+        ]
   }
   tags: resourceTags
 }

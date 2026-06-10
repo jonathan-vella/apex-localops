@@ -50,3 +50,22 @@ part of this repository; they remain subject to their own license terms:
 - Azure Local / Windows Server **OS VHDX** images.
 - **PowerShell 7** and **Windows Admin Center** installers.
 - The Arc Jumpstart desktop **wallpaper** image.
+- The Azure Local SFF **Maintenance OS (ROE) ISO** and **Configurator App**, which are
+  portal/subscription-gated Microsoft artifacts staged at deploy time (never vendored here).
+
+## Small Form Factor (SFF) profile — additional vendored work
+
+The SFF profile ([infra/bicep/azlocal-sff](infra/bicep/azlocal-sff), `artifacts/sff/`,
+`scripts/*-sff.sh`) is original work in this repository, plus the following vendored
+Microsoft materials:
+
+- **SFF helper scripts** — `artifacts/sff/vendor/set-network.ps1` and
+  `artifacts/sff/vendor/setup-k3s-arc.sh` are vendored verbatim from
+  [`Azure-Samples/AzureLocal`](https://github.com/Azure-Samples/AzureLocal)
+  (`small-form-factor/`), pinned to commit
+  `963ac3f530ad64cccfd7ab6f13bddda639abee68`. Licensed **MIT** © Microsoft.
+- **SFF documentation** — `docs/azure-local-sff/upstream/` is a read-only mirror of the
+  `azure-local/small-form-factor` docs from
+  [`MicrosoftDocs/azure-stack-docs`](https://github.com/MicrosoftDocs/azure-stack-docs),
+  pinned to commit `cb1df90`, refreshed by `.github/workflows/sync-azure-local-sff-docs.yml`.
+  Licensed **Creative Commons Attribution 4.0 International (CC BY 4.0)** © Microsoft.

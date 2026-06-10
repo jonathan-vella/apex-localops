@@ -106,10 +106,12 @@ param tags object = {
   Project: 'apex_localsff'
 }
 
-var resourceTags = governResourceTags ? union(tags, {
-  CostControl: 'Ignore'
-  SecurityControl: 'Ignore'
-}) : tags
+var resourceTags = governResourceTags
+  ? union(tags, {
+      CostControl: 'Ignore'
+      SecurityControl: 'Ignore'
+    })
+  : tags
 
 var templateBaseUrl = 'https://raw.githubusercontent.com/${githubAccount}/${githubRepo}/${githubBranch}/'
 var customerUsageAttributionDeploymentName = 'pid-feada075-1961-4b99-829f-fa3828068933-sff'
@@ -124,11 +126,26 @@ var hostVmResourceId = resourceId('Microsoft.Compute/virtualMachines', hostVmNam
 var managementVmResourceId = resourceId('Microsoft.Compute/virtualMachines', managementVmNameVar)
 
 // Built-in role definition IDs.
-var roleStorageBlobDataReader = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')
-var roleStorageBlobDataContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
-var roleKeyVaultSecretsOfficer = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
-var roleTagContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4a9ae827-6dc8-4573-8ac7-8239d42aa03f')
-var roleReader = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
+var roleStorageBlobDataReader = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
+)
+var roleStorageBlobDataContributor = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+)
+var roleKeyVaultSecretsOfficer = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+)
+var roleTagContributor = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
+)
+var roleReader = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
 
 module mgmtArtifactsDeployment 'mgmt/mgmtArtifacts.bicep' = {
   name: 'mgmtArtifactsDeployment'

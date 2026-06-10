@@ -54,24 +54,24 @@ Start-Transcript -Path (Join-Path $logsDir 'Bootstrap-Sff.log') -Append
 
 # --- Persist parameters as machine environment variables (read by Phase 2) ---
 $envVars = @{
-  SFF_AdminUsername          = $adminUsername
-  SFF_SubscriptionId         = $subscriptionId
-  SFF_TenantId               = $tenantId
-  SFF_ResourceGroup          = $resourceGroup
-  SFF_AzureLocation          = $azureLocation
-  SFF_StagingStorageAccount  = $stagingStorageAccountName
-  SFF_StagingContainer       = $stagingContainer
-  SFF_KeyVaultName           = $keyVaultName
-  SFF_WorkspaceName          = $workspaceName
-  SFF_TemplateBaseUrl        = $templateBaseUrl
-  SFF_NatDNS                 = $natDNS
-  SFF_HvSwitchName           = $hvSwitchName
-  SFF_HvSubnetPrefix         = $hvSubnetPrefix
-  SFF_HvGateway              = $hvGateway
-  SFF_NestedVmName           = $nestedVmName
-  SFF_NestedVmMemoryMB       = $nestedVmMemoryMB
-  SFF_NestedVmCpuCount       = $nestedVmCpuCount
-  SFF_NestedVmDiskGB         = $nestedVmDiskGB
+  SFF_AdminUsername         = $adminUsername
+  SFF_SubscriptionId        = $subscriptionId
+  SFF_TenantId              = $tenantId
+  SFF_ResourceGroup         = $resourceGroup
+  SFF_AzureLocation         = $azureLocation
+  SFF_StagingStorageAccount = $stagingStorageAccountName
+  SFF_StagingContainer      = $stagingContainer
+  SFF_KeyVaultName          = $keyVaultName
+  SFF_WorkspaceName         = $workspaceName
+  SFF_TemplateBaseUrl       = $templateBaseUrl
+  SFF_NatDNS                = $natDNS
+  SFF_HvSwitchName          = $hvSwitchName
+  SFF_HvSubnetPrefix        = $hvSubnetPrefix
+  SFF_HvGateway             = $hvGateway
+  SFF_NestedVmName          = $nestedVmName
+  SFF_NestedVmMemoryMB      = $nestedVmMemoryMB
+  SFF_NestedVmCpuCount      = $nestedVmCpuCount
+  SFF_NestedVmDiskGB        = $nestedVmDiskGB
 }
 foreach ($kv in $envVars.GetEnumerator()) {
   [System.Environment]::SetEnvironmentVariable($kv.Key, $kv.Value, [System.EnvironmentVariableTarget]::Machine)
@@ -84,12 +84,12 @@ $decodedPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::From
 # Download SFF scripts + vendored network script from this repo
 #######################################################################
 $downloads = @{
-  'SffConfig.psd1'           = 'artifacts/sff/PowerShell/SffConfig.psd1'
-  'Sff-Common.ps1'           = 'artifacts/sff/PowerShell/Sff-Common.ps1'
-  'Stage-SffArtifacts.ps1'   = 'artifacts/sff/PowerShell/Stage-SffArtifacts.ps1'
-  'New-SffTestVm.ps1'        = 'artifacts/sff/PowerShell/New-SffTestVm.ps1'
-  'Save-OwnershipVoucher.ps1'= 'artifacts/sff/PowerShell/Save-OwnershipVoucher.ps1'
-  'set-network.ps1'          = 'artifacts/sff/vendor/set-network.ps1'
+  'SffConfig.psd1'            = 'artifacts/sff/PowerShell/SffConfig.psd1'
+  'Sff-Common.ps1'            = 'artifacts/sff/PowerShell/Sff-Common.ps1'
+  'Stage-SffArtifacts.ps1'    = 'artifacts/sff/PowerShell/Stage-SffArtifacts.ps1'
+  'New-SffTestVm.ps1'         = 'artifacts/sff/PowerShell/New-SffTestVm.ps1'
+  'Save-OwnershipVoucher.ps1' = 'artifacts/sff/PowerShell/Save-OwnershipVoucher.ps1'
+  'set-network.ps1'           = 'artifacts/sff/vendor/set-network.ps1'
 }
 foreach ($d in $downloads.GetEnumerator()) {
   $dest = Join-Path $rootDir $d.Key
@@ -110,13 +110,15 @@ if (-not (Test-Path 'V:\')) {
   $raw = Get-Disk | Where-Object { $_.PartitionStyle -eq 'RAW' } | Sort-Object Number | Select-Object -First 1
   if ($raw) {
     $raw | Initialize-Disk -PartitionStyle GPT -PassThru |
-      New-Partition -DriveLetter V -UseMaximumSize |
-      Format-Volume -FileSystem NTFS -NewFileSystemLabel 'LocalSFF' -Confirm:$false | Out-Null
+    New-Partition -DriveLetter V -UseMaximumSize |
+    Format-Volume -FileSystem NTFS -NewFileSystemLabel 'LocalSFF' -Confirm:$false | Out-Null
     Write-Output 'Data disk initialized as V:'
-  } else {
+  }
+  else {
     Write-Output 'WARN: no RAW data disk found to initialize as V: (continuing).'
   }
-} else {
+}
+else {
   Write-Output 'Drive V: already present; skipping disk initialization.'
 }
 New-Item -ItemType Directory -Force -Path $cfg.Paths.VhdDir, $cfg.Paths.VmDir | Out-Null
@@ -137,7 +139,8 @@ foreach ($m in @('Az.Accounts', 'Az.Resources', 'Az.Storage', 'Az.KeyVault')) {
 try {
   Connect-SffAzure | Out-Null
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'Initializing' -Status 'Host bootstrap started' -Config $cfg
-} catch {
+}
+catch {
   Write-SffLog "Initial Azure login/tagging failed (will retry in Phase 2): $($_.Exception.Message)" -Level WARN
 }
 
@@ -177,7 +180,8 @@ if (-not $hyperv.Installed) {
   Stop-Transcript
   Write-Output 'Rebooting to complete Hyper-V installation...'
   Restart-Computer -Force
-} else {
+}
+else {
   Write-Output 'Hyper-V already installed; starting Phase 2 directly.'
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present' -Config $cfg
   Stop-Transcript

@@ -270,6 +270,21 @@ Sweden Central (approximate, retail pay-as-you-go). Full breakdown:
 | [Sizing guidance](docs/sizing-guidance.md) | VM/disk sizing, the full cost breakdown, and the 2- vs 3-node topology rationale. |
 | [Troubleshooting](docs/troubleshooting.md) | Common failures and recovery — witness-location mismatch, preflight blocks, and more. |
 
+### Small Form Factor (SFF) profile
+
+In addition to the LocalBox cluster profile above, this repo includes a lighter **Azure
+Local Small Form Factor (SFF)** *test* profile: a single nested-virtualization host builds
+the SFF **Maintenance OS (ROE)** test VM inside itself (Gen2, TPM on, Secure Boot off, ≥4
+vCPU) — the eval analogue for edge/SFF, at roughly 1/10th the cost. Deploy it with
+`./scripts/deploy-sff.sh` (Bicep in [infra/bicep/azlocal-sff](infra/bicep/azlocal-sff/main.bicep)).
+
+| Guide | What's inside |
+| --- | --- |
+| [SFF quickstart](docs/sff-quickstart.md) | Deploy, stage the ROE ISO + Configurator App (Azure-initiated), and monitor the build. |
+| [SFF runbook](docs/sff-runbook.md) | Ownership voucher download and Azure-portal machine provisioning. |
+| [SFF sizing](docs/sff-sizing.md) | Host SKU options, cost, and the LocalBox-vs-SFF comparison. |
+| [SFF plan](docs/sff-support-plan.md) | Full engineering plan and milestone breakdown. |
+
 ## Troubleshooting
 
 Common failure modes (including the `InvalidResourceLocation` cluster-witness issue and how

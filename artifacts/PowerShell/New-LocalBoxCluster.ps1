@@ -51,9 +51,12 @@ if ([string]::IsNullOrWhiteSpace($azLocalImageUrl) -or $azLocalImageUrl -eq 'lat
     Write-Output "Auto-discovering the latest Azure Local node image in $imageContainer ..."
     try {
         $listUrl = "${imageContainer}?restype=container&comp=list&prefix=AzLocal"
-        $listXml = [xml](Invoke-WebRequest -UseBasicParsing -Uri $listUrl).Content
-        $latestImage = $listXml.EnumerationResults.Blobs.Blob.Name |
-        Where-Object { $_ -match '^AzLocal(\d{4})\.vhdx$' } |
+        # Parse the blob listing with regex rather than an [xml] cast: the Azure list
+        # response carries a UTF-8 BOM / encoding declaration that makes [xml]$content
+        # throw, which would silently send us to the fallback on every run.
+        $listing = (Invoke-WebRequest -UseBasicParsing -Uri $listUrl).Content
+        $latestImage = [regex]::Matches($listing, '<Name>(AzLocal\d{4}\.vhdx)</Name>') |
+        ForEach-Object { $_.Groups[1].Value } |
         Sort-Object { [int]($_ -replace '^AzLocal(\d{4})\.vhdx$', '$1') } |
         Select-Object -Last 1
         if (-not $latestImage) { throw "No AzLocalYYMM.vhdx blobs found in the container listing." }
