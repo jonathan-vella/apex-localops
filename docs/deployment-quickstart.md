@@ -76,6 +76,54 @@ az deployment group create -g rg-localbox \
   -f infra/bicep/azlocal-js/main.bicep -p infra/bicep/azlocal-js/main.bicepparam
 ```
 
+### Deploy a different topology profile
+
+The default is the **3-node** profile (no witness). To deploy the cheaper **2-node** profile
+(cloud witness; only where shared-key storage is permitted) without editing files:
+
+```bash
+az deployment group create -g rg-localbox \
+  -f infra/bicep/azlocal-js/main.bicep -p infra/bicep/azlocal-js/main.bicepparam \
+  -p clusterNodeCount=2 -p vmSize=Standard_E32s_v6 -p dataDiskCount=8
+```
+
+Topology and sizing rationale: [sizing-guidance.md](sizing-guidance.md).
+
+### Pin a release (reproducible deploys)
+
+By default the VM fetches artifacts from the **`main`** branch. For a frozen, repeatable
+build, pin to a release tag — the deploy then reads exactly the artifacts in that tag,
+either in `infra/bicep/azlocal-js/main.bicepparam`:
+
+```bicep
+param githubBranch = 'v1.0.0'
+```
+
+or at deploy time without editing files:
+
+```bash
+az deployment group create -g rg-localbox -f infra/bicep/azlocal-js/main.bicep \
+  -p infra/bicep/azlocal-js/main.bicepparam -p githubBranch=v1.0.0
+```
+
+### Defaults & customization
+
+All of these are on by default and toggleable in
+[main.bicepparam](../infra/bicep/azlocal-js/main.bicepparam):
+
+| Feature | Default | Param |
+| --- | --- | --- |
+| P30 disk performance tier (12 × 256 GB) | on | `host/host.bicep` `dataDiskPerformanceTier` |
+| Windows 11 management jumpbox | on | `deployManagementVm` |
+| Bastion + NAT Gateway (no public IP) | on | `deployBastion` |
+| Auto-build the cluster after VM setup | on | `autoDeployClusterResource` |
+| Auto-login to start the in-VM build | on | `vmAutologon` |
+| Client VM size | `Standard_E64s_v6` | `vmSize` |
+
+Identity values (`tenantId`, `spnProviderId`) and the admin password are **never stored** in
+the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password from the
+`LOCALBOX_ADMIN_PASSWORD` environment variable.
+
 ## 5. The in-VM build starts automatically (no manual login)
 
 After the ARM deploy, the client VM runs `Bootstrap.ps1`, installs Hyper-V, and reboots.
@@ -95,6 +143,17 @@ are available), then the script window closes itself.
 > as soon as the build completes. To disable auto-login entirely, deploy with
 > `-p vmAutologon=false` — but then you must connect and sign in once to start the build.
 
+### What the build downloads from Microsoft
+
+The **orchestration** is fully vendored in this repo — the Bicep templates and the entire
+in-VM `artifacts/` tree (PowerShell, DSC, ARM JSON, config) — so there is no
+`microsoft/azure_arc` dependency at deploy time. A few large or Microsoft-owned binaries are
+fetched from their official sources **at build time**:
+
+- Azure Local / Windows Server **OS VHDX images** (multi-GB, from Microsoft blob storage).
+- **PowerShell 7** and **Windows Admin Center** MSIs (official Microsoft download URLs).
+- The desktop **wallpaper** PNG (from `Azure/arc_jumpstart_docs`).
+
 ## 6. Monitor the in-VM cluster build
 
 The ARM deploy finishes in ~18 min, but the nested cluster then builds **inside the VM for
@@ -106,6 +165,11 @@ required):
 ./scripts/monitor.sh --once          # one snapshot and exit
 ./scripts/monitor.sh --once --logs   # snapshot + tail the in-VM log (no RDP needed)
 ```
+
+`monitor.sh` reads three independent signals without Bastion/RDP: the `DeploymentProgress` /
+`DeploymentStatus` **resource-group tags** the in-VM scripts emit at each milestone, the
+`Microsoft.AzureStackHCI/clusters` **resource** (authoritative proof the cluster formed),
+and — with `--logs` — a live tail of `C:\LocalBox\Logs` via `az vm run-command`.
 
 Success = the `Microsoft.AzureStackHCI/clusters` resource reaches
 `provisioningState = Succeeded` (or the resource-group `DeploymentProgress` tag becomes
@@ -128,3 +192,9 @@ az group delete --name rg-localbox --yes
 
 To pause more cheaply without losing state, deallocate the VMs instead — but disks,
 Bastion, and NAT keep billing (~$1,500/mo floor).
+
+## Related documentation
+
+- [Sizing guidance](sizing-guidance.md) — VM/disk sizing, the full cost breakdown, and the 2- vs 3-node topology rationale.
+- [Troubleshooting](troubleshooting.md) — common failures and recovery (witness-location mismatch, preflight blocks, and more).
+- [SFF deployment guide](sff-quickstart.md) — the lighter Small Form Factor test profile.

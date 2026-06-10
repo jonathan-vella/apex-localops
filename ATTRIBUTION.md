@@ -69,3 +69,13 @@ Microsoft materials:
   [`MicrosoftDocs/azure-stack-docs`](https://github.com/MicrosoftDocs/azure-stack-docs),
   pinned to commit `cb1df90`, refreshed by `.github/workflows/sync-azure-local-sff-docs.yml`.
   Licensed **Creative Commons Attribution 4.0 International (CC BY 4.0)** © Microsoft.
+
+## AKS on bare metal (preview) profile
+
+The AKS on bare metal profile ([infra/bicep/aks-baremetal](infra/bicep/aks-baremetal),
+`scripts/*-aks-baremetal.sh`, `docs/aks-baremetal-quickstart.md`) is original work in this
+repository. It deploys `Microsoft.Kubernetes/connectedClusters` +
+`Microsoft.HybridContainerService/provisionedClusterInstances` (preview API versions) onto an
+Arc-enabled SFF machine. The AKS on bare metal preview documentation is **not** vendored here
+(it is not yet mirrored to a public GitHub repository); see
+<https://learn.microsoft.com/azure/aks/aksarc/aks-bare-metal-overview> for the canonical docs.

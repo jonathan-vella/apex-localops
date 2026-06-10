@@ -86,6 +86,26 @@ scp -F ./sshconfig artifacts/sff/vendor/setup-k3s-arc.sh <MANAGED_RG>-<ARC_MACHI
 ssh -F ./sshconfig <MANAGED_RG>-<ARC_MACHINE>-clouduser 'bash ~/setup-k3s-arc.sh'
 ```
 
+## 6. Deploy AKS on bare metal (optional)
+
+Once the machine is **Provisioned**, you can deploy a managed, Arc-connected **AKS on bare
+metal** cluster directly onto it (single-node, Cilium, zero-rated in preview). This is the
+recommended path for a fully Azure-managed Kubernetes experience versus the self-managed K3s
+script above.
+
+Gather the custom location ID (`az customlocation list -o table`), a reserved control-plane IP
+in the machine's subnet, your Entra admin group object ID, and your SSH public key, then:
+
+```bash
+export AKSBM_CUSTOM_LOCATION_ID="/subscriptions/.../customLocations/<cl>"
+export AKSBM_CONTROL_PLANE_IP="192.168.200.50"
+export AKSBM_ADMIN_GROUP_ID="<entra-group-object-id>"
+./scripts/deploy-aks-baremetal.sh
+./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-localsff-aks --get-nodes
+```
+
+Full walkthrough: [aks-baremetal-quickstart.md](aks-baremetal-quickstart.md).
+
 ## Troubleshooting
 
 | Symptom | Action |

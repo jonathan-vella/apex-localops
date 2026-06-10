@@ -49,6 +49,19 @@ jobs:
             exit 1
           fi
 
+      - name: Bicep build (AKS on bare metal)
+        run: az bicep build --file infra/bicep/aks-baremetal/main.bicep --stdout > /dev/null
+
+      - name: Bicep lint (AKS on bare metal)
+        run: |
+          # Fail the job if the linter emits any Error-level diagnostics.
+          az bicep lint --file infra/bicep/aks-baremetal/main.bicep 2> lint-aksbm.txt || true
+          cat lint-aksbm.txt
+          if grep -qiE "Error( |:|s)" lint-aksbm.txt; then
+            echo "::error::Bicep lint reported errors (AKS on bare metal)"
+            exit 1
+          fi
+
   shell:
     name: Shell script checks
     runs-on: ubuntu-latest

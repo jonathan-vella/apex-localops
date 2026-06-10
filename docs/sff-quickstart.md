@@ -148,3 +148,10 @@ on the host), store it in Key Vault, and provision the machine from the Azure po
 > [!WARNING]
 > Disks, Bastion, and NAT Gateway bill **even when the VMs are stopped**. Deallocate the
 > host between test runs to cut compute cost; delete the resource group to stop everything.
+
+## Related documentation
+
+- [SFF sizing](sff-sizing.md) — host SKU options, cost, and the LocalBox-vs-SFF comparison.
+- [SFF runbook](sff-runbook.md) — ownership voucher download and Azure-portal machine provisioning.
+- [SFF plan](sff-support-plan.md) — full engineering plan and milestone breakdown.
+- [Azure Local deployment guide](deployment-quickstart.md) — the full nested-cluster profile.
