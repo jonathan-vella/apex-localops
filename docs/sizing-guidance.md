@@ -4,6 +4,10 @@ How LocalBox is sized and what it costs. All values are verified against the ven
 `artifacts/PowerShell/LocalBox-Config.psd1`; pricing is retail pay-as-you-go (USD,
 Sweden Central) and approximate.
 
+> [!NOTE]
+> This page covers the **Azure Local (LocalBox) cluster** profile. For the **Small Form
+> Factor (SFF)** profile (host SKU options, ~$700–900/mo), see [sff-sizing.md](sff-sizing.md).
+
 ## TL;DR
 
 Two selectable profiles (`clusterNodeCount` in `infra/bicep/azlocal-js/main.bicepparam`):

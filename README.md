@@ -36,6 +36,11 @@ Two evaluation profiles are included — pick the one you need and follow its de
 > **PREVIEW** and is for testing/evaluation only — production SFF must run on validated
 > hardware.
 
+Once an SFF machine is provisioned you can deploy a managed, Arc-connected
+**[AKS on bare metal](docs/aks-baremetal-quickstart.md)** cluster directly onto it, and the
+whole SFF → voucher → provisioning → AKS → `kubectl` chain can run from a single orchestrator
+— see **[zero-touch deployment](docs/sff-zero-touch.md)** (`./scripts/deploy-all.sh`).
+
 ## Architecture
 
 <details>

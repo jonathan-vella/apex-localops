@@ -1,5 +1,13 @@
 # Troubleshooting
 
+> [!NOTE]
+> This guide covers the **Azure Local (LocalBox) cluster** profile. For the **Small Form
+> Factor (SFF)** profile see the troubleshooting table in [sff-runbook.md](sff-runbook.md)
+> and the vendored upstream guide
+> [azure-local-sff/upstream/small-form-factor-troubleshoot.md](azure-local-sff/upstream/small-form-factor-troubleshoot.md);
+> for **AKS on bare metal**, see [aks-baremetal-quickstart.md](aks-baremetal-quickstart.md)
+> and `connect-aks-baremetal.sh` (the Arc-proxy / `kubectl` path).
+
 The ARM deployment is the easy part (~18 min). Most issues surface during the **in-VM
 cluster build** (2–4 hours), which has no Azure-visible deployment state. Start with the
 monitor and the in-VM logs:

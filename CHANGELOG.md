@@ -5,6 +5,49 @@ All notable changes to this project are documented here. The format is based on
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
 in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
+## [Unreleased]
+
+### Added
+
+- **Small Form Factor (SFF) evaluation profile** (`infra/bicep/azlocal-sff/`,
+  `artifacts/sff/`, `scripts/*-sff.sh`). A lighter second profile: one nested-virtualization
+  host (`Standard_D8s_v5`) builds the Azure Local SFF **Maintenance OS (ROE)** test VM inside
+  itself — Generation 2, TPM on, Secure Boot off, ≥4 vCPU, 16 GB, 256 GB — and drives it to
+  "ROE setup completed successfully". Bastion-only with NAT egress, staging storage for the
+  Azure-staged ROE ISO + Configurator App, and a Key Vault for the ownership voucher.
+  ~$700–900/mo (≈1/10th of the cluster profile). `check-providers-sff.sh` registers the SFF
+  providers + the `Microsoft.DeviceOnboarding/AzureLocalZTP` preview feature; `deploy-sff.sh`,
+  `monitor-sff.sh`, and `cleanup-sff.sh` mirror the LocalBox tooling. Docs:
+  `docs/sff-quickstart.md`, `docs/sff-runbook.md`, `docs/sff-sizing.md`,
+  `docs/sff-support-plan.md`.
+- **AKS on bare metal (preview) downstream add-on** (`infra/bicep/aks-baremetal/`,
+  `scripts/{deploy,connect}-aks-baremetal.sh`). Deploys a single-node, Arc-connected
+  Kubernetes cluster directly onto a provisioned SFF machine
+  (`Microsoft.Kubernetes/connectedClusters` + `Microsoft.HybridContainerService/provisionedClusterInstances`,
+  Cilium, East US, zero-rated in preview). `connect-aks-baremetal.sh` wraps the
+  `az connectedk8s proxy` + `kubectl` flow. Docs: `docs/aks-baremetal-quickstart.md`.
+- **Zero-touch end-to-end chain** (`scripts/deploy-all.sh`). One orchestrator chains
+  providers → SFF host build → ownership voucher → machine provisioning → AKS → kubectl with
+  tag/resource-gated waits and stage-addressable resume (`--from/--to/--skip/--dry-run`). The
+  ownership voucher is now extracted **automatically over SSH** on the host
+  (`artifacts/sff/PowerShell/Get-OwnershipVoucher-Ssh.ps1`) and stored in Key Vault, removing
+  the GUI Configurator step. `provision-machine.sh` auto-drives Azure machine provisioning
+  when the preview CLI is present, else guides the single portal action and polls to
+  `Provisioned`; `resolve-aks-inputs.sh` auto-resolves the AKS deploy inputs. Docs:
+  `docs/sff-zero-touch.md`.
+- **Vendored upstream SFF docs** (`docs/azure-local-sff/upstream/`) sparse-synced from
+  `MicrosoftDocs/azure-stack-docs` via `.github/workflows/sync-azure-local-sff-docs.yml`
+  (CC BY 4.0), plus the vendored `Azure-Samples/AzureLocal` SFF helper scripts (MIT) under
+  `artifacts/sff/vendor/`.
+
+### Changed
+
+- `validate` CI now also builds + lints the SFF and AKS-bare-metal Bicep templates.
+- README gains a profile selector, an SFF topology note, and an SFF + AKS + zero-touch
+  documentation index; `ATTRIBUTION.md` credits the new vendored scripts and docs.
+
+> The LocalBox cluster profile is unchanged; existing deploys are unaffected.
+
 ## [v1.2.1] - 2026-06-09
 
 ### Fixed

@@ -1,8 +1,10 @@
 # Plan: add Azure Local **Small Form Factor (SFF)** support to apex-localops
 
-> Status: **proposed / not yet implemented**. This is the engineering plan only — no
-> infrastructure or automation files have been created yet. Implementation proceeds
-> milestone-by-milestone (see [§16](#16-phased-milestones--acceptance-criteria)).
+> Status: **IMPLEMENTED**. All milestones (M1–M5) are built and validated; this document is
+> retained as the design rationale and milestone record. For usage, see the
+> [SFF quickstart](sff-quickstart.md), [runbook](sff-runbook.md), and
+> [zero-touch guide](sff-zero-touch.md). The zero-touch chain further automates the voucher
+> and machine-provisioning steps that this plan originally scoped as guided.
 >
 > Preview note: Azure Local SFF is in **PREVIEW** (`azloc-2605`). APIs, portal flows, and
 > artifact names will change. The design isolates the volatile pieces (ROE ISO acquisition,
