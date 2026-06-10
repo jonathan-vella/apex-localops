@@ -21,7 +21,8 @@
 #   6 connect     scripts/connect-aks-baremetal.sh --get-nodes
 #
 # Usage:
-#   ./deploy-all.sh --admin-group <guid>                 # full chain
+#   ./deploy-all.sh --admin-group <guid>                 # full chain (explicit group)
+#   ./deploy-all.sh --admin-group-name "My AKS Admins"   # auto-create/reuse a named group
 #   ./deploy-all.sh --from <stage> --to <stage>          # run a subset (by name or number)
 #   ./deploy-all.sh --skip providers,sff                 # skip stages
 #   ./deploy-all.sh --resource-group rg-localsff
@@ -30,7 +31,8 @@
 #   ./deploy-all.sh --help
 #
 # Prerequisites: az login. The Windows password flows through LOCALSFF_ADMIN_PASSWORD
-# (deploy-sff.sh prompts if unset). Tenant-specific AKS inputs come from --admin-group
+# (deploy-sff.sh prompts if unset). The Entra admin group is auto-created (idempotent: an
+# existing group of the same name is reused) unless you pass an explicit --admin-group.
 # and your SSH key (resolve-aks-inputs.sh handles the rest).
 
 set -euo pipefail
@@ -38,6 +40,7 @@ set -euo pipefail
 RESOURCE_GROUP="rg-localsff"
 AKS_RESOURCE_GROUP="rg-localsff-aks"
 ADMIN_GROUP_ID="${AKSBM_ADMIN_GROUP_ID:-}"
+ADMIN_GROUP_NAME="${AKSBM_ADMIN_GROUP_NAME:-LocalSFF-AKS-Admins}"
 SSH_KEY_FILE="${HOME}/.ssh/id_rsa.pub"
 FROM_STAGE="providers"
 TO_STAGE="connect"
@@ -57,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --to) TO_STAGE="${2:?missing value}"; shift 2 ;;
     --skip) SKIP_CSV="${2:?missing value}"; shift 2 ;;
     --admin-group) ADMIN_GROUP_ID="${2:?missing value}"; shift 2 ;;
+    --admin-group-name) ADMIN_GROUP_NAME="${2:?missing value}"; shift 2 ;;
     --ssh-key-file) SSH_KEY_FILE="${2:?missing value}"; shift 2 ;;
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
     --aks-resource-group) AKS_RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
@@ -152,16 +156,19 @@ fi
 # --- Stage 5: AKS on bare metal (resolve inputs, then deploy) ---
 if should_run aks; then
   banner "aks (resolve-aks-inputs.sh + deploy-aks-baremetal.sh)"
-  if [[ -z "$ADMIN_GROUP_ID" ]]; then
-    echo "ERROR: AKS stage needs --admin-group <guid> (Entra admin group object id)." >&2
-    exit 2
-  fi
+  # The Entra admin group is auto-created by resolve-aks-inputs.sh (idempotent: reuses an
+  # existing group of the same name). Pass an explicit id with --admin-group to override.
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [dry-run] resolve-aks-inputs.sh --admin-group $ADMIN_GROUP_ID --deploy"
+    if [[ -n "$ADMIN_GROUP_ID" ]]; then
+      echo "  [dry-run] resolve-aks-inputs.sh --admin-group $ADMIN_GROUP_ID --deploy"
+    else
+      echo "  [dry-run] resolve-aks-inputs.sh --admin-group-name '$ADMIN_GROUP_NAME' (ensure/create) --deploy"
+    fi
   else
     # shellcheck disable=SC1090,SC1091
     source "$SCRIPT_DIR/resolve-aks-inputs.sh" --resource-group "$RESOURCE_GROUP" \
-      --admin-group "$ADMIN_GROUP_ID" --ssh-key-file "$SSH_KEY_FILE"
+      ${ADMIN_GROUP_ID:+--admin-group "$ADMIN_GROUP_ID"} \
+      --admin-group-name "$ADMIN_GROUP_NAME" --ssh-key-file "$SSH_KEY_FILE"
     "$SCRIPT_DIR/deploy-aks-baremetal.sh" --resource-group "$AKS_RESOURCE_GROUP" --yes
   fi
 fi

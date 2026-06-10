@@ -7,7 +7,7 @@
 #   AKSBM_CUSTOM_LOCATION_ID  the custom location of the provisioned SFF machine
 #   AKSBM_CONTROL_PLANE_IP    a control-plane IP in the machine's subnet (NOT the host IP)
 #   AKSBM_SSH_PUBLIC_KEY      your SSH public key (from --ssh-key-file / env)
-#   AKSBM_ADMIN_GROUP_ID      Entra admin group object id (from --admin-group / env)
+#   AKSBM_ADMIN_GROUP_ID      Entra admin group object id (auto-created if absent)
 #
 # Source it to export into your shell, or use --emit to print `export` lines:
 #   source ./scripts/resolve-aks-inputs.sh --admin-group <guid>
@@ -21,7 +21,8 @@
 #   --custom-location <id> override custom-location discovery
 #   --control-plane-ip <ip> override the control-plane IP (else derived from the subnet)
 #   --machine-ip <ip>      the machine IP, to derive a CP IP in the same /24
-#   --admin-group <guid>   Entra admin group object id
+#   --admin-group <guid>   Entra admin group object id (skip auto-create)
+#   --admin-group-name <n> name for the auto-created/reused Entra group (default LocalSFF-AKS-Admins)
 #   --ssh-key-file <path>  default: ~/.ssh/id_rsa.pub
 #   --emit                 print `export VAR=...` lines (for eval)
 #   --deploy               after resolving, run scripts/deploy-aks-baremetal.sh
@@ -34,6 +35,7 @@ CUSTOM_LOCATION_ID="${AKSBM_CUSTOM_LOCATION_ID:-}"
 CONTROL_PLANE_IP="${AKSBM_CONTROL_PLANE_IP:-}"
 MACHINE_IP=""
 ADMIN_GROUP_ID="${AKSBM_ADMIN_GROUP_ID:-}"
+ADMIN_GROUP_NAME="${AKSBM_ADMIN_GROUP_NAME:-LocalSFF-AKS-Admins}"
 SSH_KEY_FILE="${HOME}/.ssh/id_rsa.pub"
 EMIT=false
 DEPLOY=false
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --control-plane-ip) CONTROL_PLANE_IP="${2:?missing value}"; shift 2 ;;
     --machine-ip) MACHINE_IP="${2:?missing value}"; shift 2 ;;
     --admin-group) ADMIN_GROUP_ID="${2:?missing value}"; shift 2 ;;
+    --admin-group-name) ADMIN_GROUP_NAME="${2:?missing value}"; shift 2 ;;
     --ssh-key-file) SSH_KEY_FILE="${2:?missing value}"; shift 2 ;;
     --emit) EMIT=true; shift ;;
     --deploy) DEPLOY=true; shift ;;
@@ -100,9 +103,14 @@ if [[ -z "${AKSBM_SSH_PUBLIC_KEY:-}" && -f "$SSH_KEY_FILE" ]]; then
   AKSBM_SSH_PUBLIC_KEY="$(cat "$SSH_KEY_FILE")"
 fi
 
-# --- 4. Admin group (cannot be guessed) ---
+# --- 4. Admin group: resolve-or-create the Entra security group (idempotent) ---
 if [[ -z "$ADMIN_GROUP_ID" ]]; then
-  echo "WARNING: no Entra admin group object id. Pass --admin-group <guid> or set AKSBM_ADMIN_GROUP_ID." >&2
+  echo "No admin group id supplied; ensuring Entra group '${ADMIN_GROUP_NAME}' exists..." >&2
+  ADMIN_GROUP_ID=$("$SCRIPT_DIR/ensure-admin-group.sh" --name "$ADMIN_GROUP_NAME" 2>>/dev/stderr || true)
+  if [[ -z "$ADMIN_GROUP_ID" ]]; then
+    echo "WARNING: could not resolve or create the Entra admin group. Pass --admin-group <guid>," >&2
+    echo "         or have an administrator create '${ADMIN_GROUP_NAME}' and re-run." >&2
+  fi
 fi
 
 export AKSBM_CUSTOM_LOCATION_ID="$CUSTOM_LOCATION_ID"

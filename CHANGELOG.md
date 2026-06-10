@@ -33,8 +33,10 @@ in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
   (`artifacts/sff/PowerShell/Get-OwnershipVoucher-Ssh.ps1`) and stored in Key Vault, removing
   the GUI Configurator step. `provision-machine.sh` auto-drives Azure machine provisioning
   when the preview CLI is present, else guides the single portal action and polls to
-  `Provisioned`; `resolve-aks-inputs.sh` auto-resolves the AKS deploy inputs. Docs:
-  `docs/sff-zero-touch.md`.
+  `Provisioned`; `resolve-aks-inputs.sh` auto-resolves the AKS deploy inputs. The Entra admin
+  group for cluster access is **created automatically** (idempotent: an existing same-named
+  group is reused, and the signed-in user is added) via `ensure-admin-group.sh` — no GUID
+  input required. Docs: `docs/sff-zero-touch.md`.
 - **Vendored upstream SFF docs** (`docs/azure-local-sff/upstream/`) sparse-synced from
   `MicrosoftDocs/azure-stack-docs` via `.github/workflows/sync-azure-local-sff-docs.yml`
   (CC BY 4.0), plus the vendored `Azure-Samples/AzureLocal` SFF helper scripts (MIT) under

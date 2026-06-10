@@ -33,16 +33,19 @@ location** and **control-plane IP** that only exist once the SFF edge machine is
    [check-providers-sff.sh](../scripts/check-providers-sff.sh) (`Microsoft.HybridContainerService`,
    `Microsoft.Kubernetes`, `Microsoft.ExtendedLocation`, `Microsoft.HybridCompute`).
 4. The `connectedk8s` CLI extension (the deploy script installs it if missing).
-5. A Microsoft **Entra security group** for cluster admins — note its **object ID**.
+5. A Microsoft **Entra security group** for cluster admins — **auto-created** by the deploy
+   (idempotent: an existing same-named group is reused). Pass `--admin-group-name` to choose
+   the name, or `--admin-group <object-id>` to use a specific existing group. Requires
+   directory permission to create groups, otherwise supply an existing one.
 6. An **SSH public key** (e.g. `~/.ssh/id_rsa.pub`).
 
-## Gather the four inputs
+## Gather the inputs
 
 | Input | How to get it |
 | --- | --- |
 | **Custom location ID** | `az customlocation list -o table` (or the edge machine resource). It's the `Microsoft.ExtendedLocation/customLocations` ARM ID for your site/machine. |
 | **Control plane IP** | A free IP in the **same subnet** as the edge machine, **not** the machine's own IP. If the machine uses DHCP, **reserve** it so it never changes. |
-| **Admin group object ID** | Azure portal → Entra ID → Groups → your group → **Object ID**. |
+| **Admin group** | Auto-created/reused (`ensure-admin-group.sh`). Override with `--admin-group-name` or `--admin-group <object-id>`. |
 | **SSH public key** | `cat ~/.ssh/id_rsa.pub` (the deploy script reads this by default). |
 
 Export them (kept out of the committed params; resolved at deploy time):
@@ -50,7 +53,8 @@ Export them (kept out of the committed params; resolved at deploy time):
 ```bash
 export AKSBM_CUSTOM_LOCATION_ID="/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ExtendedLocation/customLocations/<cl>"
 export AKSBM_CONTROL_PLANE_IP="192.168.200.50"
-export AKSBM_ADMIN_GROUP_ID="<entra-group-object-id>"
+# Admin group is auto-created; set this only to use a specific existing group:
+# export AKSBM_ADMIN_GROUP_ID="<entra-group-object-id>"
 # SSH key is read from ~/.ssh/id_rsa.pub automatically, or:
 export AKSBM_SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
 ```

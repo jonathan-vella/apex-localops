@@ -101,12 +101,13 @@ recommended path for a fully Azure-managed Kubernetes experience versus the self
 script above.
 
 Gather the custom location ID (`az customlocation list -o table`), a reserved control-plane IP
-in the machine's subnet, your Entra admin group object ID, and your SSH public key, then:
+in the machine's subnet, and your SSH public key, then deploy. The Entra admin group is
+**created automatically** (or reused if one of the same name exists):
 
 ```bash
 export AKSBM_CUSTOM_LOCATION_ID="/subscriptions/.../customLocations/<cl>"
 export AKSBM_CONTROL_PLANE_IP="192.168.200.50"
-export AKSBM_ADMIN_GROUP_ID="<entra-group-object-id>"
+# Optional: export AKSBM_ADMIN_GROUP_ID="<guid>" to use a specific existing group instead.
 ./scripts/deploy-aks-baremetal.sh
 ./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-localsff-aks --get-nodes
 ```

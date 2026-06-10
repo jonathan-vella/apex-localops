@@ -11,6 +11,7 @@
 #   AKSBM_CONTROL_PLANE_IP    a reserved IP in the machine's subnet (NOT the host IP)
 #   AKSBM_SSH_PUBLIC_KEY      your SSH public key contents (else read from --ssh-key-file)
 #   AKSBM_ADMIN_GROUP_ID      Entra security group object id for cluster admins
+#                             (auto-created/reused via ensure-admin-group.sh if absent)
 #
 # Usage:
 #   ./deploy-aks-baremetal.sh                       # preflight, what-if, confirm, deploy
@@ -34,6 +35,7 @@ WHATIF_ONLY=false
 ASSUME_YES=false
 SKIP_PREFLIGHT=false
 SSH_KEY_FILE="${HOME}/.ssh/id_rsa.pub"
+ADMIN_GROUP_NAME="${AKSBM_ADMIN_GROUP_NAME:-LocalSFF-AKS-Admins}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y) ASSUME_YES=true; shift ;;
     --skip-preflight) SKIP_PREFLIGHT=true; shift ;;
     --ssh-key-file) SSH_KEY_FILE="${2:?missing value}"; shift 2 ;;
+    --admin-group-name) ADMIN_GROUP_NAME="${2:?missing value}"; shift 2 ;;
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
     --location|-l) LOCATION="${2:?missing value}"; shift 2 ;;
     -h|--help) grep '^#' "$0" | sed 's/^#\{1,\} \{0,1\}//'; exit 0 ;;
@@ -79,7 +82,12 @@ prompt_if_empty() {
 }
 prompt_if_empty AKSBM_CUSTOM_LOCATION_ID "Custom location ARM ID of the provisioned SFF edge machine"
 prompt_if_empty AKSBM_CONTROL_PLANE_IP   "Control plane IP (reserved, same subnet, NOT the host IP)"
-prompt_if_empty AKSBM_ADMIN_GROUP_ID     "Entra admin group object ID"
+# Entra admin group: resolve-or-create instead of prompting for a GUID.
+if [[ -z "${AKSBM_ADMIN_GROUP_ID:-}" ]]; then
+  echo "Ensuring Entra admin group '${ADMIN_GROUP_NAME}' exists..."
+  AKSBM_ADMIN_GROUP_ID="$("$SCRIPT_DIR/ensure-admin-group.sh" --name "$ADMIN_GROUP_NAME" || true)"
+  export AKSBM_ADMIN_GROUP_ID
+fi
 if [[ -z "${AKSBM_SSH_PUBLIC_KEY:-}" ]]; then
   prompt_if_empty AKSBM_SSH_PUBLIC_KEY "SSH public key contents"
 fi

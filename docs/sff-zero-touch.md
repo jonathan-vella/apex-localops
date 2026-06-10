@@ -15,11 +15,18 @@ human touchpoints.
 
 ```bash
 az login
-./scripts/deploy-all.sh --admin-group <entra-admin-group-object-id>
+./scripts/deploy-all.sh
 ```
 
 That runs: **providers → SFF host build → (auto) ownership voucher → Azure machine
-provisioning → AKS on bare metal → `kubectl get nodes`.**
+provisioning → AKS on bare metal → `kubectl get nodes`.** The Entra admin group for cluster
+access is **created automatically** (and reused if a group of the same name already exists).
+Customize or override it:
+
+```bash
+./scripts/deploy-all.sh --admin-group-name "My AKS Admins"   # auto-create/reuse this name
+./scripts/deploy-all.sh --admin-group <existing-group-guid>   # use a specific existing group
+```
 
 ## The pipeline
 
@@ -41,7 +48,7 @@ flowchart TD
 | Stage | Before | Now | Mechanism |
 | --- | --- | --- | --- |
 | Providers + ZTP feature | scripted | ✅ auto | [check-providers-sff.sh](../scripts/check-providers-sff.sh) |
-| RBAC + Entra group | manual | ⚠️ you supply `--admin-group` once | object id is the only required input |
+| **Entra admin group** | manual | ✅ **auto** | [ensure-admin-group.sh](../scripts/ensure-admin-group.sh) creates it (or reuses a same-named group) and adds you as a member |
 | ROE ISO acquisition | manual each time | ✅ **once ever** | cached in the staging SA, reused every deploy |
 | Host → nested ROE VM | auto | ✅ auto | autologon + scheduled-task watcher |
 | **Voucher extraction** | **GUI Configurator** | ✅ **auto** | host SSHes the nested VM and pulls the `.pem` → Key Vault ([Get-OwnershipVoucher-Ssh.ps1](../artifacts/sff/PowerShell/Get-OwnershipVoucher-Ssh.ps1)) |
@@ -81,10 +88,10 @@ single stage:
 
 ```bash
 # Resume from the voucher stage onward (e.g. after the host finished building):
-./scripts/deploy-all.sh --from voucher --admin-group <guid>
+./scripts/deploy-all.sh --from voucher
 
 # Just (re)deploy AKS once the machine is Provisioned:
-./scripts/deploy-all.sh --from aks --admin-group <guid>
+./scripts/deploy-all.sh --from aks
 
 # Preview the plan without running anything:
 ./scripts/deploy-all.sh --admin-group <guid> --dry-run
@@ -99,7 +106,8 @@ Stages: `providers → sff → voucher → provision → aks → connect` (addre
 
 - `az login`, with Owner (or Contributor + RBAC Admin) on the subscription.
 - A Windows admin password — `deploy-sff.sh` prompts (or set `LOCALSFF_ADMIN_PASSWORD`).
-- An Entra security group for cluster admins (`--admin-group <object-id>`).
+- Directory permission to create an Entra security group **or** an existing group passed via
+  `--admin-group <object-id>` (the chain auto-creates/reuses `LocalSFF-AKS-Admins` otherwise).
 - An SSH public key at `~/.ssh/id_rsa.pub` (or pass `--ssh-key-file`).
 
 ## Per-stage scripts (if you prefer manual control)
