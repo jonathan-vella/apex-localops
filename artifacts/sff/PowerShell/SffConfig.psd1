@@ -19,11 +19,14 @@
     VmDir       = "V:\LocalSFF\vms"
   }
 
-  # Canonical blob names the operator stages into the storage account. The watcher
-  # downloads exactly these names (see Publish-SffArtifacts.ps1).
+  # Blob names the operator stages into the storage account. The portal "Download all"
+  # produces a ZIP archive for the Maintenance OS (extract to get the .iso) and the
+  # Configurator App as an .msix. The watcher accepts either the extracted roe.iso OR the
+  # roe.zip archive (it extracts the .iso), and treats the Configurator as optional.
   Artifacts = @{
-    RoeIsoBlob       = "roe.iso"
-    ConfiguratorBlob = "configurator.msi"
+    RoeIsoBlob        = "roe.iso"
+    RoeZipBlob        = "roe.zip"
+    ConfiguratorBlobs = @("configurator.msi", "configurator.msix")
   }
 
   # Internal Hyper-V NAT network (created by the vendored set-network.ps1, WinNAT mode).

@@ -44,7 +44,10 @@ if (-not $hvSubnetPrefix) { $hvSubnetPrefix = $cfg.Network.SubnetPrefix }
 if (-not $hvGateway) { $hvGateway = $cfg.Network.Gateway }
 
 $roeBlob = $cfg.Artifacts.RoeIsoBlob
-$configuratorBlob = $cfg.Artifacts.ConfiguratorBlob
+$roeZipBlob = if ($cfg.Artifacts.RoeZipBlob) { $cfg.Artifacts.RoeZipBlob } else { 'roe.zip' }
+$configuratorBlobs = if ($cfg.Artifacts.ConfiguratorBlobs) { $cfg.Artifacts.ConfiguratorBlobs }
+  elseif ($cfg.Artifacts.ConfiguratorBlob) { @($cfg.Artifacts.ConfiguratorBlob) }
+  else { @('configurator.msi', 'configurator.msix') }
 
 #######################################################################
 # Remove the one-time autologon keys
@@ -94,7 +97,6 @@ $incomingDir = $cfg.Paths.IncomingDir
 $isoDir = $cfg.Paths.IsoDir
 $toolsDir = $cfg.Paths.ToolsDir
 $isoLocal = Join-Path $isoDir $roeBlob
-$configuratorLocal = Join-Path $toolsDir $configuratorBlob
 
 function Get-StagedArtifact {
   param([string]$BlobName, [string]$Destination)
@@ -120,44 +122,70 @@ function Get-StagedArtifact {
   return $false
 }
 
-Set-SffProgress -ResourceGroup $resourceGroup -Progress 'AwaitingArtifacts' -Status "Waiting for $roeBlob + $configuratorBlob in $container" -Config $cfg
+Set-SffProgress -ResourceGroup $resourceGroup -Progress 'AwaitingArtifacts' -Status "Waiting for the ROE image (roe.iso or roe.zip) in $container" -Config $cfg
+
+# Extract the ROE .iso from a downloaded archive (the portal ships the Maintenance OS as a
+# ZIP that contains provision-os.iso). Returns the .iso path, or $null on failure.
+function Resolve-IsoFromZip {
+  param([string]$ZipPath)
+  $extractDir = Join-Path $isoDir 'roe-extracted'
+  try {
+    if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+    Write-SffLog "Extracting $ZipPath (this can take a few minutes for a multi-GB image)..."
+    Expand-Archive -Path $ZipPath -DestinationPath $extractDir -Force
+    $iso = Get-ChildItem $extractDir -Recurse -Filter *.iso -ErrorAction SilentlyContinue |
+      Sort-Object Length -Descending | Select-Object -First 1
+    if ($iso) { Write-SffLog "Found ISO in archive: $($iso.FullName)"; return $iso.FullName }
+    Write-SffLog "No .iso found inside $ZipPath." -Level WARN
+  }
+  catch {
+    Write-SffLog "Failed to extract ${ZipPath}: $($_.Exception.Message)" -Level WARN
+  }
+  return $null
+}
+
 $deadline = (Get-Date).AddHours($MaxWaitHours)
-$haveIso = $false
-$haveConfigurator = $false
+$resolvedIso = $null
+$isoZipLocal = Join-Path $isoDir $roeZipBlob
 while ((Get-Date) -lt $deadline) {
-  if (-not $haveIso) { $haveIso = Get-StagedArtifact -BlobName $roeBlob -Destination $isoLocal }
-  if (-not $haveConfigurator) { $haveConfigurator = Get-StagedArtifact -BlobName $configuratorBlob -Destination $configuratorLocal }
-  if ($haveIso -and $haveConfigurator) { break }
+  # 1) A pre-extracted roe.iso wins.
+  if (Get-StagedArtifact -BlobName $roeBlob -Destination $isoLocal) {
+    $resolvedIso = $isoLocal; break
+  }
+  # 2) Otherwise accept the roe.zip archive and extract the .iso from it.
+  if (Get-StagedArtifact -BlobName $roeZipBlob -Destination $isoZipLocal) {
+    Set-SffProgress -ResourceGroup $resourceGroup -Progress 'ExtractingImage' -Status "Extracting $roeZipBlob" -Config $cfg
+    $resolvedIso = Resolve-IsoFromZip -ZipPath $isoZipLocal
+    if ($resolvedIso) { break }
+  }
   Start-Sleep -Seconds $PollIntervalSeconds
 }
 
-if (-not $haveIso) {
-  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'Failed' -Status "Timed out waiting for $roeBlob" -Config $cfg
-  Write-SffLog "Timed out waiting for $roeBlob after $MaxWaitHours h." -Level ERROR
+if (-not $resolvedIso) {
+  Set-SffProgress -ResourceGroup $resourceGroup -Progress 'Failed' -Status "Timed out waiting for the ROE image (roe.iso/roe.zip)" -Config $cfg
+  Write-SffLog "Timed out waiting for the ROE image after $MaxWaitHours h." -Level ERROR
   Stop-Transcript
-  throw "ROE ISO not staged within $MaxWaitHours hours."
+  throw "ROE image not staged within $MaxWaitHours hours."
 }
-Set-SffProgress -ResourceGroup $resourceGroup -Progress 'ArtifactsStaged' -Status 'ROE ISO downloaded' -Config $cfg
+Set-SffProgress -ResourceGroup $resourceGroup -Progress 'ArtifactsStaged' -Status 'ROE image ready' -Config $cfg
 
 #######################################################################
-# Install the Configurator App (best-effort) for the voucher step
+# Configurator App (OPTIONAL). The host extracts the ownership voucher over SSH
+# (Get-OwnershipVoucher-Ssh.ps1), so the Configurator is only a manual GUI fallback.
+# Stage it if present (.msi or .msix), but NEVER block or fail the build on it.
 #######################################################################
-if ($haveConfigurator -and (Test-Path $configuratorLocal)) {
-  try {
-    Write-SffLog "Installing Configurator App from $configuratorLocal"
-    Start-Process msiexec.exe -Wait -ArgumentList "/i `"$configuratorLocal`" /quiet /norestart"
+foreach ($cb in $configuratorBlobs) {
+  $dest = Join-Path $toolsDir $cb
+  if (Get-StagedArtifact -BlobName $cb -Destination $dest) {
+    Write-SffLog "Configurator App staged at $dest (optional; install manually if you need the GUI fallback)."
+    break
   }
-  catch {
-    Write-SffLog "Configurator App silent install failed (run it manually from $configuratorLocal): $($_.Exception.Message)" -Level WARN
-  }
-}
-else {
-  Write-SffLog "Configurator App not staged; the voucher step will require it on the host." -Level WARN
 }
 
 #######################################################################
 # Build, configure, and boot the nested SFF test VM
 #######################################################################
-& (Join-Path $rootDir 'New-SffTestVm.ps1') -IsoPath $isoLocal
+& (Join-Path $rootDir 'New-SffTestVm.ps1') -IsoPath $resolvedIso
 
 Stop-Transcript
