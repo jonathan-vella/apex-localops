@@ -89,6 +89,7 @@ $downloads = @{
   'Stage-SffArtifacts.ps1'    = 'artifacts/sff/PowerShell/Stage-SffArtifacts.ps1'
   'New-SffTestVm.ps1'         = 'artifacts/sff/PowerShell/New-SffTestVm.ps1'
   'Save-OwnershipVoucher.ps1' = 'artifacts/sff/PowerShell/Save-OwnershipVoucher.ps1'
+  'Get-OwnershipVoucher-Ssh.ps1' = 'artifacts/sff/PowerShell/Get-OwnershipVoucher-Ssh.ps1'
   'set-network.ps1'           = 'artifacts/sff/vendor/set-network.ps1'
 }
 foreach ($d in $downloads.GetEnumerator()) {

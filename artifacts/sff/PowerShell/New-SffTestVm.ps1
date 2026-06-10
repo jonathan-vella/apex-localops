@@ -155,15 +155,43 @@ if ($roeOk) {
     $vmIp = (Get-VMNetworkAdapter -VMName $NestedVmName).IPAddresses | Where-Object { $_ -match '^\d+\.' } | Select-Object -First 1
   }
   catch { }
-  $next = @"
+
+  # --- Zero-touch: try to extract the ownership voucher over SSH and store it in
+  #     Key Vault automatically (replaces the GUI Configurator step). Best-effort:
+  #     on any failure we fall back to the guided path below. ---
+  $voucherStored = $false
+  try {
+    $voucherScript = Join-Path $cfg.Paths.RootDir 'Get-OwnershipVoucher-Ssh.ps1'
+    if (Test-Path $voucherScript) {
+      Write-SffLog 'Attempting headless ownership-voucher extraction over SSH...'
+      $voucherStored = [bool](& $voucherScript -NestedVmName $NestedVmName -NestedVmIp $vmIp -ResourceGroup $resourceGroup)
+    }
+  }
+  catch {
+    Write-SffLog "Automatic voucher extraction errored: $($_.Exception.Message)" -Level WARN
+  }
+
+  if ($voucherStored) {
+    $next = @"
+Nested SFF test VM '$NestedVmName' booted the Maintenance OS AND the ownership voucher
+was extracted automatically and stored in Key Vault (SffProgress=VoucherStored).
+Next: provision the machine in Azure from the voucher, then deploy AKS:
+  scripts/provision-machine.sh   (auto if the preview CLI is present, else guided)
+  scripts/resolve-aks-inputs.sh && scripts/deploy-aks-baremetal.sh
+See docs/sff-zero-touch.md for the fully chained scripts/deploy-all.sh path.
+"@
+  }
+  else {
+    $next = @"
 Nested SFF test VM '$NestedVmName' booted the Maintenance OS successfully.
-Next (guided) step - download the ownership voucher:
+Automatic voucher extraction was not possible; download it manually:
   1. Open the Configurator App on this host.
   2. Enter the nested VM IP$(if ($vmIp) { " ($vmIp)" } else { ' (see Hyper-V console)' }), user 'edgeuser', password 'Password1'.
   3. Select 'Download Ownership Voucher' and save the .pem.
   4. Run:  C:\LocalSFF\Save-OwnershipVoucher.ps1 -Path <voucher>.pem
 See docs/sff-runbook.md for portal machine provisioning.
 "@
+  }
   Set-Content -Path (Join-Path $cfg.Paths.LogsDir 'NEXT-STEPS.txt') -Value $next
   Write-SffLog $next
 }

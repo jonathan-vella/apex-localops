@@ -19,6 +19,13 @@ SFF preview's Configurator App and machine-provisioning experience are portal/GU
 
 ## 1. Download the ownership voucher
 
+> [!TIP]
+> **This step is now automated.** After the nested VM boots ROE, the host extracts the
+> ownership voucher over SSH and stores it in Key Vault for you (the tag reaches
+> `SffProgress=VoucherStored`), so you can usually skip straight to §3. The manual steps
+> below are the fallback if automatic extraction did not run (tag stuck at `RoeSucceeded`).
+> For the fully chained, hands-off path see [sff-zero-touch.md](sff-zero-touch.md).
+
 1. **RDP to `LocalSFF-Host`** over Azure Bastion (portal → the VM → Connect → Bastion).
 2. Open **Hyper-V Manager** → connect to **`linuxsff-vm`** → confirm the console shows
    `[Succeeded] ROE setup completed successfully`. Note the VM IP (`192.168.200.x`).
