@@ -89,12 +89,20 @@ function Set-SffProgress {
   }
   try {
     Import-Module Az.Resources -ErrorAction Stop
-    $rg = Get-AzResourceGroup -Name $ResourceGroup -ErrorAction Stop
-    $tags = $rg.Tags
-    if ($null -eq $tags) { $tags = @{} }
-    $tags[$progressKey] = $Progress
-    if ($PSBoundParameters.ContainsKey('Status') -and $Status) { $tags[$statusKey] = $Status }
-    $null = Set-AzResourceGroup -ResourceGroupName $ResourceGroup -Tag $tags
+    # Use the dedicated tags API (Update-AzTag -Operation Merge), NOT Set-AzResourceGroup.
+    # Set-AzResourceGroup -Tag does a full resource-group PUT, which requires
+    # Microsoft.Resources/subscriptions/resourceGroups/write - a permission the least-privilege
+    # "Tag Contributor" role on the host identity does NOT grant (it would 403 with "does not
+    # have authorization to perform action '.../resourcegroups/write'"). Update-AzTag maps to
+    # Microsoft.Resources/tags/write, which Tag Contributor DOES grant, and Merge preserves any
+    # existing tags (e.g. Project) while updating only the progress/status keys.
+    $subId = $null
+    try { $subId = (Get-AzContext).Subscription.Id } catch { $subId = $null }
+    if (-not $subId) { $subId = [Environment]::GetEnvironmentVariable('SFF_SubscriptionId', 'Machine') }
+    $rgId = "/subscriptions/$subId/resourceGroups/$ResourceGroup"
+    $merge = @{ $progressKey = $Progress }
+    if ($PSBoundParameters.ContainsKey('Status') -and $Status) { $merge[$statusKey] = $Status }
+    $null = Update-AzTag -ResourceId $rgId -Tag $merge -Operation Merge -ErrorAction Stop
     Write-SffLog "Progress tag set: $progressKey=$Progress$( if ($Status) { "  $statusKey=$Status" } )"
   }
   catch {
