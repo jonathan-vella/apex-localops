@@ -125,6 +125,12 @@ account, so uploads need no keys or extra login.
      --name configurator.msi --file <configurator>.msi --auth-mode login
    ```
 
+> [!NOTE]
+> Uploading via the **Azure portal blob browser** uses *your* Entra identity, which needs the
+> **Storage Blob Data Contributor** data-plane role — Owner/Contributor alone are not enough.
+> `deploy-sff.sh` grants the deploying user this role automatically; the jumpbox
+> `Publish-SffArtifacts.ps1` path uses the jumpbox managed identity and needs no user role.
+
 The host watcher detects both blobs, builds the nested Gen2 VM (TPM on, Secure Boot off,
 ≥4 vCPU), applies the IMDS deny ACL, boots the ROE ISO, and waits for success.
 

@@ -59,3 +59,11 @@ param governResourceTags = false
 param tags = {
   Project: 'apex_localsff'
 }
+
+// --- Operator data-plane access to the staging account ---
+// Granting Storage Blob Data Contributor to the deploying user lets them stage the ROE ISO +
+// Configurator App via the Azure portal blob browser (Owner/Contributor are control-plane only
+// and do NOT grant blob data access). scripts/deploy-sff.sh resolves the signed-in user's object
+// id into LOCALSFF_OPERATOR_PRINCIPAL_ID; leave empty to skip (the jumpbox MI path still works).
+param operatorPrincipalId = readEnvironmentVariable('LOCALSFF_OPERATOR_PRINCIPAL_ID', '')
+param operatorPrincipalType = 'User'

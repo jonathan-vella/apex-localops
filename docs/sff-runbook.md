@@ -118,6 +118,7 @@ Full walkthrough: [aks-baremetal-quickstart.md](aks-baremetal-quickstart.md).
 
 | Symptom | Action |
 | --- | --- |
+| Portal upload fails: *"not authorized to perform this operation using this permission"* / *"do not have permissions to list the data"* | You have a **control-plane** role (Owner/Contributor) but no **data-plane** role. `deploy-sff.sh` now grants the deploying user **Storage Blob Data Contributor** on the staging account automatically; for others, run `az role assignment create --assignee <objectId> --role "Storage Blob Data Contributor" --scope <staging-SA-id>` (wait ~1-2 min). Or just use the jumpbox `Publish-SffArtifacts.ps1` (managed-identity path, no user role needed). |
 | `SffProgress=AwaitingArtifacts` forever | Confirm `roe.iso` + `configurator.msi` are in the `sff-artifacts` container; re-run `Publish-SffArtifacts.ps1`. |
 | `SffProgress=RoeTimeout` | The VM may be healthy but didn't emit the serial signal. Open the Hyper-V console on the host; check `C:\LocalSFF\Logs\linuxsff-vm-serial.log`. |
 | `SffProgress=Failed` (network) | Inspect `C:\LocalSFF\Logs\Stage-SffArtifacts.log`; re-run `C:\LocalSFF\set-network.ps1 -Mode WinNAT` (idempotent). |

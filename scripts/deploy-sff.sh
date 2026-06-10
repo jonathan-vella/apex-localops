@@ -243,6 +243,19 @@ fi
 
 echo "Deploying..."
 DEPLOY_NAME="localsff-$(date +%Y%m%d-%H%M%S)"
+
+# Resolve the signed-in user's object id so the deployment grants them Storage Blob Data
+# Contributor on the staging account (Owner/Contributor alone can't list/upload blobs in the
+# portal). Pre-set LOCALSFF_OPERATOR_PRINCIPAL_ID to override (e.g. a group object id), or set
+# it empty to skip. Service-principal logins have no signed-in user, so this stays empty there.
+if [[ -z "${LOCALSFF_OPERATOR_PRINCIPAL_ID:-}" ]]; then
+  LOCALSFF_OPERATOR_PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)
+fi
+export LOCALSFF_OPERATOR_PRINCIPAL_ID
+if [[ -n "${LOCALSFF_OPERATOR_PRINCIPAL_ID:-}" ]]; then
+  echo "Granting operator ${LOCALSFF_OPERATOR_PRINCIPAL_ID} Storage Blob Data Contributor on the staging account."
+fi
+
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$TEMPLATE" \

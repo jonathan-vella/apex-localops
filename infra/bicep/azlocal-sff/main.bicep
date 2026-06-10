@@ -98,6 +98,16 @@ param githubRepo string = 'apex-localops'
 @description('GitHub branch or tag. Use a release tag for reproducible deploys; "main" tracks latest.')
 param githubBranch string = 'main'
 
+@description('Optional object id of the human operator (or a group) to grant Storage Blob Data Contributor on the staging account, so they can stage the ROE ISO + Configurator App via the Azure portal blob browser or `--auth-mode login`. Owner/Contributor are control-plane only and do NOT grant blob data access. scripts/deploy-sff.sh resolves the signed-in user automatically. Leave empty to skip.')
+param operatorPrincipalId string = ''
+
+@description('Principal type for operatorPrincipalId. "User" for an individual, "Group" for an Entra group.')
+@allowed([
+  'User'
+  'Group'
+])
+param operatorPrincipalType string = 'User'
+
 @description('Add CostControl/SecurityControl tags (Microsoft-internal lab tenants only).')
 param governResourceTags bool = false
 
@@ -292,6 +302,20 @@ resource jumpboxStorageContributor 'Microsoft.Authorization/roleAssignments@2022
     principalId: deployManagementVm ? managementVmDeployment!.outputs.managementVmPrincipalId : ''
     roleDefinitionId: roleStorageBlobDataContributor
     principalType: 'ServicePrincipal'
+  }
+}
+
+// Operator (human / group): Storage Blob Data Contributor on the staging account so they can
+// stage the ROE ISO + Configurator App from the Azure portal blob browser or `--auth-mode
+// login`. Control-plane roles (Owner/Contributor) do NOT grant blob data access; this closes
+// the "not authorized to perform this operation using this permission" gap.
+resource operatorStorageContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(operatorPrincipalId)) {
+  name: guid(stagingStorageAccount.id, operatorPrincipalId, roleStorageBlobDataContributor)
+  scope: stagingStorageAccount
+  properties: {
+    principalId: operatorPrincipalId
+    roleDefinitionId: roleStorageBlobDataContributor
+    principalType: operatorPrincipalType
   }
 }
 
