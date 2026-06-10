@@ -45,7 +45,7 @@ location 'X' ... cannot be created in location 'Y'.
 Bicep created that account in a **different** region, the in-VM cloud deployment aborts. The
 nested nodes build and Arc-register first, so the failure surfaces ~90 minutes in.
 
-**Prevention (already encoded):** `bicep/main.bicep` provisions the staging account with
+**Prevention (already encoded):** `infra/bicep/azlocal-js/main.bicep` provisions the staging account with
 `location: azureLocalInstanceLocation`, and `deploy.sh` preflight blocks a mismatched
 existing account.
 
@@ -68,7 +68,7 @@ discover problem:
 
 | Message                                                           | Fix                                                                              |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `main.bicep does not compile`                                     | Run `az bicep build --file bicep/main.bicep` and fix the error.                  |
+| `main.bicep does not compile`                                     | Run `az bicep build --file infra/bicep/azlocal-js/main.bicep` and fix the error.                  |
 | `spnProviderId did not resolve`                                   | Run `./scripts/check-providers.sh`, or `export LOCALBOX_SPN_PROVIDER_ID=<guid>`. |
 | `not registered: <providers>`                                     | Run `./scripts/check-providers.sh` and wait for registration.                    |
 | `staging/witness SA is in 'X' but azureLocalInstanceLocation='Y'` | Delete the mislocated `localbox<hash>` account, then redeploy.                   |

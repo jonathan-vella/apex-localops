@@ -6,7 +6,7 @@ Sweden Central) and approximate.
 
 ## TL;DR
 
-Two selectable profiles (`clusterNodeCount` in `bicep/main.bicepparam`):
+Two selectable profiles (`clusterNodeCount` in `infra/bicep/azlocal-js/main.bicepparam`):
 
 | Profile | Nodes | Host SKU | Data disks | Witness | RAM committed |
 | ------- | ----- | -------- | ---------- | ------- | ------------- |
@@ -63,7 +63,7 @@ One OS disk + twelve data disks, all Premium SSD (LRS):
 > **P30 on a 256 GB disk is a performance-tier override.** A 256 GB Premium SSD bills at
 > the **P15** baseline (1,100 IOPS / 125 MB/s). Setting each disk's performance `tier` to
 > `P30` keeps the 256 GB capacity but delivers 5,000 IOPS / 200 MB/s — at the full P30
-> rate (~$148.68/disk/mo). This is encoded in `bicep/host/host.bicep`. To revert to the
+rate (~$148.68/disk/mo). This is encoded in `infra/bicep/azlocal-js/host/host.bicep`. To revert to the
 > P15 baseline, clear `dataDiskPerformanceTier` there.
 
 The twelve disks form a ~3 TB Storage Spaces pool (`V:`) where the nested VMs live. Each

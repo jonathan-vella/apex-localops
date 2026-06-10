@@ -41,8 +41,8 @@ RUN_MONITOR=true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-TEMPLATE="$REPO_ROOT/bicep/main.bicep"
-PARAMS="$REPO_ROOT/bicep/main.bicepparam"
+TEMPLATE="$REPO_ROOT/infra/bicep/azlocal-js/main.bicep"
+PARAMS="$REPO_ROOT/infra/bicep/azlocal-js/main.bicepparam"
 MONITOR="$SCRIPT_DIR/monitor.sh"
 
 while [[ $# -gt 0 ]]; do

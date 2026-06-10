@@ -1,4 +1,43 @@
-# apex-localops — Deploy Azure Local in an Azure VM (Jumpstart LocalBox)
+<div align="center">
+
+# apex-localops
+
+**Deploy a complete, nested Azure Local cluster inside a single Azure VM — no physical hardware.**
+
+A self-contained, deploy-ready packaging of the Arc Jumpstart **LocalBox** sandbox.
+
+[![validate](https://github.com/jonathan-vella/apex-localops/actions/workflows/validate.yml/badge.svg)](https://github.com/jonathan-vella/apex-localops/actions/workflows/validate.yml)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey)](LICENSE)
+[![IaC: Bicep](https://img.shields.io/badge/IaC-Bicep-1BA1E2)](infra/bicep/azlocal-js/main.bicep)
+![Azure Local](https://img.shields.io/badge/Azure-Local-0078D4)
+![Automation: PowerShell](https://img.shields.io/badge/Automation-PowerShell-5391FE?logo=powershell&logoColor=white)
+
+[**Quickstart**](#quickstart) &nbsp;·&nbsp; [**Architecture**](#architecture) &nbsp;·&nbsp; [**Topology**](#cluster-topology-profiles) &nbsp;·&nbsp; [**Cost**](#cost) &nbsp;·&nbsp; [**Troubleshooting**](#troubleshooting) &nbsp;·&nbsp; [**Docs**](#documentation)
+
+</div>
+
+<details>
+<summary><b>Table of contents</b></summary>
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Cluster topology profiles](#cluster-topology-profiles)
+- [What it deploys](#what-it-deploys)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [How it works](#how-it-works-and-why-the-monitor-matters)
+- [Self-containment scope](#self-containment-scope)
+- [Reproducible deploys](#reproducible-deploys-pin-a-release)
+- [Defaults & customization](#defaults--customization)
+- [Cost](#cost)
+- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [Clean up](#clean-up)
+- [Provenance & license](#provenance--license)
+
+</details>
+
+## Overview
 
 Stand up a complete, nested **Azure Local** (formerly Azure Stack HCI) evaluation
 environment inside a **single Azure VM** — no physical hardware. This repository is a
@@ -7,6 +46,7 @@ the Bicep templates, the in-VM cluster-build automation, and a guided deploy/mon
 experience all live here, so the build does not depend on any third-party repository at
 deploy time.
 
+> [!NOTE]
 > **What you get:** one `LocalBox-Client` Hyper-V host VM that nests an Azure Local cluster
 > plus a management host (`AzLMGMT`) running a domain controller, router, and Windows Admin
 > Center — and an optional Windows 11 jumpbox. The cluster topology is **selectable** via
@@ -14,9 +54,55 @@ deploy time.
 > default 3-node layout needs **no cluster witness** (odd quorum), which sidesteps any
 > `allowSharedKeyAccess` storage policy.
 
+| | |
+| --- | --- |
+| **What** | A nested 2- or 3-node Azure Local cluster + management host in one Hyper-V VM |
+| **Deploy time** | ~18 min ARM provisioning, then a 2–4 h in-VM cluster build |
+| **Default region** | Infra in `swedencentral`; the Azure Local instance registered in `westeurope` |
+| **Topology** | Selectable via `clusterNodeCount` (3-node default, no witness) |
+| **Est. cost** | ~$7,850/month at 24×7 — delete the resource group to stop charges |
+| **Access** | Azure Bastion only (no public IP on the VM) |
+
+## Architecture
+
+```mermaid
+flowchart TB
+    User(["Operator"])
+
+    subgraph RG["Azure subscription · resource group rg-localbox"]
+        direction TB
+
+        subgraph Edge["Edge / network — no public IP on the VM"]
+            Bastion["Azure Bastion"]
+            NAT["NAT Gateway"]
+        end
+
+        KV["Key Vault"]
+        LAW["Log Analytics"]
+        Jump["LocalBox-Mgmt<br/>Windows 11 jumpbox<br/>(optional)"]
+
+        subgraph Host["LocalBox-Client · Standard_E64s_v6 · Hyper-V host"]
+            direction TB
+            subgraph Cluster["Nested Azure Local cluster — 3 nodes, no witness"]
+                direction LR
+                H1["AzLHOST1"]
+                H2["AzLHOST2"]
+                H3["AzLHOST3"]
+            end
+            Mgmt["AzLMGMT<br/>Domain Controller · RRAS/BGP router · Windows Admin Center"]
+            Pool["12 × 256 GB P30 disks<br/>Storage Spaces pool V: (3 TB)"]
+        end
+    end
+
+    User -->|HTTPS via portal| Bastion
+    Bastion --> Host
+    Bastion --> Jump
+    Cluster -. S2D .-> Pool
+```
+
 ## Cluster topology profiles
 
-Pick a profile with three aligned parameters in [bicep/main.bicepparam](bicep/main.bicepparam)
+Pick a profile with three aligned parameters in [infra/bicep/azlocal-js/main.bicepparam](infra/bicep/azlocal-js/main.bicepparam)
 (or override per deploy with `-p`). The deploy preflight enforces that the node count and
 host SKU are coherent.
 
@@ -28,7 +114,7 @@ host SKU are coherent.
 ```bash
 # Deploy the 2-node profile without editing files:
 ./scripts/deploy.sh   # after setting the three params, or:
-az deployment group create -g rg-localbox -f bicep/main.bicep -p bicep/main.bicepparam \
+az deployment group create -g rg-localbox -f infra/bicep/azlocal-js/main.bicep -p infra/bicep/azlocal-js/main.bicepparam \
   -p clusterNodeCount=2 -p vmSize=Standard_E32s_v6 -p dataDiskCount=8
 ```
 
@@ -56,7 +142,9 @@ Both are overridable. Sizing rationale: [docs/sizing-guidance.md](docs/sizing-gu
 - Host-VM vCPU quota in your infra region: **64** of `Standard_E64s_v6` (3-node default) or
   **32** of `Standard_E32s_v6` (2-node profile).
 - A strong Windows admin password (14–123 chars; 3 of lower/upper/digit/special).
-  **Avoid `$`** — it breaks the in-VM LogonScript.
+
+> [!WARNING]
+> **Avoid the `$` character** in the Windows admin password — it breaks the in-VM LogonScript.
 
 ## Quickstart
 
@@ -75,9 +163,10 @@ az account set --subscription "<your-subscription>"
 ./scripts/deploy.sh
 ```
 
-That's it. `deploy.sh` resolves your `tenantId` and the Azure Local resource-provider id
-automatically, runs preflight checks, previews changes with `what-if`, deploys, and then
-launches `monitor.sh` to track the long in-VM build.
+> [!TIP]
+> That's it — `deploy.sh` resolves your `tenantId` and the Azure Local resource-provider id
+> automatically, runs preflight checks, previews changes with `what-if`, deploys, and then
+> launches `monitor.sh` to track the long in-VM build.
 
 ### Useful flags
 
@@ -128,21 +217,21 @@ By default the VM fetches artifacts from the **`main`** branch. For a frozen, re
 build, pin to a release tag — the deploy reads exactly the artifacts in that tag:
 
 ```bash
-# in bicep/main.bicepparam
+# in infra/bicep/azlocal-js/main.bicepparam
 param githubBranch = 'v1.0.0'
 ```
 
 or override at deploy time without editing files:
 
 ```bash
-az deployment group create -g rg-localbox -f bicep/main.bicep \
-  -p bicep/main.bicepparam -p githubBranch=v1.0.0
+az deployment group create -g rg-localbox -f infra/bicep/azlocal-js/main.bicep \
+  -p infra/bicep/azlocal-js/main.bicepparam -p githubBranch=v1.0.0
 ```
 
 ## Defaults & customization
 
 All of these are on by default and toggleable in
-[bicep/main.bicepparam](bicep/main.bicepparam):
+[infra/bicep/azlocal-js/main.bicepparam](infra/bicep/azlocal-js/main.bicepparam):
 
 | Feature                                 | Default            | Param                                       |
 | --------------------------------------- | ------------------ | ------------------------------------------- |
@@ -160,9 +249,20 @@ in the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password
 
 The `Standard_E64s_v6` host plus 12 × P30 data disks dominate the bill. With Bastion, NAT
 Gateway, and the Windows 11 jumpbox enabled, expect roughly **$7,850/month at 24×7** in
-Sweden Central (approximate, retail pay-as-you-go). Disks, Bastion, and NAT bill **even
-when the VMs are stopped** — delete the resource group to stop all charges. Full breakdown:
+Sweden Central (approximate, retail pay-as-you-go). Full breakdown:
 [docs/sizing-guidance.md](docs/sizing-guidance.md).
+
+> [!WARNING]
+> Disks, Bastion, and NAT Gateway bill **even when the VMs are stopped**. Delete the
+> resource group to stop all charges (see [Clean up](#clean-up)).
+
+## Documentation
+
+| Guide | What's inside |
+| --- | --- |
+| [Deployment quickstart](docs/deployment-quickstart.md) | Step-by-step deploy, manual deploy without the script, and monitoring the in-VM build. |
+| [Sizing guidance](docs/sizing-guidance.md) | VM/disk sizing, the full cost breakdown, and the 2- vs 3-node topology rationale. |
+| [Troubleshooting](docs/troubleshooting.md) | Common failures and recovery — witness-location mismatch, preflight blocks, and more. |
 
 ## Troubleshooting
 

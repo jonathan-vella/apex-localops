@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
-in `bicep/main.bicepparam` for reproducible deploys.
+in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
 ## [v1.2.0] - 2026-06-09
 

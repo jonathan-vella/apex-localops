@@ -73,7 +73,7 @@ read -rs LOCALBOX_ADMIN_PASSWORD && export LOCALBOX_ADMIN_PASSWORD
 
 az group create -n rg-localbox -l swedencentral
 az deployment group create -g rg-localbox \
-  -f bicep/main.bicep -p bicep/main.bicepparam
+  -f infra/bicep/azlocal-js/main.bicep -p infra/bicep/azlocal-js/main.bicepparam
 ```
 
 ## 5. Monitor the in-VM cluster build
