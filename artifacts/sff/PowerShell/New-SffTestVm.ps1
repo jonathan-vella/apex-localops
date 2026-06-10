@@ -109,23 +109,33 @@ if ($gen -ne 2 -or "$sb" -ne 'Off' -or -not $tpm -or $cpu -lt 4) {
 }
 Set-SffProgress -ResourceGroup $resourceGroup -Progress 'NestedVmCreated' -Status "Gen2/TPM/SBoff/${cpu}vCPU verified" -Config $cfg
 
-# --- Start a background serial-console reader (named-pipe client -> log file) ---
+# --- Start a background serial-console reader (named-pipe client -> log file).
+#     ROE prints "completed successfully" AFTER an automatic reboot, and a guest reboot
+#     drops the COM1 named pipe (the reader hits EndOfStream). A single connect would stop
+#     capturing exactly when the success line appears, so the reader RECONNECTS in a loop
+#     until the parent creates the stop-file. ---
 if (Test-Path $serialLog) { Remove-Item $serialLog -Force -ErrorAction SilentlyContinue }
+$stopFile = Join-Path $cfg.Paths.LogsDir "$NestedVmName-serial.stop"
+if (Test-Path $stopFile) { Remove-Item $stopFile -Force -ErrorAction SilentlyContinue }
 $readerJob = Start-Job -ScriptBlock {
-  param($pipe, $log)
-  try {
-    $client = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In)
-    $client.Connect(120000)
-    $reader = New-Object System.IO.StreamReader($client)
-    while (-not $reader.EndOfStream) {
-      $line = $reader.ReadLine()
-      if ($null -ne $line) { Add-Content -Path $log -Value $line }
+  param($pipe, $log, $stop)
+  while (-not (Test-Path $stop)) {
+    try {
+      $client = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In)
+      $client.Connect(15000)
+      $reader = New-Object System.IO.StreamReader($client)
+      while (-not $reader.EndOfStream -and -not (Test-Path $stop)) {
+        $line = $reader.ReadLine()
+        if ($null -ne $line) { Add-Content -Path $log -Value $line }
+      }
+      $reader.Dispose(); $client.Dispose()
+    }
+    catch {
+      # Pipe not available yet (VM mid-reboot); wait briefly and reconnect.
+      Start-Sleep -Seconds 3
     }
   }
-  catch {
-    Add-Content -Path $log -Value "[serial-reader] $($_.Exception.Message)"
-  }
-} -ArgumentList $pipeName, $serialLog
+} -ArgumentList $pipeName, $serialLog, $stopFile
 
 # --- Boot and wait for the ROE success signal ---
 Start-VM -Name $NestedVmName
@@ -144,6 +154,8 @@ while ((Get-Date) -lt $deadline) {
   }
 }
 
+# Signal the reconnecting reader to stop, then clean up the job.
+New-Item -ItemType File -Path $stopFile -Force | Out-Null
 Stop-Job $readerJob -ErrorAction SilentlyContinue | Out-Null
 Remove-Job $readerJob -Force -ErrorAction SilentlyContinue | Out-Null
 

@@ -48,8 +48,11 @@
     Generation        = 2
     # Azure-VM IMDS endpoint that must be denied on the nested adapter before boot.
     ImdsAddress       = "169.254.169.254"
-    # Success string the ROE Maintenance OS prints when it is ready.
-    RoeSuccessPattern = "ROE setup completed successfully"
+    # Success signal the ROE/maintenance OS prints when ready. Regex (matched case-
+    # insensitively) covering both documented wordings: "[Succeeded] ROE setup completed
+    # successfully" and "Status: [Succeeded] Maintenance environment setup completed
+    # successfully".
+    RoeSuccessPattern = "(ROE setup completed successfully|Maintenance environment setup completed successfully|setup completed successfully)"
     # Minutes to wait for the ROE success signal before flagging it for manual check.
     RoeTimeoutMinutes = 20
   }
