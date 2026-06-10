@@ -1,0 +1,10 @@
+# Normalize the auto-synced Azure skills to LF line endings.
+#
+# Why: the sync-azure-skills workflow rsyncs files straight from
+# microsoft/azure-skills (which ship with CRLF) on a GitHub runner where git's
+# core.autocrlf defaults to false. Without a normalization rule, every run would
+# commit CRLF over the LF copy that local clients (e.g. core.autocrlf=input)
+# produce — endless whitespace-only churn. Forcing LF here makes both the runner
+# and local clients agree, so the workflow becomes a true no-op unless upstream
+# content actually changes. text=auto still auto-detects and leaves binaries alone.
+.github/skills/** text=auto eol=lf
