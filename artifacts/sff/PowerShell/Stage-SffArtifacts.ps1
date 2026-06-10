@@ -54,10 +54,11 @@ foreach ($k in @('AutoAdminLogon', 'DefaultUserName', 'DefaultPassword', 'Defaul
   try { Remove-ItemProperty -Path $winlogon -Name $k -ErrorAction Stop; Write-SffLog "Removed autologon key $k" } catch { }
 }
 
-Connect-SffAzure | Out-Null
-
 #######################################################################
-# Configure the internal Hyper-V NAT + DHCP network (idempotent)
+# Configure the internal Hyper-V NAT + DHCP network (idempotent).
+# Do this BEFORE connecting to Azure: the network needs no Azure access, and the
+# managed-identity login may need to retry through RBAC propagation. Configuring the
+# network first guarantees it is ready even if the Azure connection is briefly delayed.
 #######################################################################
 Set-SffProgress -ResourceGroup $resourceGroup -Progress 'NetworkConfiguring' -Status "Creating $hvSwitchName" -Config $cfg
 try {
@@ -81,6 +82,13 @@ catch {
 #######################################################################
 # Wait for the operator-staged artifacts (Azure-initiated downloads)
 #######################################################################
+# Connect to Azure now (retries through RBAC propagation). Required for the storage
+# polling + progress tags below. If it ultimately fails, fall back to local-drop only
+# so an operator can still place files in C:\LocalSFF\incoming.
+$azReady = [bool](Connect-SffAzure)
+if (-not $azReady) {
+  Write-SffLog "Azure connection unavailable; will watch only the local incoming folder for artifacts." -Level WARN
+}
 Import-Module Az.Storage -ErrorAction Stop
 $incomingDir = $cfg.Paths.IncomingDir
 $isoDir = $cfg.Paths.IsoDir

@@ -44,31 +44,55 @@ function Connect-SffAzure {
   [CmdletBinding()]
   param(
     [string]$SubscriptionId = [Environment]::GetEnvironmentVariable('SFF_SubscriptionId', 'Machine'),
-    [string]$TenantId = [Environment]::GetEnvironmentVariable('SFF_TenantId', 'Machine')
+    [string]$TenantId = [Environment]::GetEnvironmentVariable('SFF_TenantId', 'Machine'),
+    [int]$MaxAttempts = 12,
+    [int]$DelaySeconds = 30
   )
   Import-Module Az.Accounts -ErrorAction Stop
-  $ctx = $null
-  try { $ctx = Get-AzContext } catch { $ctx = $null }
 
-  if (-not $ctx -or -not $ctx.Subscription -or -not $ctx.Subscription.Id) {
-    Write-SffLog "Connecting to Azure with the host managed identity..."
-    $connectParams = @{ Identity = $true; ErrorAction = 'Stop' }
-    if ($SubscriptionId) { $connectParams['Subscription'] = $SubscriptionId }
-    if ($TenantId) { $connectParams['Tenant'] = $TenantId }
-    $null = Connect-AzAccount @connectParams
+  # Already connected with a usable subscription? Reuse it.
+  try {
     $ctx = Get-AzContext
+    if ($ctx -and $ctx.Subscription -and $ctx.Subscription.Id) {
+      if (-not $SubscriptionId -or $ctx.Subscription.Id -eq $SubscriptionId) { return $ctx }
+    }
+  } catch { }
+
+  # Connect with retry/backoff to ride out RBAC PROPAGATION LAG. The host runs Phase 2
+  # almost immediately after its managed-identity role assignments are created, so the MI
+  # token may not yet reflect them ("...recently granted, please refresh your credentials").
+  #
+  # Use a BARE `Connect-AzAccount -Identity` (NO -Subscription): the identity holds only
+  # resource-group-scoped roles (least privilege), so the subscription LIST endpoint works
+  # but a `-Subscription <id>` GET (which needs Microsoft.Resources/subscriptions/read at
+  # subscription scope) would 403. After connecting, pin the subscription with Set-AzContext,
+  # which switches context from the already-loaded profile (no extra subscription read).
+  for ($i = 1; $i -le $MaxAttempts; $i++) {
+    try {
+      Write-SffLog "Connecting to Azure with the host managed identity (attempt $i/$MaxAttempts)..."
+      $null = Connect-AzAccount -Identity -ErrorAction Stop -WarningAction SilentlyContinue
+      $ctx = Get-AzContext
+      if ($ctx -and $ctx.Subscription -and $ctx.Subscription.Id) {
+        if ($SubscriptionId -and $ctx.Subscription.Id -ne $SubscriptionId) {
+          try { $null = Set-AzContext -Subscription $SubscriptionId -ErrorAction Stop }
+          catch { Write-SffLog "Set-AzContext to ${SubscriptionId} failed: $($_.Exception.Message)" -Level WARN }
+          $ctx = Get-AzContext
+        }
+        if ($ctx -and $ctx.Subscription -and $ctx.Subscription.Id) {
+          Write-SffLog "Connected. Subscription context: $($ctx.Subscription.Id)"
+          return $ctx
+        }
+      }
+      Write-SffLog "Connected but no subscription in context yet (RBAC propagating); retrying in ${DelaySeconds}s." -Level WARN
+    }
+    catch {
+      Write-SffLog "Connect attempt $i/$MaxAttempts failed (likely RBAC propagation): $($_.Exception.Message)" -Level WARN
+    }
+    if ($i -lt $MaxAttempts) { Start-Sleep -Seconds $DelaySeconds }
   }
 
-  # Ensure the active context targets the intended subscription.
-  if ($SubscriptionId -and $ctx -and $ctx.Subscription.Id -ne $SubscriptionId) {
-    try {
-      $null = Set-AzContext -Subscription $SubscriptionId -ErrorAction Stop
-      $ctx = Get-AzContext
-    } catch {
-      Write-SffLog "Could not set context to subscription ${SubscriptionId}: $($_.Exception.Message)" -Level WARN
-    }
-  }
-  return $ctx
+  Write-SffLog "Could not establish an Azure context after $MaxAttempts attempts." -Level ERROR
+  return $null
 }
 
 function Set-SffProgress {
