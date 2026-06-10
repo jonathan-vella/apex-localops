@@ -217,7 +217,11 @@ function Get-SubnetMaskFromCidr {
         return "0.0.0.0"
     }
 
-    $mask32 = ([uint32]0xFFFFFFFF) - (([uint32]1 -shl (32 - $Cidr)) - 1)
+    # apex-localops PS 5.1 compatibility patch (deviates from upstream): under Windows
+    # PowerShell 5.1 the literal 0xFFFFFFFF parses as [int] -1, so [uint32]0xFFFFFFFF
+    # throws "Cannot convert value -1 to type System.UInt32". Compute the mask via powers
+    # of two instead (exact for doubles up to 2^32), which is correct under both 5.1 and 7.
+    $mask32 = [uint32]([math]::Pow(2, 32) - [math]::Pow(2, 32 - $Cidr))
 
     $octets = @(
         ($mask32 -shr 24) -band 0xFF

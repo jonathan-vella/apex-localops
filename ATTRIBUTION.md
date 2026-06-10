@@ -60,10 +60,13 @@ The SFF profile ([infra/bicep/azlocal-sff](infra/bicep/azlocal-sff), `artifacts/
 Microsoft materials:
 
 - **SFF helper scripts** — `artifacts/sff/vendor/set-network.ps1` and
-  `artifacts/sff/vendor/setup-k3s-arc.sh` are vendored verbatim from
+  `artifacts/sff/vendor/setup-k3s-arc.sh` are vendored from
   [`Azure-Samples/AzureLocal`](https://github.com/Azure-Samples/AzureLocal)
   (`small-form-factor/`), pinned to commit
-  `963ac3f530ad64cccfd7ab6f13bddda639abee68`. Licensed **MIT** © Microsoft.
+  `963ac3f530ad64cccfd7ab6f13bddda639abee68`. Licensed **MIT** © Microsoft. **Modification:**
+  `set-network.ps1` `Get-SubnetMaskFromCidr` was patched for **Windows PowerShell 5.1**
+  compatibility (the upstream `[uint32]0xFFFFFFFF` throws under 5.1, the host's default
+  shell); the mask is computed via powers of two instead. The patch is marked inline.
 - **SFF documentation** — `docs/azure-local-sff/upstream/` is a read-only mirror of the
   `azure-local/small-form-factor` docs from
   [`MicrosoftDocs/azure-stack-docs`](https://github.com/MicrosoftDocs/azure-stack-docs),

@@ -38,16 +38,37 @@ function Write-SffLog {
 
 function Connect-SffAzure {
   # Authenticate using the host VM's system-assigned managed identity (no secrets).
+  # Always pin the subscription: `Connect-AzAccount -Identity` alone can leave the context
+  # with a null subscription, which then fails every management-plane call (e.g.
+  # Get-AzResourceGroup -> "'this.Client.SubscriptionId' cannot be null").
   [CmdletBinding()]
-  param()
+  param(
+    [string]$SubscriptionId = [Environment]::GetEnvironmentVariable('SFF_SubscriptionId', 'Machine'),
+    [string]$TenantId = [Environment]::GetEnvironmentVariable('SFF_TenantId', 'Machine')
+  )
   Import-Module Az.Accounts -ErrorAction Stop
   $ctx = $null
-  try { $ctx = (Get-AzContext) } catch { $ctx = $null }
-  if (-not $ctx) {
+  try { $ctx = Get-AzContext } catch { $ctx = $null }
+
+  if (-not $ctx -or -not $ctx.Subscription -or -not $ctx.Subscription.Id) {
     Write-SffLog "Connecting to Azure with the host managed identity..."
-    $null = Connect-AzAccount -Identity -ErrorAction Stop
+    $connectParams = @{ Identity = $true; ErrorAction = 'Stop' }
+    if ($SubscriptionId) { $connectParams['Subscription'] = $SubscriptionId }
+    if ($TenantId) { $connectParams['Tenant'] = $TenantId }
+    $null = Connect-AzAccount @connectParams
+    $ctx = Get-AzContext
   }
-  return (Get-AzContext)
+
+  # Ensure the active context targets the intended subscription.
+  if ($SubscriptionId -and $ctx -and $ctx.Subscription.Id -ne $SubscriptionId) {
+    try {
+      $null = Set-AzContext -Subscription $SubscriptionId -ErrorAction Stop
+      $ctx = Get-AzContext
+    } catch {
+      Write-SffLog "Could not set context to subscription ${SubscriptionId}: $($_.Exception.Message)" -Level WARN
+    }
+  }
+  return $ctx
 }
 
 function Set-SffProgress {
