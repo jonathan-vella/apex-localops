@@ -98,22 +98,27 @@ Useful flags:
 
 After the ARM deploy, the host installs Hyper-V and **waits** for two Microsoft-owned
 artifacts. Per this project's rule, **all downloads are initiated from an Azure resource** —
-never your laptop:
+never your laptop. The **`LocalSFF-Mgmt`** jumpbox is **pre-provisioned** for this: its setup
+extension installs **Azure CLI + Az PowerShell** and stages `Publish-SffArtifacts.ps1` into
+`C:\LocalSFF`, with a `SFF-Staging-Instructions.txt` on the desktop (the real staging account
+name baked in). Its managed identity holds **Storage Blob Data Contributor** on the staging
+account, so uploads need no keys or extra login.
 
-1. RDP to the **`LocalSFF-Mgmt`** jumpbox over Bastion (or open **Azure Cloud Shell**).
+1. RDP to the **`LocalSFF-Mgmt`** jumpbox over Bastion (tooling is already installed).
 2. In the portal: **Azure Arc → Operations → Machine provisioning (preview) → Get started →
    View downloads → Download all**.
-3. Upload both files to the staging container (canonical names `roe.iso`, `configurator.msi`):
+3. Upload both files to the staging container (canonical names `roe.iso`, `configurator.msi`).
+   Easiest — the staged helper (uses the jumpbox managed identity automatically):
 
    ```powershell
-   # On the jumpbox (PowerShell), using the staging account name from the deploy output:
-   ./artifacts/sff/PowerShell/Publish-SffArtifacts.ps1 `
+   C:\LocalSFF\Publish-SffArtifacts.ps1 `
      -StorageAccountName <localsff…> -IsoPath .\roe.iso -ConfiguratorPath .\configurator.msi
    ```
 
-   or with the CLI:
+   or with the CLI (`az login --identity` first):
 
    ```bash
+   az login --identity
    az storage blob upload --account-name <localsff…> --container-name sff-artifacts \
      --name roe.iso --file <roe>.iso --auth-mode login
    az storage blob upload --account-name <localsff…> --container-name sff-artifacts \

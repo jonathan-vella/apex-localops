@@ -35,6 +35,15 @@ param location string = resourceGroup().location
 @description('Windows 11 marketplace image SKU (publisher microsoftwindowsdesktop, offer windows-11).')
 param windows11Sku string = 'win11-24h2-pro'
 
+@description('Base URL used to fetch the SFF helper scripts from this repo. Empty disables the jumpbox setup extension.')
+param templateBaseUrl string = ''
+
+@description('Name of the staging storage account (baked into the on-desktop upload instructions).')
+param stagingStorageAccountName string = ''
+
+@description('Name of the staging artifacts blob container.')
+param stagingArtifactsContainer string = 'sff-artifacts'
+
 param resourceTags object
 
 var networkInterfaceName = '${vmName}-NIC'
@@ -115,3 +124,25 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
 output managementVmName string = vm.name
 output managementVmPrincipalId string = vm.identity.principalId
 output managementVmPrivateIp string = networkInterface.properties.ipConfigurations[0].properties.privateIPAddress
+
+// Provision the jumpbox as an acquisition workstation: install Azure CLI + Az modules and
+// stage Publish-SffArtifacts.ps1 + desktop instructions. A stock Windows 11 image has none
+// of this tooling, so without it the documented "upload from the jumpbox" path can't run.
+// Skipped when templateBaseUrl is empty (e.g. unit what-ifs).
+resource jumpboxSetup 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (!empty(templateBaseUrl)) {
+  parent: vm
+  name: 'SetupSffJumpbox'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Compute'
+    type: 'CustomScriptExtension'
+    typeHandlerVersion: '1.10'
+    autoUpgradeMinorVersion: true
+    protectedSettings: {
+      fileUris: [
+        uri(templateBaseUrl, 'artifacts/sff/PowerShell/Setup-SffJumpbox.ps1')
+      ]
+      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Setup-SffJumpbox.ps1 -templateBaseUrl ${templateBaseUrl} -stagingStorageAccountName ${stagingStorageAccountName} -stagingContainer ${stagingArtifactsContainer}'
+    }
+  }
+}

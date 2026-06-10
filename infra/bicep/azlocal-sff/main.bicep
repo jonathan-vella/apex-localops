@@ -223,6 +223,9 @@ module managementVmDeployment 'mgmt/managementVm.bicep' = if (deployManagementVm
     adminUsername: windowsAdminUsername
     adminPassword: windowsAdminPassword
     subnetId: networkDeployment.outputs.subnetId
+    templateBaseUrl: templateBaseUrl
+    stagingStorageAccountName: stagingStorageAccountName
+    stagingArtifactsContainer: stagingArtifactsContainer
     resourceTags: resourceTags
   }
 }

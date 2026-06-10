@@ -274,20 +274,25 @@ Microsoft-owned artifacts to appear in the staging storage account:
     container       : ${STAGING_CONTAINER}
     blobs           : roe.iso  configurator.msi
 
-ALL downloads must be initiated from an Azure resource (the Bastion
-jumpbox '${RESOURCE_GROUP}/LocalSFF-Mgmt' or Azure Cloud Shell):
+ALL downloads must be initiated from an Azure resource. The '${RESOURCE_GROUP}/LocalSFF-Mgmt'
+jumpbox is PRE-PROVISIONED for this: Azure CLI + Az PowerShell + the
+Publish-SffArtifacts.ps1 helper are installed in C:\\LocalSFF, and a
+'SFF-Staging-Instructions.txt' with the exact commands is on its desktop.
 
-  1. RDP to the jumpbox over Bastion (or open Cloud Shell).
+  1. RDP to the jumpbox over Bastion (it has the tooling pre-installed).
   2. Azure portal > Azure Arc > Machine provisioning (preview) >
      Get started > View downloads > Download all.
-  3. Upload both files to the staging container, e.g.:
+  3. Upload both files to the staging container - easiest is the helper
+     (uses the jumpbox managed identity; no extra login):
+       C:\\LocalSFF\\Publish-SffArtifacts.ps1 -StorageAccountName ${STAGING_SA} \`
+         -IsoPath <roe>.iso -ConfiguratorPath <configurator>.msi
+     or with the CLI (az login --identity first):
        az storage blob upload --account-name ${STAGING_SA} \\
          --container-name ${STAGING_CONTAINER} --name roe.iso \\
          --file <roe>.iso --auth-mode login
        az storage blob upload --account-name ${STAGING_SA} \\
          --container-name ${STAGING_CONTAINER} --name configurator.msi \\
          --file <configurator>.msi --auth-mode login
-     (or run artifacts/sff/PowerShell/Publish-SffArtifacts.ps1)
 
 Track the in-VM build (tags + optional host log tail):
 
