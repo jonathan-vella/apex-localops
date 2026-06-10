@@ -1,0 +1,88 @@
+name: sync-azure-skills
+
+# Mirrors the Azure skills from microsoft/azure-skills into .github/skills and
+# pushes the result directly to main. Runs on a weekly schedule and on demand.
+#
+# Note: pushing straight to main requires that branch protection on main does NOT
+# mandate a pull request / required status checks for this actor. If it does, the
+# push step will fail — switch to a pull-request flow in that case.
+
+on:
+  schedule:
+    # Every Monday at 06:00 UTC. Adjust the cron to taste.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Allow the workflow to commit and push to the repository.
+permissions:
+  contents: write
+
+# Never let two syncs run at once (a slow run + the next schedule could race).
+concurrency:
+  group: sync-azure-skills
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync skills and push to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          # Check out main explicitly so the push target is unambiguous on both
+          # the scheduled and manual triggers.
+          ref: main
+          persist-credentials: true
+
+      - name: Mirror upstream skills into .github/skills
+        id: mirror
+        env:
+          UPSTREAM_REPO: https://github.com/microsoft/azure-skills
+          UPSTREAM_SUBDIR: .github/plugins/azure-skills/skills
+          DEST_DIR: .github/skills
+        run: |
+          set -euo pipefail
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          # Shallow clone is enough; we only need the current tree + its short SHA.
+          git clone --depth 1 "$UPSTREAM_REPO" "$tmp/upstream"
+
+          src="$tmp/upstream/$UPSTREAM_SUBDIR"
+          if [[ ! -d "$src" ]]; then
+            echo "::error::Upstream path '$UPSTREAM_SUBDIR' not found in $UPSTREAM_REPO. Did the repo layout change?"
+            exit 1
+          fi
+
+          upstream_sha="$(git -C "$tmp/upstream" rev-parse --short HEAD)"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+
+          mkdir -p "$DEST_DIR"
+          # --delete makes the destination an exact mirror: skills removed or
+          # renamed upstream are removed locally too.
+          rsync -a --delete "$src/" "$DEST_DIR/"
+
+      - name: Commit and push if changed
+        env:
+          UPSTREAM_SHA: ${{ steps.mirror.outputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Stage deletions, additions, and modifications under the skills dir only.
+          git add -A -- .github/skills
+
+          if git diff --cached --quiet; then
+            echo "No skill changes to sync. Up to date with microsoft/azure-skills@${UPSTREAM_SHA}."
+            exit 0
+          fi
+
+          echo "Changes detected:"
+          git diff --cached --name-status -- .github/skills
+
+          git commit -m "chore(skills): sync Azure skills from microsoft/azure-skills@${UPSTREAM_SHA}"
+          git push origin HEAD:main
