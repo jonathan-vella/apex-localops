@@ -55,6 +55,13 @@
     RoeSuccessPattern = "(ROE setup completed successfully|Maintenance environment setup completed successfully|setup completed successfully)"
     # Minutes to wait for the ROE success signal before flagging it for manual check.
     RoeTimeoutMinutes = 20
+    # First DHCP lease on the internal NAT scope (.50-.200) - the nested VM's address.
+    # Used as the PRIMARY readiness probe: SSH(22) reachable here == ROE maintenance OS up.
+    IpAddress         = "192.168.200.50"
+    # ROE in nested Hyper-V intermittently needs ONE reboot to finish maintenance-env setup
+    # (observed repeatedly). If SSH(22) is not up after this many minutes, the builder
+    # performs a single automatic Restart-VM nudge instead of requiring a manual reboot.
+    RebootAfterMinutes = 8
   }
 
   # Resource-group tag keys used to surface in-VM progress to monitor-sff.sh.

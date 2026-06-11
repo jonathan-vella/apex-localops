@@ -48,6 +48,9 @@ $serialLog = Join-Path $cfg.Paths.LogsDir "$NestedVmName-serial.log"
 $pipeName = "$NestedVmName-com1"
 $imds = $cfg.NestedVm.ImdsAddress
 $roePattern = $cfg.NestedVm.RoeSuccessPattern
+$nestedIp = $cfg.NestedVm.IpAddress
+$rebootAfter = [int]$cfg.NestedVm.RebootAfterMinutes
+if ($rebootAfter -le 0) { $rebootAfter = 8 }
 
 if (-not (Test-Path $IsoPath)) { throw "ROE ISO not found at: $IsoPath" }
 
@@ -140,17 +143,43 @@ $readerJob = Start-Job -ScriptBlock {
 # --- Boot and wait for the ROE success signal ---
 Start-VM -Name $NestedVmName
 Set-SffProgress -ResourceGroup $resourceGroup -Progress 'RoeBooting' -Status 'Nested VM started; awaiting ROE' -Config $cfg
-Write-SffLog "Nested VM started. Waiting up to $RoeTimeoutMinutes min for: '$roePattern'."
+Write-SffLog "Nested VM started. Primary readiness probe: SSH(22) on $nestedIp. Secondary: serial pattern '$roePattern'. Timeout ${RoeTimeoutMinutes} min; auto-reboot nudge after ${rebootAfter} min."
+
+# Readiness = ROE maintenance OS is up. SSH(22) reachable is the AUTHORITATIVE signal
+# (independent of the fragile single-reader COM1 pipe); the serial banner is a fallback
+# for the case where SSH is firewalled but the console still prints success.
+function Test-RoeReady {
+  param([string]$Ip, [string]$SerialLog, [string]$Pattern)
+  try {
+    $t = Test-NetConnection -ComputerName $Ip -Port 22 -WarningAction SilentlyContinue -InformationLevel Quiet
+    if ($t) { return $true }
+  }
+  catch { }
+  if (Test-Path $SerialLog) {
+    if (Select-String -Path $SerialLog -Pattern $Pattern -Quiet -ErrorAction SilentlyContinue) { return $true }
+  }
+  return $false
+}
 
 $deadline = (Get-Date).AddMinutes($RoeTimeoutMinutes)
+$rebootDeadline = (Get-Date).AddMinutes($rebootAfter)
 $roeOk = $false
+$rebootedOnce = $false
 while ((Get-Date) -lt $deadline) {
   Start-Sleep -Seconds 20
-  if (Test-Path $serialLog) {
-    if (Select-String -Path $serialLog -Pattern $roePattern -Quiet -ErrorAction SilentlyContinue) {
-      $roeOk = $true
-      break
-    }
+  if (Test-RoeReady -Ip $nestedIp -SerialLog $serialLog -Pattern $roePattern) {
+    $roeOk = $true
+    break
+  }
+  # ROE in nested Hyper-V intermittently stalls finishing maintenance-env setup until it is
+  # rebooted once (reproduced repeatedly - previously a manual step). Nudge it automatically
+  # with a single Restart-VM after the grace period, then keep waiting for SSH(22).
+  if (-not $rebootedOnce -and (Get-Date) -ge $rebootDeadline) {
+    Write-SffLog "ROE not ready after ${rebootAfter} min; performing a one-time automatic reboot of '$NestedVmName' (known nested-Hyper-V ROE quirk)." -Level WARN
+    Set-SffProgress -ResourceGroup $resourceGroup -Progress 'RoeBooting' -Status "Auto-reboot nudge after ${rebootAfter} min; awaiting ROE" -Config $cfg
+    try { Restart-VM -Name $NestedVmName -Force -ErrorAction Stop }
+    catch { Write-SffLog "Automatic reboot failed: $($_.Exception.Message)" -Level WARN }
+    $rebootedOnce = $true
   }
 }
 
@@ -161,12 +190,15 @@ Remove-Job $readerJob -Force -ErrorAction SilentlyContinue | Out-Null
 
 if ($roeOk) {
   Set-SffProgress -ResourceGroup $resourceGroup -Progress 'RoeSucceeded' -Status 'ROE setup completed successfully' -Config $cfg
-  Write-SffLog "SUCCESS: ROE reported '$roePattern'."
+  Write-SffLog "SUCCESS: ROE is ready (SSH(22) reachable on $nestedIp or serial banner observed)."
+  # Prefer the live Hyper-V adapter address; fall back to the configured DHCP-start IP that
+  # the readiness probe already validated as SSH-reachable.
   $vmIp = ''
   try {
     $vmIp = (Get-VMNetworkAdapter -VMName $NestedVmName).IPAddresses | Where-Object { $_ -match '^\d+\.' } | Select-Object -First 1
   }
   catch { }
+  if (-not $vmIp) { $vmIp = $nestedIp }
 
   # --- Zero-touch: try to extract the ownership voucher over SSH and store it in
   #     Key Vault automatically (replaces the GUI Configurator step). Best-effort:
