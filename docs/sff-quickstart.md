@@ -94,6 +94,11 @@ Useful flags:
 ./scripts/deploy-sff.sh -g rg-localsff -l swedencentral
 ```
 
+> **Azure Hybrid Benefit is on by default** (`enableAzureHybridBenefit = true`): the host VM
+> uses `Windows_Server` and the jumpbox uses `Windows_Client`, dropping the Windows license
+> charge. This attests you hold eligible licenses — set the param to `false` for
+> license-included (PAYG) billing. See [sff-sizing.md](sff-sizing.md#azure-hybrid-benefit-on-by-default).
+
 ## 4. Stage the ROE ISO + Configurator App (Azure-initiated)
 
 After the ARM deploy, the host installs Hyper-V and **waits** for two Microsoft-owned

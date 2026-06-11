@@ -56,6 +56,9 @@ param deployBastion bool = true
 @maxValue(2048)
 param dataDiskSizeGB int = 512
 
+@description('Apply Windows Server Azure Hybrid Benefit (licenseType=Windows_Server) to drop the Windows Server license charge. On by default; requires Windows Server licenses with active Software Assurance or qualifying subscription licenses. Set false for license-included (PAYG).')
+param enableAzureHybridBenefit bool = true
+
 param resourceTags object
 
 @description('Name of the staging storage account that holds the ROE ISO + Configurator App MSI.')
@@ -172,6 +175,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    // Azure Hybrid Benefit for Windows Server (on by default). 'Windows_Server'
+    // removes the WS license charge; null bills license-included (PAYG).
+    licenseType: enableAzureHybridBenefit ? 'Windows_Server' : null
     hardwareProfile: {
       vmSize: vmSize
     }

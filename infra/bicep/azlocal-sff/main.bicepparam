@@ -25,6 +25,13 @@ param namePrefix = 'LocalSFF'
 param hostVmSize = 'Standard_D8s_v5'
 param hostDataDiskSizeGB = 512
 
+// --- Azure Hybrid Benefit (ON by default for this project) ---
+// Applies AHB across the SFF profile: Windows_Server on the host VM and
+// Windows_Client on the Windows 11 jumpbox (matches the LocalBox profile). Removes the
+// Windows license charge; requires the corresponding eligible licenses. Set false for
+// license-included (PAYG) billing on both VMs.
+param enableAzureHybridBenefit = true
+
 // --- Connectivity: Bastion ON => no public IP on the VMs; NAT Gateway egress ---
 param deployBastion = true
 param vmAutologon = true

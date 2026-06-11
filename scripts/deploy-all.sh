@@ -26,7 +26,7 @@
 #   ./deploy-all.sh --from <stage> --to <stage>          # run a subset (by name or number)
 #   ./deploy-all.sh --skip providers,sff                 # skip stages
 #   ./deploy-all.sh --resource-group rg-localsff
-#   ./deploy-all.sh --aks-resource-group rg-localsff-aks
+#   ./deploy-all.sh --aks-resource-group rg-localsff
 #   ./deploy-all.sh --dry-run                            # print the plan, run nothing
 #   ./deploy-all.sh --help
 #
@@ -38,7 +38,10 @@
 set -euo pipefail
 
 RESOURCE_GROUP="rg-localsff"
-AKS_RESOURCE_GROUP="rg-localsff-aks"
+# The AKS cluster deploys into the SAME resource group as the Provisioned EdgeMachine
+# (the template references it by name within the deployment RG), so it tracks the SFF RG
+# unless explicitly overridden with --aks-resource-group. Empty here => resolved after parsing.
+AKS_RESOURCE_GROUP=""
 ADMIN_GROUP_ID="${AKSBM_ADMIN_GROUP_ID:-}"
 ADMIN_GROUP_NAME="${AKSBM_ADMIN_GROUP_NAME:-LocalSFF-AKS-Admins}"
 SSH_KEY_FILE="${HOME}/.ssh/id_rsa.pub"
@@ -69,6 +72,9 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# The AKS cluster must live in the EdgeMachine's resource group; default it to the SFF RG.
+AKS_RESOURCE_GROUP="${AKS_RESOURCE_GROUP:-$RESOURCE_GROUP}"
 
 command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI (az) not found on PATH." >&2; exit 1; }
 az account show >/dev/null 2>&1 || { echo "ERROR: Not logged in to Azure. Run 'az login' first." >&2; exit 1; }
@@ -127,7 +133,7 @@ fi
 # --- Stage 2: SFF host build (waits internally for the cluster/ROE phase via its monitor) ---
 if should_run sff; then
   banner "sff (deploy-sff.sh)"
-  run "$SCRIPT_DIR/deploy-sff.sh" --no-monitor
+  run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --no-monitor
   if [[ "$DRY_RUN" != "true" ]]; then
     echo "ACTION REQUIRED (one-time-ever): stage roe.iso + configurator.msi into the staging"
     echo "account from an Azure resource (jumpbox/Cloud Shell). See docs/sff-quickstart.md §4."

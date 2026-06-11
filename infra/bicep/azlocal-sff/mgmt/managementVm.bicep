@@ -46,6 +46,9 @@ param stagingArtifactsContainer string = 'sff-artifacts'
 
 param resourceTags object
 
+@description('Apply Windows client Azure Hybrid Benefit (licenseType=Windows_Client) to the Windows 11 jumpbox. On by default; requires eligible Windows 10/11 E3/E5 or Windows VDA per-user licenses with multi-tenant hosting rights. Set false for license-included (PAYG).')
+param enableAzureHybridBenefit bool = true
+
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
 
@@ -76,6 +79,10 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    // Azure Hybrid Benefit for Windows client (on by default). Requires eligible
+    // Windows 10/11 E3/E5 or Windows VDA per-user licenses with multi-tenant hosting
+    // rights. null bills license-included (PAYG).
+    licenseType: enableAzureHybridBenefit ? 'Windows_Client' : null
     hardwareProfile: {
       vmSize: vmSize
     }

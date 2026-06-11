@@ -26,13 +26,17 @@
 #   ./provision-machine.sh --no-wait                               # create/guide, don't poll
 #   ./provision-machine.sh --help
 #
+# Before provisioning it pre-creates (or reuses) the Arc site via
+# scripts/ensure-arc-site.sh, so it is selectable in the portal wizard. (The Arc Gateway
+# is optional and not required for SFF machine provisioning.)
+#
 # Prerequisites: az login; a stored ownership voucher (the host's automatic SSH extraction,
 # or Save-OwnershipVoucher.ps1); providers registered (scripts/check-providers-sff.sh).
 
 set -euo pipefail
 
 RESOURCE_GROUP="rg-localsff"
-SITE_NAME="localsff-site"
+SITE_NAME="local-sff"
 MACHINE_NAME=""
 KEY_VAULT=""
 VOUCHER_SECRET="sff-ownership-voucher"
@@ -63,6 +67,8 @@ done
 
 command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI (az) not found on PATH." >&2; exit 1; }
 az account show >/dev/null 2>&1 || { echo "ERROR: Not logged in to Azure. Run 'az login' first." >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Self-discover the SFF Key Vault (holds the voucher) if not supplied ---
 if [[ -z "$KEY_VAULT" ]]; then
@@ -131,7 +137,8 @@ after it is automated.
        az keyvault secret show --vault-name ${KEY_VAULT:-<key-vault>} \\
          --name ${VOUCHER_SECRET} --query value -o tsv | base64 -d > voucher.pem
   2. Azure portal > Azure Arc > Operations > Machine provisioning (preview) > Provision.
-  3. Create/select site '${SITE_NAME}' (Region ${LOCATION}, Use Azure Arc Gateway = Yes).
+  3. In Basics, SELECT the pre-created site '${SITE_NAME}' (created by ensure-arc-site.sh),
+     set Region ${LOCATION}, then Save. (The Arc Gateway is optional - leave it off.)
   4. Provisioned machines > Add > upload voucher.pem > OS '${OS_IMAGE} 2604' > add your
      SSH public key > Review + create.
   5. This script will keep polling until the machine shows 'Provisioned'.
@@ -149,6 +156,15 @@ echo
 if [[ "$WAIT_ONLY" == "true" ]]; then
   wait_for_provisioned
   exit $?
+fi
+
+# --- Pre-create the Arc site (create-or-reuse) so it is selectable in the portal
+#     Provision wizard. Best-effort: never blocks. (Arc Gateway is optional, not created.) ---
+if [[ -x "$SCRIPT_DIR/ensure-arc-site.sh" ]]; then
+  echo "Ensuring the Arc site exists (ensure-arc-site.sh)..."
+  "$SCRIPT_DIR/ensure-arc-site.sh" --resource-group "$RESOURCE_GROUP" --location "$LOCATION" \
+    --site-name "$SITE_NAME" >/dev/null || \
+    echo "Note: site pre-creation was incomplete; you can create/select it in the portal." >&2
 fi
 
 # --- Resolve the SSH public key (env wins, else file) ---

@@ -63,6 +63,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    // Azure Hybrid Benefit for Windows client (requires eligible Windows 10/11 E3/E5 or
+    // Windows VDA per-user licenses with multi-tenant hosting rights).
+    licenseType: 'Windows_Client'
     hardwareProfile: {
       vmSize: vmSize
     }

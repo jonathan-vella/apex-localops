@@ -43,10 +43,10 @@ param autoDeployClusterResource bool = true
 @description('Choice to enable automatic upgrade of Azure Local cluster resource after the client VM deployment is complete. Only applicable when autoDeployClusterResource is true. Default is false.')
 param autoUpgradeClusterResource bool = false
 
-@description('Azure Local node OS image to install on the cluster nodes. \'latest\' (default) auto-discovers and installs the newest published AzLocalYYMM image at deploy time, so every build gets the latest release. To pin a specific release for reproducible builds, set a full VHDX URL, e.g. \'https://azlocalvhds.blob.core.windows.net/images/AzLocal2604.vhdx\'.')
+@description('Azure Local node OS image to install on the cluster nodes. \'latest\' (default) auto-discovers and installs the newest published AzLocalYYMM image at deploy time, so every build gets the latest release. To pin a specific release for reproducible builds, set a full VHDX URL, e.g. \'https://jumpstartprodsg.blob.core.windows.net/jslocal/localbox/prod/AzLocal2604.vhdx\'.')
 param azureLocalImageUrl string = 'latest'
 
-@description('Windows Server image (VHDX URL) for the nested AzLMGMT management VMs (Domain Controller, RRAS/BGP router, Windows Admin Center). Default is Windows Server 2022 (WinServerApril2024). Point at a different Server VHDX to change the management OS, e.g. \'https://azlocalvhds.blob.core.windows.net/images/ArcBox-Win2K25.vhdx\' for Windows Server 2025. Only the default image is validated with the management-VM build automation.')
+@description('Windows Server image (VHDX URL) for the nested AzLMGMT management VMs (Domain Controller, RRAS/BGP router, Windows Admin Center). Default is Windows Server 2022 (WinServerApril2024). Point at a different publicly readable Server VHDX to change the management OS. Only the default image is validated with the management-VM build automation.')
 #disable-next-line no-hardcoded-env-urls // fixed public artifact blob endpoint, not a per-cloud ARM URL
 param windowsServerImageUrl string = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
 

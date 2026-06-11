@@ -57,15 +57,18 @@ param autoUpgradeClusterResource = false
 // 'latest' (default) auto-installs the newest published AzLocalYYMM image at deploy time,
 // so each build gets the latest-and-greatest release. To PIN a release for reproducible
 // builds, set the full VHDX URL, e.g.:
-//   param azureLocalImageUrl = 'https://azlocalvhds.blob.core.windows.net/images/AzLocal2604.vhdx'
+//   param azureLocalImageUrl = 'https://jumpstartprodsg.blob.core.windows.net/jslocal/localbox/prod/AzLocal2604.vhdx'
+// NOTE (June 2026): the former host azlocalvhds.blob.core.windows.net had public access
+// disabled (HTTP 409); use the jumpstartprodsg 'jslocal/localbox/prod' container instead.
 param azureLocalImageUrl = 'latest'
 
 // --- Windows Server image for the nested AzLMGMT management VMs (DC, router, WAC) -------
 // Default = Windows Server 2022 (WinServerApril2024). To run the management VMs on a
-// different Server build, set a full VHDX URL - e.g. Windows Server 2025:
-//   param windowsServerImageUrl = 'https://azlocalvhds.blob.core.windows.net/images/ArcBox-Win2K25.vhdx'
+// different Server build, set a full VHDX URL to a publicly readable blob.
 // NOTE: only the default (Server 2022) image is validated with the management-VM build
 // automation (AD DS / RRAS / Windows Admin Center). Other images may work but are untested.
+// NOTE (June 2026): the azlocalvhds.blob.core.windows.net host (which previously served
+// ArcBox-Win2K25.vhdx) had public access disabled (HTTP 409) - that URL no longer works.
 param windowsServerImageUrl = 'https://jumpstartprodsg.blob.core.windows.net/hcibox23h2/WinServerApril2024.vhdx'
 
 // --- Windows 11 management/jumpbox VM (reached via Bastion) ---

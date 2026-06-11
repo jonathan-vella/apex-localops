@@ -22,6 +22,9 @@ param tenantId string = subscription().tenantId
 
 param resourceTags object
 
+@description('Enable Key Vault purge protection. OFF by default so the SFF demo can be fully torn down (cleanup-sff.sh purges the vault) and redeployed with the same resource-group name. Enable only if you must guarantee voucher-secret retention.')
+param enablePurgeProtection bool = false
+
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
   location: location
@@ -34,7 +37,9 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: true
+    // Only set the property when enabling: purge protection cannot be disabled once on,
+    // and an explicit 'false' is rejected by the API, so omit it (null) when off.
+    enablePurgeProtection: enablePurgeProtection ? true : null
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'

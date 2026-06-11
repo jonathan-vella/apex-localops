@@ -114,6 +114,12 @@ delete the resource group to stop all charges.
 - **SFF:** ~$700–900/month at 24×7 — roughly 1/10th the cost. Breakdown:
   [sff-sizing.md](docs/sff-sizing.md).
 
+> [!NOTE]
+> **Azure Hybrid Benefit** is enabled on the Azure Local VMs (`licenseType` = `Windows_Server`
+> on the host, `Windows_Client` on the jumpbox), so the estimate excludes the Windows
+> licensing surcharge. It requires eligible licenses — see
+> [deployment-quickstart.md](docs/deployment-quickstart.md#defaults--customization).
+
 ## Documentation
 
 **Deployment guides — start here (one per product):**

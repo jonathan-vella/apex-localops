@@ -119,6 +119,16 @@ All of these are on by default and toggleable in
 | Auto-build the cluster after VM setup | on | `autoDeployClusterResource` |
 | Auto-login to start the in-VM build | on | `vmAutologon` |
 | Client VM size | `Standard_E64s_v6` | `vmSize` |
+| Azure Hybrid Benefit (Windows licensing) | on | `host/host.bicep` `licenseType: 'Windows_Server'` · `mgmt/managementVm.bicep` `licenseType: 'Windows_Client'` |
+
+> [!NOTE]
+> **Azure Hybrid Benefit (AHB)** is applied to both VMs to remove the per-core Windows
+> licensing surcharge: `Windows_Server` on the `LocalBox-Client` host and `Windows_Client`
+> on the Windows 11 jumpbox. Setting these asserts you hold eligible licenses —
+> Windows Server with active **Software Assurance** (or a qualifying subscription) for the
+> host, and **Windows 10/11 E3/E5 or Windows VDA** per-user licenses for the jumpbox. If
+> you are not entitled, remove the `licenseType` line(s) before deploying. `licenseType`
+> is also updatable in place, e.g. `az vm update -g rg-localbox -n LocalBox-Client --set licenseType=Windows_Server`.
 
 Identity values (`tenantId`, `spnProviderId`) and the admin password are **never stored** in
 the repo — `deploy.sh` resolves the GUIDs at runtime and reads the password from the

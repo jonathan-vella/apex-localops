@@ -21,7 +21,8 @@
 set -euo pipefail
 
 CLUSTER_NAME=""
-RESOURCE_GROUP="rg-localsff-aks"
+# Default to the resource group that holds the cluster (same RG as the EdgeMachine).
+RESOURCE_GROUP="rg-localsff"
 GET_NODES=false
 
 while [[ $# -gt 0 ]]; do

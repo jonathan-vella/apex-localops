@@ -71,6 +71,9 @@ flowchart TD
    (verified: not in CLI 2.87.0, not in the public extension index), and the underlying
    `Microsoft.AzureStackHCI/edgeMachines` API is undocumented/preview-volatile, so the chain does
    **not** hand-roll it. Instead, [provision-machine.sh](../scripts/provision-machine.sh):
+   - **pre-creates the Arc site** (create-or-reuse) via
+     [ensure-arc-site.sh](../scripts/ensure-arc-site.sh) (`az site`), so it is simply
+     **selectable** in the wizard rather than created by hand (the Arc Gateway is optional);
    - **auto** — if it detects a usable provisioning CLI verb, it creates the site, registers the
      machine from the Key Vault voucher, and runs `install-os AzureLinux`; then
    - **guided** — otherwise it prints the exact one-screen portal action and **polls the edge
@@ -117,13 +120,17 @@ Stages: `providers → sff → voucher → provision → aks → connect` (addre
 | Providers + ZTP | [check-providers-sff.sh](../scripts/check-providers-sff.sh) |
 | SFF host build + monitor | [deploy-sff.sh](../scripts/deploy-sff.sh), [monitor-sff.sh](../scripts/monitor-sff.sh) |
 | Voucher (manual fallback) | [sff-runbook.md](sff-runbook.md) §1–2 |
+| Arc site | [ensure-arc-site.sh](../scripts/ensure-arc-site.sh) |
 | Machine provisioning | [provision-machine.sh](../scripts/provision-machine.sh) |
 | AKS inputs + deploy | [resolve-aks-inputs.sh](../scripts/resolve-aks-inputs.sh), [deploy-aks-baremetal.sh](../scripts/deploy-aks-baremetal.sh) |
 | Connect | [connect-aks-baremetal.sh](../scripts/connect-aks-baremetal.sh) |
+| Sample app | [deploy-aks-sample-app.sh](../scripts/deploy-aks-sample-app.sh) |
 
 ## Clean up
 
 ```bash
 ./scripts/cleanup-sff.sh                 # SFF host + nested VM + staging + Key Vault
-az group delete --name rg-localsff-aks --yes   # AKS resources
+# The AKS cluster (if deployed) lives in the SAME resource group; remove its resources
+# individually rather than deleting the group:
+az resource delete -g rg-localsff -n localsff-aks --resource-type Microsoft.Kubernetes/connectedClusters 2>/dev/null || true
 ```

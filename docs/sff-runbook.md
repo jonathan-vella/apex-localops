@@ -56,10 +56,20 @@ az keyvault secret show --vault-name <sffkv…> --name sff-ownership-voucher \
 
 ## 3. Provision the machine from the Azure portal (preview)
 
+> **Tip:** pre-create the Arc **site** first so you only **select** it in the wizard:
+> ```bash
+> ./scripts/ensure-arc-site.sh --resource-group rg-localsff --location eastus --site-name local-sff
+> ```
+> This create-or-reuses the site (`az site`). The Arc **Gateway is optional** and not required
+> for SFF machine provisioning (add `--with-gateway` only if your environment uses one). The
+> site selection and voucher upload below remain a portal step in the preview.
+> (`provision-machine.sh` runs this for you and then polls until the machine is Provisioned.)
+
 1. Azure portal → **Azure Arc → Operations → Machine provisioning (preview) → Provision**.
-2. **Basics**: create (or choose) a **site** — name, subscription, resource group → **Create**.
-3. **Configure the site**: Region, **Use Azure Arc Gateway = Yes** (create/select a gateway)
-   → **Save**.
+2. **Basics**: select the pre-created **site** (or create one — name, subscription, resource
+   group) → **Create**.
+3. **Configure the site**: set the Region → **Save**. (Using an Arc Gateway is optional — leave
+   it off unless your environment requires one.)
 4. **SSH keys**: generate a new key pair in Azure (download the private `.pem`) or upload your
    public key.
 5. **Add the machine**: under **Provisioned machines → Add**, upload the **ownership voucher**
@@ -100,16 +110,16 @@ metal** cluster directly onto it (single-node, Cilium, zero-rated in preview). T
 recommended path for a fully Azure-managed Kubernetes experience versus the self-managed K3s
 script above.
 
-Gather the custom location ID (`az customlocation list -o table`), a reserved control-plane IP
-in the machine's subnet, and your SSH public key, then deploy. The Entra admin group is
-**created automatically** (or reused if one of the same name exists):
+Provide the **Provisioned EdgeMachine name** (the cluster deploys into its resource group), a
+reserved control-plane IP in the machine's subnet, and your SSH public key, then deploy. The
+Entra admin group is **created automatically** (or reused if one of the same name exists):
 
 ```bash
-export AKSBM_CUSTOM_LOCATION_ID="/subscriptions/.../customLocations/<cl>"
+export AKSBM_EDGE_MACHINE_NAME="<edge-machine-name>"   # az resource list --resource-type Microsoft.AzureStackHCI/edgeMachines -o table
 export AKSBM_CONTROL_PLANE_IP="192.168.200.50"
 # Optional: export AKSBM_ADMIN_GROUP_ID="<guid>" to use a specific existing group instead.
 ./scripts/deploy-aks-baremetal.sh
-./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-localsff-aks --get-nodes
+./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-localsff --get-nodes
 ```
 
 Full walkthrough: [aks-baremetal-quickstart.md](aks-baremetal-quickstart.md).

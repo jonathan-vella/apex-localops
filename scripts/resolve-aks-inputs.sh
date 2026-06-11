@@ -4,7 +4,7 @@
 # SFF machine, so the AKS deployment can run without manual data gathering.
 #
 # It discovers/derives and exports:
-#   AKSBM_CUSTOM_LOCATION_ID  the custom location of the provisioned SFF machine
+#   AKSBM_EDGE_MACHINE_NAME   name of the Provisioned SFF EdgeMachine (cluster deploys into its RG)
 #   AKSBM_CONTROL_PLANE_IP    a control-plane IP in the machine's subnet (NOT the host IP)
 #   AKSBM_SSH_PUBLIC_KEY      your SSH public key (from --ssh-key-file / env)
 #   AKSBM_ADMIN_GROUP_ID      Entra admin group object id (auto-created if absent)
@@ -18,7 +18,7 @@
 #
 # Usage:
 #   --resource-group <n>   SFF machine RG (default: rg-localsff)
-#   --custom-location <id> override custom-location discovery
+#   --edge-machine <name>  override edge-machine discovery
 #   --control-plane-ip <ip> override the control-plane IP (else derived from the subnet)
 #   --machine-ip <ip>      the machine IP, to derive a CP IP in the same /24
 #   --admin-group <guid>   Entra admin group object id (skip auto-create)
@@ -31,7 +31,7 @@
 set -euo pipefail
 
 RESOURCE_GROUP="rg-localsff"
-CUSTOM_LOCATION_ID="${AKSBM_CUSTOM_LOCATION_ID:-}"
+EDGE_MACHINE_NAME="${AKSBM_EDGE_MACHINE_NAME:-}"
 CONTROL_PLANE_IP="${AKSBM_CONTROL_PLANE_IP:-}"
 MACHINE_IP=""
 ADMIN_GROUP_ID="${AKSBM_ADMIN_GROUP_ID:-}"
@@ -45,7 +45,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
-    --custom-location) CUSTOM_LOCATION_ID="${2:?missing value}"; shift 2 ;;
+    --edge-machine) EDGE_MACHINE_NAME="${2:?missing value}"; shift 2 ;;
     --control-plane-ip) CONTROL_PLANE_IP="${2:?missing value}"; shift 2 ;;
     --machine-ip) MACHINE_IP="${2:?missing value}"; shift 2 ;;
     --admin-group) ADMIN_GROUP_ID="${2:?missing value}"; shift 2 ;;
@@ -60,16 +60,14 @@ done
 
 command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI (az) not found on PATH." >&2; return 1 2>/dev/null || exit 1; }
 
-# --- 1. Custom location ---
-if [[ -z "$CUSTOM_LOCATION_ID" ]]; then
-  # Prefer a custom location in the SFF resource group; else the first in the subscription.
-  CUSTOM_LOCATION_ID=$(az customlocation list -g "$RESOURCE_GROUP" --query "[0].id" -o tsv 2>/dev/null || true)
-  if [[ -z "$CUSTOM_LOCATION_ID" || "$CUSTOM_LOCATION_ID" == "None" ]]; then
-    CUSTOM_LOCATION_ID=$(az customlocation list --query "[0].id" -o tsv 2>/dev/null || true)
-  fi
+# --- 1. Edge machine ---
+if [[ -z "$EDGE_MACHINE_NAME" ]]; then
+  # Discover the (first) EdgeMachine in the SFF resource group.
+  EDGE_MACHINE_NAME=$(az resource list -g "$RESOURCE_GROUP" \
+    --resource-type "Microsoft.AzureStackHCI/edgeMachines" --query "[0].name" -o tsv 2>/dev/null || true)
 fi
-if [[ -z "$CUSTOM_LOCATION_ID" || "$CUSTOM_LOCATION_ID" == "None" ]]; then
-  echo "WARNING: could not discover a custom location. Pass --custom-location <id>." >&2
+if [[ -z "$EDGE_MACHINE_NAME" || "$EDGE_MACHINE_NAME" == "None" ]]; then
+  echo "WARNING: could not discover an EdgeMachine in $RESOURCE_GROUP. Pass --edge-machine <name>." >&2
   echo "         (It exists only after the SFF machine reaches 'Provisioned'.)" >&2
 fi
 
@@ -113,19 +111,19 @@ if [[ -z "$ADMIN_GROUP_ID" ]]; then
   fi
 fi
 
-export AKSBM_CUSTOM_LOCATION_ID="$CUSTOM_LOCATION_ID"
+export AKSBM_EDGE_MACHINE_NAME="$EDGE_MACHINE_NAME"
 export AKSBM_CONTROL_PLANE_IP="$CONTROL_PLANE_IP"
 export AKSBM_ADMIN_GROUP_ID="$ADMIN_GROUP_ID"
 [[ -n "${AKSBM_SSH_PUBLIC_KEY:-}" ]] && export AKSBM_SSH_PUBLIC_KEY
 
 echo "Resolved AKS on bare metal inputs:" >&2
-echo "  AKSBM_CUSTOM_LOCATION_ID = ${AKSBM_CUSTOM_LOCATION_ID:-<unset>}" >&2
+echo "  AKSBM_EDGE_MACHINE_NAME  = ${AKSBM_EDGE_MACHINE_NAME:-<unset>}" >&2
 echo "  AKSBM_CONTROL_PLANE_IP   = ${AKSBM_CONTROL_PLANE_IP:-<unset>}" >&2
 echo "  AKSBM_ADMIN_GROUP_ID     = ${AKSBM_ADMIN_GROUP_ID:-<unset>}" >&2
 echo "  AKSBM_SSH_PUBLIC_KEY     = ${AKSBM_SSH_PUBLIC_KEY:+<set>}" >&2
 
 if [[ "$EMIT" == "true" ]]; then
-  echo "export AKSBM_CUSTOM_LOCATION_ID='${AKSBM_CUSTOM_LOCATION_ID}'"
+  echo "export AKSBM_EDGE_MACHINE_NAME='${AKSBM_EDGE_MACHINE_NAME}'"
   echo "export AKSBM_CONTROL_PLANE_IP='${AKSBM_CONTROL_PLANE_IP}'"
   echo "export AKSBM_ADMIN_GROUP_ID='${AKSBM_ADMIN_GROUP_ID}'"
   [[ -n "${AKSBM_SSH_PUBLIC_KEY:-}" ]] && echo "export AKSBM_SSH_PUBLIC_KEY='${AKSBM_SSH_PUBLIC_KEY}'"

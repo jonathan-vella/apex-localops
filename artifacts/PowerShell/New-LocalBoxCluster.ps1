@@ -44,27 +44,34 @@ Write-Output "Downloading nested VMs VHDX files. This can take some time, hold t
 #                           in the image container, so every deploy gets the latest release.
 #   * a full https://.../AzLocalNNNN.vhdx URL -> pin to that exact release (reproducible).
 # The matching .sha256 sits beside the .vhdx and is used for the integrity check below.
-$imageContainer = 'https://azlocalvhds.blob.core.windows.net/images'
+#
+# SOURCE (June 2026): the former host azlocalvhds.blob.core.windows.net had anonymous/public
+# access disabled (HTTP 409 "Public access is not permitted on this storage account"), which
+# broke BOTH discovery and download for everyone (upstream Jumpstart included). We use the
+# Jumpstart prod blob instead - container 'jslocal', path 'localbox/prod' - which still permits
+# anonymous read + container listing and carries the same AzLocalYYMM.vhdx + .sha256 blobs.
+$imageBaseUrl = 'https://jumpstartprodsg.blob.core.windows.net/jslocal'
+$imagePrefix = 'localbox/prod'
 $azLocalImageUrl = $env:azureLocalImageUrl
 
 if ([string]::IsNullOrWhiteSpace($azLocalImageUrl) -or $azLocalImageUrl -eq 'latest') {
-    Write-Output "Auto-discovering the latest Azure Local node image in $imageContainer ..."
+    Write-Output "Auto-discovering the latest Azure Local node image in $imageBaseUrl/$imagePrefix ..."
     try {
-        $listUrl = "${imageContainer}?restype=container&comp=list&prefix=AzLocal"
+        $listUrl = "${imageBaseUrl}?restype=container&comp=list&prefix=${imagePrefix}/AzLocal"
         # Parse the blob listing with regex rather than an [xml] cast: the Azure list
         # response carries a UTF-8 BOM / encoding declaration that makes [xml]$content
         # throw, which would silently send us to the fallback on every run.
         $listing = (Invoke-WebRequest -UseBasicParsing -Uri $listUrl).Content
-        $latestImage = [regex]::Matches($listing, '<Name>(AzLocal\d{4}\.vhdx)</Name>') |
+        $latestImage = [regex]::Matches($listing, "<Name>($imagePrefix/AzLocal\d{4}\.vhdx)</Name>") |
         ForEach-Object { $_.Groups[1].Value } |
-        Sort-Object { [int]($_ -replace '^AzLocal(\d{4})\.vhdx$', '$1') } |
+        Sort-Object { [int]($_ -replace '^.*/AzLocal(\d{4})\.vhdx$', '$1') } |
         Select-Object -Last 1
         if (-not $latestImage) { throw "No AzLocalYYMM.vhdx blobs found in the container listing." }
-        $azLocalImageUrl = "$imageContainer/$latestImage"
+        $azLocalImageUrl = "$imageBaseUrl/$latestImage"
         Write-Output "Latest Azure Local node image resolved: $azLocalImageUrl"
     }
     catch {
-        $azLocalImageUrl = "$imageContainer/AzLocal2604.vhdx"
+        $azLocalImageUrl = "$imageBaseUrl/$imagePrefix/AzLocal2604.vhdx"
         Write-Warning "Image auto-discovery failed ($($_.Exception.Message)). Falling back to $azLocalImageUrl"
     }
 }

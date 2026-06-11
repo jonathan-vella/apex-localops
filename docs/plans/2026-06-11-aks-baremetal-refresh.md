@@ -38,6 +38,17 @@
 
 ## Item 1 — Refresh `aks-baremetal` profile to the current upstream template
 
+> **Status: DONE (2026-06-11).** Template rewritten to the upstream DevicePool model
+> (8 resources: DevicePool + 2 RBAC + placeholder LogicalNetwork + connectedCluster +
+> provisionedClusterInstance + optional Policy/Monitoring). `edgeMachineName` replaces
+> `customLocationId`; K8s version is free-form (date-suffixed); param names match upstream
+> (`enableAzureRbac`, `adminGroupObjectIds`, `controlPlaneIp`). The cluster now deploys
+> into the **EdgeMachine's RG** (`rg-localsff`), so `deploy-aks-baremetal.sh`,
+> `resolve-aks-inputs.sh`, `connect-aks-baremetal.sh`, `deploy-all.sh`, `main.bicepparam`,
+> and docs (quickstart, runbook, zero-touch) were updated; cleanup made safe (no whole-RG
+> delete). Added `--admin-group` flag. `bicep build`/lint clean (4 expected BCP081
+> preview-type warnings); all scripts pass `bash -n` + shellcheck.
+
 Our `infra/bicep/aks-baremetal/main.bicep` has **drifted** and would likely fail to
 deploy as-is. Realign it to the upstream **DevicePool** model.
 
@@ -108,6 +119,13 @@ deploy as-is. Realign it to the upstream **DevicePool** model.
 
 ## Item 2 — Add "Deploy a sample application"
 
+> **Status: DONE (2026-06-11).** Added `artifacts/aks/sample-app/hello-app.yaml`
+> (nginx Deployment + NodePort Service, MCR image, requests/limits) and
+> `scripts/deploy-aks-sample-app.sh` (starts the Arc proxy, applies the manifest,
+> waits for rollout, prints NodePort + access URL; `--delete` to remove). Documented
+> in the quickstart (deploy steps, single-node best practices, troubleshooting) and
+> added to the zero-touch scripts table. shellcheck clean; YAML structurally validated.
+
 Source: `aks-bare-metal-deploy-application` (updated 2026-06-05).
 
 - **LoadBalancer is not supported in preview → use `NodePort`.**
@@ -128,6 +146,17 @@ Source: `aks-bare-metal-deploy-application` (updated 2026-06-05).
 ---
 
 ## Item 3 — Automate Arc site + gateway creation (machine-provisioning bridge)
+
+> **Status: DONE (2026-06-11).** Spike confirmed: Arc Gateway = `az arcgateway`
+> (GA ext, `Microsoft.HybridCompute/gateways`); Arc site = `az site` (GA ext,
+> `Microsoft.Edge/sites`, RG-scoped). The "Configure the site" Region + gateway
+> binding and the voucher upload are **portal-only** in the preview (machine-
+> provisioning doc 404s; no standalone CLI). Built `scripts/ensure-arc-site.sh`
+> (idempotent create-or-reuse of gateway + site, `--emit`, mirrors
+> `ensure-admin-group.sh`), wired it into `provision-machine.sh` (pre-creates both
+> so they are *selectable* in the wizard; guided steps updated). Documented in the
+> runbook + zero-touch (flow + scripts table). All scripts shellcheck + `bash -n`
+> clean. The residual portal toggle is documented, not faked.
 
 Replace the manual portal step **"Create and configure an Azure Arc site"** with
 automation, so the SFF → machine-provisioning bridge is scripted (it currently sits
@@ -180,7 +209,55 @@ between `VoucherStored` and the AKS work). Source:
 
 ---
 
-## Item 4 — Double-check everything at depth, fix all issues in code
+## Item 4 — Enable Azure Hybrid Benefit on the SFF host VM
+
+Windows **Azure Hybrid Benefit (AHB)** is **on by default project-wide** (removes
+the Windows license charge; you keep paying only base compute/storage). This
+matches the **LocalBox profile** (`azlocal-js`), which already applies AHB to both
+its VMs — confirmed live: `LocalBox-Client` (host) = `Windows_Server`,
+`LocalBox-Mgmt` (Win11) = `Windows_Client`.
+
+### Status: IMPLEMENTED (2026-06-11) — on by default, both SFF VMs
+
+- Single project-wide toggle `enableAzureHybridBenefit bool = true` in
+  `main.bicep`, threaded to both modules; explicit `= true` in `main.bicepparam`
+  (flip to `false` for license-included/PAYG on both VMs).
+- `host/host.bicep` (Windows Server): `licenseType: enableAzureHybridBenefit ?
+  'Windows_Server' : null`.
+- `mgmt/managementVm.bicep` (Windows 11 jumpbox): `licenseType:
+  enableAzureHybridBenefit ? 'Windows_Client' : null` — the gap that was missed
+  initially; now matches the LocalBox convention.
+- Verified: `az bicep build` clean; compiled host carries `Windows_Server`, jumpbox
+  carries `Windows_Client`; no stale param references.
+
+### Remaining (docs + validation only)
+
+> **Docs DONE (2026-06-11):** sizing doc gained an AHB footprint row + a dedicated
+> "Azure Hybrid Benefit (on by default)" section (savings, attestation, opt-out, in-
+> place `az vm update` toggle, verify command); quickstart deploy section gained an
+> AHB opt-out note. Only the post-deploy `licenseType` verification (Item 6) remains.
+
+- Post-deploy assertion (Item 6): `az vm show -g rg-localsff -n LocalSFF-Host
+  --query licenseType -o tsv` returns `Windows_Server`, and the jumpbox returns
+  `Windows_Client`.
+
+---
+
+## Item 5 — Double-check everything at depth, fix all issues in code
+
+> **Status: DONE (2026-06-11), except the optional hardening (deferred).** Results:
+> - All 3 Bicep profiles `build` + `lint` clean (azlocal-js, azlocal-sff: 0 warnings;
+>   aks-baremetal: 4 expected `BCP081` preview-type warnings, no Error-level — CI passes).
+> - All 17 scripts pass `bash -n` + `shellcheck --severity=warning`.
+> - All 8 SFF PowerShell scripts AST-parse cleanly (PSScriptAnalyzer not installed;
+>   host targets PS 5.1). Re-read `Stage-SffArtifacts.ps1` — logic sound (network-before-
+>   Azure, roe.zip extraction, optional non-blocking Configurator, clean VM-build handoff).
+> - Secrets/GUID audit clean: only built-in role-definition GUIDs + the partner usage PID
+>   (public-safe); no tenant/sub GUIDs or secrets; 9 `readEnvironmentVariable` keep inputs
+>   out of source. Cleartext `ownership-voucher.pem` already removed; no `.pem` tracked.
+> - Cross-check: AKS API versions + role IDs match upstream; every provider the template
+>   uses is registered by `check-providers-sff.sh` (`Microsoft.Authorization` is always-on).
+> - **Deferred:** the principalId-keyed role-assignment hardening (still optional).
 
 - `az bicep build` + lint clean for all Bicep (CI: `.github/workflows/validate.yml`
   runs bicep build/lint + shellcheck at severity=warning).
@@ -199,7 +276,7 @@ between `VoucherStored` and the AKS work). Source:
 
 ---
 
-## Item 5 — Redeploy to validate repeatability
+## Item 6 — Redeploy to validate repeatability
 
 - Full clean cycle: `scripts/cleanup-sff.sh` → `scripts/deploy-sff.sh` end-to-end on
   sandbox `noalz`. No cost concerns. Use a **dedicated** terminal.
@@ -208,6 +285,8 @@ between `VoucherStored` and the AKS work). Source:
     shell history, or any command line.
 - Confirm zero-touch SFF reaches `VoucherStored` **unattended** — validating the
   `bb4a243` reconnecting-serial-reader fix (no manual tag poke this run).
+- Confirm AHB applied: `az vm show -g rg-localsff -n LocalSFF-Host --query
+  licenseType -o tsv` returns `Windows_Server` (Item 4).
 - Then run `ensure-arc-site.sh` (Item 3) to create/reuse the Arc site + gateway →
   provision the machine (voucher already in Key Vault) → capture `edgeMachineName`
   / custom location → run the refreshed `deploy-aks-baremetal.sh` → deploy the
@@ -220,16 +299,20 @@ between `VoucherStored` and the AKS work). Source:
 
 ## Definition of done
 
-- [ ] `aks-baremetal` Bicep matches the current upstream model (DevicePool +
+- [x] `aks-baremetal` Bicep matches the current upstream model (DevicePool +
       placeholder LogicalNetwork + edgeMachineName + free-form K8s version +
       optional Policy/Monitoring); `bicep build`/lint clean.
-- [ ] `deploy-aks-baremetal.sh`, `main.bicepparam`, and docs updated and shellcheck
+- [x] `deploy-aks-baremetal.sh`, `main.bicepparam`, and docs updated and shellcheck
       clean.
-- [ ] Sample-app manifest + `deploy-aks-sample-app.sh` added (NodePort, MCR image,
+- [x] Sample-app manifest + `deploy-aks-sample-app.sh` added (NodePort, MCR image,
       requests/limits) and documented.
-- [ ] Arc site + gateway automated (`ensure-arc-site.sh`): `az arcgateway` create-
+- [x] Arc site + gateway automated (`ensure-arc-site.sh`): `az arcgateway` create-
       or-reuse works; site resource type + "configure the site" surface confirmed
       (or the residual portal-only toggle documented); wired into the bridge.
-- [ ] Repo audited: no secrets/GUIDs committed; cleartext voucher removed.
+- [x] Azure Hybrid Benefit on by default project-wide — host `Windows_Server` +
+      Win11 jumpbox `Windows_Client` via a single `enableAzureHybridBenefit` toggle
+      (implemented 2026-06-11, matches LocalBox); docs done (sizing + quickstart);
+      **remaining:** post-deploy `licenseType` verification (Item 6).
+- [x] Repo audited: no secrets/GUIDs committed; cleartext voucher removed.
 - [ ] Clean redeploy of SFF reaches `VoucherStored` unattended; AKS cluster
       provisioned; sample app reachable via NodePort.

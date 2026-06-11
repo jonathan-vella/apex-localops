@@ -4,7 +4,10 @@
 #
 # Disks, Bastion, and the NAT Gateway keep billing even when the VMs are
 # deallocated, so the only way to stop ALL charges is to delete the resource
-# group. This script shows what will be removed, then deletes the group.
+# group. This script shows what will be removed, then deletes the group. It also
+# removes the Azure Local managed resource group (created during machine
+# provisioning) and purges the soft-deleted Key Vault, so a later redeploy into the
+# same resource-group name does not collide on the deterministic vault name.
 #
 # It does NOT touch subscription-level resource-provider/feature registrations or
 # quota (those are free and shared), so a later redeploy needs no re-registration.
@@ -71,4 +74,30 @@ if [[ "$NO_WAIT" == "true" ]]; then
 else
   az group delete --name "$RESOURCE_GROUP" --yes
   echo "Resource group '$RESOURCE_GROUP' deleted. All billing for it has stopped."
+fi
+
+# --- Remove the Azure Local managed resource group (created during machine provisioning) ---
+# Machine provisioning creates a managed RG named AzLocal-ManagedResources-<rg>-<suffix>
+# holding the Arc machine projection. It is NOT deleted with the main RG, so clean it up too.
+managed_rgs=$(az group list --query "[?starts_with(name,'AzLocal-ManagedResources-${RESOURCE_GROUP}')].name" -o tsv 2>/dev/null || true)
+for mrg in $managed_rgs; do
+  echo "Deleting managed resource group '$mrg'..."
+  if [[ "$NO_WAIT" == "true" ]]; then
+    az group delete --name "$mrg" --yes --no-wait 2>/dev/null || echo "  (could not delete $mrg; remove it manually if it lingers)"
+  else
+    az group delete --name "$mrg" --yes 2>/dev/null || echo "  (could not delete $mrg; remove it manually if it lingers)"
+  fi
+done
+
+# --- Purge the soft-deleted Key Vault so a same-name redeploy does not collide ---
+# The vault name is deterministic (sffkv<uniqueString(rg.id)>), so without purging it the
+# next deploy into the same RG name fails ("vault already exists in deleted state"). This
+# only succeeds when purge protection is OFF (the default for this profile).
+if [[ "$NO_WAIT" != "true" ]]; then
+  deleted_kvs=$(az keyvault list-deleted --query "[?starts_with(name,'sffkv')].name" -o tsv 2>/dev/null || true)
+  for kv in $deleted_kvs; do
+    echo "Purging soft-deleted Key Vault '$kv'..."
+    az keyvault purge --name "$kv" 2>/dev/null && echo "  purged." || \
+      echo "  NOTE: could not purge '$kv' (likely purge-protected). A same-name redeploy will collide until it expires."
+  done
 fi

@@ -16,6 +16,7 @@ The SFF profile is far lighter than the LocalBox cluster profile: it nests a **s
 | Bastion | Standard | Ingress (no public IP on VMs) |
 | NAT Gateway | Standard + 1 PIP | Egress |
 | Log Analytics | pergb2018 | Host telemetry |
+| Azure Hybrid Benefit | **On by default** | `Windows_Server` on the host, `Windows_Client` on the jumpbox — drops the Windows license charge (see below) |
 
 ## Host SKU options
 
@@ -38,6 +39,40 @@ All are nested-virtualization capable (`allowed` in `main.bicep`):
 
 These are approximate; use the Azure Pricing Calculator for an authoritative quote. The host
 VM and Bastion dominate the bill.
+
+> The cost figures above assume **Azure Hybrid Benefit (AHB) is on** (the project default),
+> so they exclude the Windows license component — you pay only the base compute/storage.
+
+## Azure Hybrid Benefit (on by default)
+
+AHB is enabled across the SFF profile via a single param, `enableAzureHybridBenefit = true`
+(in [main.bicepparam](../infra/bicep/azlocal-sff/main.bicepparam)). It applies:
+
+- `licenseType: Windows_Server` to the **host VM** (Windows Server), and
+- `licenseType: Windows_Client` to the **Windows 11 jumpbox**.
+
+This removes the Windows license charge from both VMs (you keep paying the base compute,
+storage, and networking). It matches the LocalBox profile, which applies AHB the same way.
+
+**Attestation:** enabling AHB attests that you hold the corresponding eligible licenses:
+Windows Server licenses with active Software Assurance (or qualifying subscription licenses)
+for the host, and Windows 10/11 E3/E5 or Windows VDA per-user licenses (with multi-tenant
+hosting rights) for the jumpbox. If you do not, **opt out** for license-included (PAYG)
+billing:
+
+```bash
+# At deploy time: set the param to false (e.g. edit main.bicepparam or pass an override).
+param enableAzureHybridBenefit = false
+```
+
+**Already deployed?** `licenseType` is updatable in place (no redeploy):
+
+```bash
+az vm update -g rg-localsff -n LocalSFF-Host --set licenseType=Windows_Server   # or None
+az vm update -g rg-localsff -n LocalSFF-Mgmt --set licenseType=Windows_Client   # or None
+```
+
+Verify: `az vm show -g rg-localsff -n LocalSFF-Host --query licenseType -o tsv` → `Windows_Server`.
 
 ## Cost guidance
 

@@ -186,6 +186,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    // Azure Hybrid Benefit for Windows Server (bring-your-own license with Software Assurance
+    // or a qualifying subscription). Removes the per-core Windows licensing surcharge.
+    licenseType: 'Windows_Server'
     hardwareProfile: {
       vmSize: vmSize
     }

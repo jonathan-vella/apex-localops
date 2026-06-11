@@ -1,0 +1,58 @@
+# =============================================================================
+# apex-localops — sample workload for AKS on bare metal (preview).
+#
+# A minimal nginx Deployment exposed via a NodePort Service. Mirrors the Microsoft
+# Learn sample (aks-bare-metal-deploy-application) and follows the single-node
+# preview best practices:
+#   * NodePort (LoadBalancer is NOT supported in the preview).
+#   * Image pulled from Microsoft Container Registry (mcr.microsoft.com) — the only
+#     registry guaranteed reachable from the device.
+#   * Explicit resource requests/limits so the workload cannot starve the
+#     single-node control plane (reserve ~2 GB RAM + 1 CPU core for it).
+#
+# Apply with scripts/deploy-aks-sample-app.sh (it starts the Arc proxy first), or:
+#   kubectl apply -f hello-app.yaml
+# Then browse to  http://<bare-metal-host-ip>:<nodeport>
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-app
+  labels:
+    app: hello-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-app
+  template:
+    metadata:
+      labels:
+        app: hello-app
+    spec:
+      containers:
+        - name: hello-app
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1.24
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-app
+  labels:
+    app: hello-app
+spec:
+  type: NodePort
+  selector:
+    app: hello-app
+  ports:
+    - port: 80
+      targetPort: 80

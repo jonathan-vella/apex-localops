@@ -127,6 +127,13 @@ supported.
 | Windows 11 jumpbox `D4s_v5` + OS disk      | ~$303                |
 | **Total**                                  | **≈ $7,850 / month** |
 
+> **Azure Hybrid Benefit is enabled** on both VMs (`licenseType` = `Windows_Server` on the
+> host, `Windows_Client` on the jumpbox), so the figures above are the **base compute rate
+> without the Windows licensing surcharge**. AHB requires eligible licenses (Windows Server
+> + Software Assurance for the host; Windows 10/11 E3/E5 or VDA for the jumpbox). Without
+> AHB the `E64s_v6` line is materially higher (pay-as-you-go Windows adds a per-core
+> surcharge). Remove the `licenseType` properties if you are not license-entitled.
+
 ### Cost-control scenarios (client VM + P30 disks only)
 
 | Usage pattern            | Monthly  |

@@ -7,11 +7,17 @@
 # portal (docs/sff-runbook.md). It needs values that only exist once the edge
 # machine is "Provisioned":
 #
-#   AKSBM_CUSTOM_LOCATION_ID  ARM id of the SFF edge machine's custom location
+#   AKSBM_EDGE_MACHINE_NAME   name of the Provisioned SFF EdgeMachine (in the target RG)
 #   AKSBM_CONTROL_PLANE_IP    a reserved IP in the machine's subnet (NOT the host IP)
 #   AKSBM_SSH_PUBLIC_KEY      your SSH public key contents (else read from --ssh-key-file)
 #   AKSBM_ADMIN_GROUP_ID      Entra security group object id for cluster admins
 #                             (auto-created/reused via ensure-admin-group.sh if absent)
+#   AKSBM_KUBERNETES_VERSION  (optional) override the default Kubernetes version
+#   AKSBM_LOG_ANALYTICS_WORKSPACE_ID  (optional) workspace ARM id for container monitoring
+#
+# The cluster deploys into the SAME resource group as the Provisioned EdgeMachine
+# (the template references the machine by name within the deployment RG). Use -g
+# to target that resource group.
 #
 # Usage:
 #   ./deploy-aks-baremetal.sh                       # preflight, what-if, confirm, deploy
@@ -19,7 +25,9 @@
 #   ./deploy-aks-baremetal.sh --yes                 # skip the confirmation prompt
 #   ./deploy-aks-baremetal.sh --skip-preflight      # skip pre-deployment checks
 #   ./deploy-aks-baremetal.sh --ssh-key-file <p>    # default: ~/.ssh/id_rsa.pub
-#   ./deploy-aks-baremetal.sh --resource-group <n>  # default: rg-localsff-aks
+#   ./deploy-aks-baremetal.sh --admin-group <id>    # use a specific Entra group object id
+#   ./deploy-aks-baremetal.sh --admin-group-name <n># name for the auto-created/reused group
+#   ./deploy-aks-baremetal.sh --resource-group <n>  # default: rg-localsff (EdgeMachine's RG)
 #   ./deploy-aks-baremetal.sh --location <region>   # default: eastus (preview-only region)
 #   ./deploy-aks-baremetal.sh --help
 #
@@ -29,7 +37,9 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff-aks"
+# Must be the resource group that contains the Provisioned SFF EdgeMachine — the
+# template references the machine by name within the deployment resource group.
+RESOURCE_GROUP="rg-localsff"
 LOCATION="eastus"
 WHATIF_ONLY=false
 ASSUME_YES=false
@@ -48,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y) ASSUME_YES=true; shift ;;
     --skip-preflight) SKIP_PREFLIGHT=true; shift ;;
     --ssh-key-file) SSH_KEY_FILE="${2:?missing value}"; shift 2 ;;
+    --admin-group) AKSBM_ADMIN_GROUP_ID="${2:?missing value}"; export AKSBM_ADMIN_GROUP_ID; shift 2 ;;
     --admin-group-name) ADMIN_GROUP_NAME="${2:?missing value}"; shift 2 ;;
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
     --location|-l) LOCATION="${2:?missing value}"; shift 2 ;;
@@ -80,7 +91,7 @@ prompt_if_empty() {
     export "$var=$cur"
   fi
 }
-prompt_if_empty AKSBM_CUSTOM_LOCATION_ID "Custom location ARM ID of the provisioned SFF edge machine"
+prompt_if_empty AKSBM_EDGE_MACHINE_NAME "Name of the Provisioned SFF EdgeMachine (in the target resource group)"
 prompt_if_empty AKSBM_CONTROL_PLANE_IP   "Control plane IP (reserved, same subnet, NOT the host IP)"
 # Entra admin group: resolve-or-create instead of prompting for a GUID.
 if [[ -z "${AKSBM_ADMIN_GROUP_ID:-}" ]]; then
@@ -122,10 +133,10 @@ preflight() {
   fi
 
   # 3) Required inputs present + minimally well-formed.
-  if [[ "${AKSBM_CUSTOM_LOCATION_ID:-}" == *"/providers/Microsoft.ExtendedLocation/customLocations/"* ]]; then
-    echo "  [ok]   custom location ID looks like a customLocations resource ID"
+  if [[ -n "${AKSBM_EDGE_MACHINE_NAME:-}" ]]; then
+    echo "  [ok]   edge machine name provided"
   else
-    echo "  [FAIL] AKSBM_CUSTOM_LOCATION_ID is not a customLocations ARM ID." >&2
+    echo "  [FAIL] AKSBM_EDGE_MACHINE_NAME is empty (name of the Provisioned SFF EdgeMachine)." >&2
     failures=$((failures + 1))
   fi
   if [[ "${AKSBM_CONTROL_PLANE_IP:-}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -147,8 +158,8 @@ preflight() {
     failures=$((failures + 1))
   fi
 
-  # 4) Critical resource providers registered.
-  local crit=(Microsoft.HybridContainerService Microsoft.Kubernetes Microsoft.ExtendedLocation Microsoft.HybridCompute)
+  # 4) Critical resource providers registered (all consumed by the template).
+  local crit=(Microsoft.HybridContainerService Microsoft.Kubernetes Microsoft.ExtendedLocation Microsoft.HybridCompute Microsoft.AzureStackHCI Microsoft.KubernetesConfiguration)
   local unreg=() rp st
   for rp in "${crit[@]}"; do
     st=$(az provider show --namespace "$rp" --query registrationState -o tsv 2>/dev/null || echo "Unknown")
@@ -170,11 +181,16 @@ preflight() {
     warnings=$((warnings + 1))
   fi
 
-  # 6) Custom location is resolvable (best-effort; needs Reader on it).
-  if az resource show --ids "${AKSBM_CUSTOM_LOCATION_ID:-}" >/dev/null 2>&1; then
-    echo "  [ok]   custom location resolves in Azure"
+  # 6) Edge machine resolves in the target RG (best-effort; needs Reader on it).
+  local em_state
+  em_state=$(az resource show -g "$RESOURCE_GROUP" -n "${AKSBM_EDGE_MACHINE_NAME:-}" \
+    --resource-type Microsoft.AzureStackHCI/edgeMachines \
+    --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
+  if [[ -n "$em_state" ]]; then
+    echo "  [ok]   edge machine '${AKSBM_EDGE_MACHINE_NAME}' resolves in $RESOURCE_GROUP (provisioningState=$em_state)"
   else
-    echo "  [warn] could not resolve the custom location (check the ID / your access / that the machine is Provisioned)." >&2
+    echo "  [warn] could not resolve edge machine '${AKSBM_EDGE_MACHINE_NAME:-}' in $RESOURCE_GROUP." >&2
+    echo "         The cluster must deploy into the SAME resource group as the Provisioned EdgeMachine (use -g <rg>)." >&2
     warnings=$((warnings + 1))
   fi
 

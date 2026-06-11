@@ -47,6 +47,9 @@ param hostVmSize string = 'Standard_D8s_v5'
 @maxValue(2048)
 param hostDataDiskSizeGB int = 512
 
+@description('Apply Azure Hybrid Benefit across the SFF profile (on by default): Windows_Server on the host VM, Windows_Client on the Windows 11 jumpbox. Requires the corresponding eligible licenses; set false for license-included (PAYG) on both.')
+param enableAzureHybridBenefit bool = true
+
 @description('Deploy Azure Bastion (true => no public IP on any VM; NAT Gateway egress).')
 param deployBastion bool = true
 
@@ -206,6 +209,7 @@ module hostDeployment 'host/host.bicep' = {
     subnetId: networkDeployment.outputs.subnetId
     deployBastion: deployBastion
     dataDiskSizeGB: hostDataDiskSizeGB
+    enableAzureHybridBenefit: enableAzureHybridBenefit
     resourceTags: resourceTags
     stagingStorageAccountName: stagingStorageDeployment.outputs.storageAccountName
     stagingArtifactsContainer: stagingArtifactsContainer
@@ -237,6 +241,7 @@ module managementVmDeployment 'mgmt/managementVm.bicep' = if (deployManagementVm
     stagingStorageAccountName: stagingStorageAccountName
     stagingArtifactsContainer: stagingArtifactsContainer
     resourceTags: resourceTags
+    enableAzureHybridBenefit: enableAzureHybridBenefit
   }
 }
 
@@ -259,6 +264,11 @@ resource hostStorageReader 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     roleDefinitionId: roleStorageBlobDataReader
     principalType: 'ServicePrincipal'
   }
+  // stagingStorageAccount is referenced as 'existing' (by name), so Bicep does not infer a
+  // dependency on the module that creates it. Make it explicit to avoid a ResourceNotFound race.
+  dependsOn: [
+    stagingStorageDeployment
+  ]
 }
 
 // Host identity: write the ownership voucher into the Key Vault.
@@ -270,6 +280,9 @@ resource hostKeyVaultSecretsOfficer 'Microsoft.Authorization/roleAssignments@202
     roleDefinitionId: roleKeyVaultSecretsOfficer
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    keyVaultDeployment
+  ]
 }
 
 // Host identity: write SffProgress/SffStatus tags on the resource group.
@@ -303,6 +316,9 @@ resource jumpboxStorageContributor 'Microsoft.Authorization/roleAssignments@2022
     roleDefinitionId: roleStorageBlobDataContributor
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    stagingStorageDeployment
+  ]
 }
 
 // Operator (human / group): Storage Blob Data Contributor on the staging account so they can
@@ -317,6 +333,9 @@ resource operatorStorageContributor 'Microsoft.Authorization/roleAssignments@202
     roleDefinitionId: roleStorageBlobDataContributor
     principalType: operatorPrincipalType
   }
+  dependsOn: [
+    stagingStorageDeployment
+  ]
 }
 
 module customerUsageAttribution 'mgmt/customerUsageAttribution.bicep' = {
