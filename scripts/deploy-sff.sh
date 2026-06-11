@@ -12,9 +12,10 @@
 #   ./deploy-sff.sh --what-if-only         # prompt + what-if preview only (no deploy)
 #   ./deploy-sff.sh --yes                  # skip the post-what-if confirmation
 #   ./deploy-sff.sh --skip-preflight       # skip the pre-deployment validation checks
+#   ./deploy-sff.sh --skip-providers       # skip the resource-provider + ZTP feature registration
 #   ./deploy-sff.sh --no-monitor           # do not launch scripts/monitor-sff.sh after deploying
-#   ./deploy-sff.sh --resource-group <n>   # default: rg-localsff
-#   ./deploy-sff.sh --location <region>    # default: swedencentral
+#   ./deploy-sff.sh --resource-group <n>   # default: rg-azlocal-sff-eus01
+#   ./deploy-sff.sh --location <region>    # default: eastus
 #   ./deploy-sff.sh --help
 #
 # The ARM deployment provisions the host VM in ~10-15 min. The host then installs
@@ -29,9 +30,10 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
-LOCATION="swedencentral"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
+LOCATION="eastus"
 WHATIF_ONLY=false
+SKIP_PROVIDERS=false
 ASSUME_YES=false
 SKIP_PREFLIGHT=false
 RUN_MONITOR=true
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --what-if-only) WHATIF_ONLY=true; shift ;;
     --yes|-y) ASSUME_YES=true; shift ;;
     --skip-preflight) SKIP_PREFLIGHT=true; shift ;;
+    --skip-providers) SKIP_PROVIDERS=true; shift ;;
     --no-monitor) RUN_MONITOR=false; shift ;;
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
     --location|-l) LOCATION="${2:?missing value}"; shift 2 ;;
@@ -208,6 +211,19 @@ echo "Resource group : $RESOURCE_GROUP"
 echo "Location       : $LOCATION"
 echo "Template       : $TEMPLATE"
 echo
+
+# --- Ensure subscription prerequisites: register the SFF resource providers and the
+#     AzureLocalZTP feature (per the subscription-setup doc), registering anything that
+#     is missing. Delegated to the canonical check-providers-sff.sh (single source of
+#     truth for the provider list); idempotent and fast when already registered. ---
+if [[ "$SKIP_PROVIDERS" != "true" ]]; then
+  echo "Ensuring required resource providers + AzureLocalZTP feature (registering any missing)..."
+  "$SCRIPT_DIR/check-providers-sff.sh" || {
+    echo "ERROR: resource-provider/feature registration did not complete. Re-run, or pass --skip-providers to bypass." >&2
+    exit 1
+  }
+  echo
+fi
 
 # --- Ensure the resource group exists ---
 if ! az group show --name "$RESOURCE_GROUP" >/dev/null 2>&1; then

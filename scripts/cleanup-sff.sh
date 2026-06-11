@@ -16,14 +16,14 @@
 #   ./cleanup-sff.sh                       # show resources, confirm, then delete
 #   ./cleanup-sff.sh --yes                 # delete without the confirmation prompt
 #   ./cleanup-sff.sh --no-wait             # return immediately (delete continues async)
-#   ./cleanup-sff.sh --resource-group <n>  # default: rg-localsff
+#   ./cleanup-sff.sh --resource-group <n>  # default: rg-azlocal-sff-eus01
 #   ./cleanup-sff.sh --help
 #
 # Prerequisites: az login.
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 ASSUME_YES=false
 NO_WAIT=false
 

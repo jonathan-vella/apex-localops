@@ -20,8 +20,8 @@
 # them); all diagnostics go to STDERR. With --emit it prints `export AKSBM_SITE_NAME=...` lines.
 #
 # Usage:
-#   ./ensure-arc-site.sh                                   # site 'local-sff' in rg-localsff
-#   ./ensure-arc-site.sh --resource-group rg-localsff -l eastus
+#   ./ensure-arc-site.sh                                   # site 'local-sff' in rg-azlocal-sff-eus01
+#   ./ensure-arc-site.sh --resource-group rg-azlocal-sff-eus01 -l eastus
 #   ./ensure-arc-site.sh --site-name local-sff
 #   ./ensure-arc-site.sh --with-gateway --gateway-name localsff-gateway   # also create a gateway
 #   ./ensure-arc-site.sh --no-site                         # gateway only (requires --with-gateway)
@@ -33,7 +33,7 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 LOCATION="eastus"
 SITE_NAME="local-sff"
 SITE_DISPLAY_NAME=""

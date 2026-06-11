@@ -17,7 +17,7 @@
 #   ./scripts/resolve-aks-inputs.sh --admin-group <guid> --deploy
 #
 # Usage:
-#   --resource-group <n>   SFF machine RG (default: rg-localsff)
+#   --resource-group <n>   SFF machine RG (default: rg-azlocal-sff-eus01)
 #   --edge-machine <name>  override edge-machine discovery
 #   --control-plane-ip <ip> override the control-plane IP (else derived from the subnet)
 #   --machine-ip <ip>      the machine IP, to derive a CP IP in the same /24
@@ -30,7 +30,7 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 EDGE_MACHINE_NAME="${AKSBM_EDGE_MACHINE_NAME:-}"
 CONTROL_PLANE_IP="${AKSBM_CONTROL_PLANE_IP:-}"
 MACHINE_IP=""

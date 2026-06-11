@@ -29,7 +29,7 @@ All are nested-virtualization capable (`allowed` in `main.bicep`):
 | `Standard_D16s_v5` / `Standard_E16s_v5` | 16 / 64–128 GB | Multiple/larger guests, faster builds |
 | `*_v6` variants | — | Newer generation; use if quota/availability favors v6 |
 
-## Rough monthly cost (24×7, Sweden Central, retail PAYG)
+## Rough monthly cost (24×7, East US, retail PAYG)
 
 | Scenario | Approx. /month |
 | --- | --- |
@@ -68,15 +68,15 @@ param enableAzureHybridBenefit = false
 **Already deployed?** `licenseType` is updatable in place (no redeploy):
 
 ```bash
-az vm update -g rg-localsff -n LocalSFF-Host --set licenseType=Windows_Server   # or None
-az vm update -g rg-localsff -n LocalSFF-Mgmt --set licenseType=Windows_Client   # or None
+az vm update -g rg-azlocal-sff-eus01 -n LocalSFF-Host --set licenseType=Windows_Server   # or None
+az vm update -g rg-azlocal-sff-eus01 -n LocalSFF-Mgmt --set licenseType=Windows_Client   # or None
 ```
 
-Verify: `az vm show -g rg-localsff -n LocalSFF-Host --query licenseType -o tsv` → `Windows_Server`.
+Verify: `az vm show -g rg-azlocal-sff-eus01 -n LocalSFF-Host --query licenseType -o tsv` → `Windows_Server`.
 
 ## Cost guidance
 
-- **SFF test runs are bursty.** Deallocate the host (`az vm deallocate -g rg-localsff -n
+- **SFF test runs are bursty.** Deallocate the host (`az vm deallocate -g rg-azlocal-sff-eus01 -n
   LocalSFF-Host`) when idle; the scheduled-task watcher resumes on next start. Compute stops
   billing while deallocated.
 - **Disks, Bastion, and NAT bill even when VMs are stopped.** To stop *all* charges, delete

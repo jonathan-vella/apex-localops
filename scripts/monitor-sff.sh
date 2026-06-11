@@ -17,7 +17,7 @@
 #   ./monitor-sff.sh --once                # print a single status snapshot and exit
 #   ./monitor-sff.sh --logs                # include an in-VM log tail each poll (slower)
 #   ./monitor-sff.sh --interval 60         # change the poll interval (seconds)
-#   ./monitor-sff.sh --resource-group <n>  # default: rg-localsff
+#   ./monitor-sff.sh --resource-group <n>  # default: rg-azlocal-sff-eus01
 #   ./monitor-sff.sh --vm-name <n>         # default: LocalSFF-Host
 #   ./monitor-sff.sh --help
 #
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 VM_NAME="LocalSFF-Host"
 INTERVAL=120
 ONCE=false

@@ -15,7 +15,7 @@ group builds the SFF **Maintenance OS (ROE)** test VM inside itself and drives i
 | --- | --- |
 | **What** | One nested-virt host VM that builds a Gen2 ROE test VM (TPM on, Secure Boot off, ≥4 vCPU) |
 | **Deploy time** | ~10–15 min ARM, then Hyper-V install + nested-VM build |
-| **Default region** | `swedencentral` (no special Azure Local region constraint for VM-based SFF) |
+| **Default region** | `eastus` (keeps SFF host, site, edge machine, and optional AKS on bare metal in one region) |
 | **Est. cost** | ~$700–900/month at 24×7 — see [sff-sizing.md](sff-sizing.md) |
 | **Access** | Azure Bastion only (no public IP on the VMs) |
 
@@ -24,7 +24,7 @@ group builds the SFF **Maintenance OS (ROE)** test VM inside itself and drives i
 ```mermaid
 flowchart TB
     User(["Operator"])
-    subgraph RG["resource group rg-localsff"]
+    subgraph RG["resource group rg-azlocal-sff-eus01"]
         Bastion["Azure Bastion"]
         NAT["NAT Gateway"]
         KV["Key Vault<br/>ownership voucher"]
@@ -91,7 +91,7 @@ Useful flags:
 ```bash
 ./scripts/deploy-sff.sh --what-if-only    # preview only
 ./scripts/deploy-sff.sh --no-monitor      # deploy but don't auto-launch the monitor
-./scripts/deploy-sff.sh -g rg-localsff -l swedencentral
+./scripts/deploy-sff.sh -g rg-azlocal-sff-eus01 -l eastus
 ```
 
 > **Azure Hybrid Benefit is on by default** (`enableAzureHybridBenefit = true`): the host VM
@@ -158,7 +158,7 @@ on the host), store it in Key Vault, and provision the machine from the Azure po
 ## Clean up
 
 ```bash
-./scripts/cleanup-sff.sh            # delete rg-localsff, stop all billing
+./scripts/cleanup-sff.sh            # delete rg-azlocal-sff-eus01, stop all billing
 ```
 
 > [!WARNING]

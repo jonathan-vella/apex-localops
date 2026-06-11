@@ -132,5 +132,5 @@ Stages: `providers → sff → voucher → provision → aks → connect` (addre
 ./scripts/cleanup-sff.sh                 # SFF host + nested VM + staging + Key Vault
 # The AKS cluster (if deployed) lives in the SAME resource group; remove its resources
 # individually rather than deleting the group:
-az resource delete -g rg-localsff -n localsff-aks --resource-type Microsoft.Kubernetes/connectedClusters 2>/dev/null || true
+az resource delete -g rg-azlocal-sff-eus01 -n localsff-aks --resource-type Microsoft.Kubernetes/connectedClusters 2>/dev/null || true
 ```

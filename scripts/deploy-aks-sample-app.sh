@@ -13,7 +13,7 @@
 #   * Resource requests/limits so the app cannot starve the control plane.
 #
 # Usage:
-#   ./deploy-aks-sample-app.sh                                  # deploy to localsff-aks in rg-localsff
+#   ./deploy-aks-sample-app.sh                                  # deploy to localsff-aks in rg-azlocal-sff-eus01
 #   ./deploy-aks-sample-app.sh --name <cluster> -g <rg>         # target a specific cluster
 #   ./deploy-aks-sample-app.sh --host-ip 192.168.200.50         # print the full access URL
 #   ./deploy-aks-sample-app.sh --manifest <path>                # use a different manifest
@@ -29,7 +29,7 @@
 set -euo pipefail
 
 CLUSTER_NAME="localsff-aks"
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 APP_NAME="hello-app"
 HOST_IP=""
 DELETE=false

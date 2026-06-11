@@ -25,8 +25,8 @@
 #   ./deploy-all.sh --admin-group-name "My AKS Admins"   # auto-create/reuse a named group
 #   ./deploy-all.sh --from <stage> --to <stage>          # run a subset (by name or number)
 #   ./deploy-all.sh --skip providers,sff                 # skip stages
-#   ./deploy-all.sh --resource-group rg-localsff
-#   ./deploy-all.sh --aks-resource-group rg-localsff
+#   ./deploy-all.sh --resource-group rg-azlocal-sff-eus01
+#   ./deploy-all.sh --aks-resource-group rg-azlocal-sff-eus01
 #   ./deploy-all.sh --dry-run                            # print the plan, run nothing
 #   ./deploy-all.sh --help
 #
@@ -37,7 +37,7 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 # The AKS cluster deploys into the SAME resource group as the Provisioned EdgeMachine
 # (the template references it by name within the deployment RG), so it tracks the SFF RG
 # unless explicitly overridden with --aks-resource-group. Empty here => resolved after parsing.
@@ -133,7 +133,14 @@ fi
 # --- Stage 2: SFF host build (waits internally for the cluster/ROE phase via its monitor) ---
 if should_run sff; then
   banner "sff (deploy-sff.sh)"
-  run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --no-monitor
+  # If the providers stage ran in this invocation it already registered everything, so
+  # tell deploy-sff.sh to skip the redundant re-check. When the providers stage is out of
+  # range (e.g. --from sff), let deploy-sff.sh ensure providers itself.
+  if should_run providers; then
+    run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --skip-providers --no-monitor
+  else
+    run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --no-monitor
+  fi
   if [[ "$DRY_RUN" != "true" ]]; then
     echo "ACTION REQUIRED (one-time-ever): stage roe.iso + configurator.msi into the staging"
     echo "account from an Azure resource (jumpbox/Cloud Shell). See docs/sff-quickstart.md §4."

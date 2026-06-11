@@ -22,7 +22,7 @@ set -euo pipefail
 
 CLUSTER_NAME=""
 # Default to the resource group that holds the cluster (same RG as the EdgeMachine).
-RESOURCE_GROUP="rg-localsff"
+RESOURCE_GROUP="rg-azlocal-sff-eus01"
 GET_NODES=false
 
 while [[ $# -gt 0 ]]; do

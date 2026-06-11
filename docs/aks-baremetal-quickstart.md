@@ -83,7 +83,7 @@ Useful flags:
 ```bash
 ./scripts/deploy-aks-baremetal.sh --what-if-only          # preview only
 ./scripts/deploy-aks-baremetal.sh --ssh-key-file ~/.ssh/id_ed25519.pub
-./scripts/deploy-aks-baremetal.sh -g rg-localsff -l eastus
+./scripts/deploy-aks-baremetal.sh -g rg-azlocal-sff-eus01 -l eastus
 ```
 
 ## Connect
@@ -92,7 +92,7 @@ Run from your **local machine / devcontainer** (not Cloud Shell — the proxy ne
 token audience):
 
 ```bash
-./scripts/connect-aks-baremetal.sh --name localsff-aks --resource-group rg-localsff --get-nodes
+./scripts/connect-aks-baremetal.sh --name localsff-aks --resource-group rg-azlocal-sff-eus01 --get-nodes
 ```
 
 That starts the Arc proxy, runs `kubectl get nodes`, and stops the proxy. Expected:
@@ -110,7 +110,7 @@ For an interactive session, omit `--get-nodes` — it starts the proxy in the fo
 Once the cluster is up, deploy a sample nginx workload to verify it end-to-end:
 
 ```bash
-./scripts/deploy-aks-sample-app.sh --name localsff-aks -g rg-localsff --host-ip 192.168.200.50
+./scripts/deploy-aks-sample-app.sh --name localsff-aks -g rg-azlocal-sff-eus01 --host-ip 192.168.200.50
 ```
 
 It starts the Arc proxy, applies [artifacts/aks/sample-app/hello-app.yaml](../artifacts/aks/sample-app/hello-app.yaml)
@@ -168,7 +168,7 @@ delete the whole resource group (that would also destroy the SFF host). Remove j
 cluster resources:
 
 ```bash
-RG=rg-localsff
+RG=rg-azlocal-sff-eus01
 CL=localsff-aks
 # Deleting the connected cluster removes its child provisioned-cluster instance too.
 az resource delete -g "$RG" -n "$CL" --resource-type Microsoft.Kubernetes/connectedClusters
@@ -176,7 +176,7 @@ az resource delete -g "$RG" -n "$CL-lnet" --resource-type Microsoft.AzureStackHC
 az resource delete -g "$RG" -n "<edge-machine-name>" --resource-type Microsoft.AzureStackHCI/devicePools
 ```
 
-Cluster resources are zero-rated in preview. The SFF resource group (`rg-localsff`) and its
+Cluster resources are zero-rated in preview. The SFF resource group (`rg-azlocal-sff-eus01`) and its
 host VM remain untouched.
 
 ## Preview-volatility note

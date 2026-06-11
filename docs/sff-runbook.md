@@ -58,7 +58,7 @@ az keyvault secret show --vault-name <sffkv…> --name sff-ownership-voucher \
 
 > **Tip:** pre-create the Arc **site** first so you only **select** it in the wizard:
 > ```bash
-> ./scripts/ensure-arc-site.sh --resource-group rg-localsff --location eastus --site-name local-sff
+> ./scripts/ensure-arc-site.sh --resource-group rg-azlocal-sff-eus01 --location eastus --site-name local-sff
 > ```
 > This create-or-reuses the site (`az site`). The Arc **Gateway is optional** and not required
 > for SFF machine provisioning (add `--with-gateway` only if your environment uses one). The
@@ -119,7 +119,7 @@ export AKSBM_EDGE_MACHINE_NAME="<edge-machine-name>"   # az resource list --reso
 export AKSBM_CONTROL_PLANE_IP="192.168.200.50"
 # Optional: export AKSBM_ADMIN_GROUP_ID="<guid>" to use a specific existing group instead.
 ./scripts/deploy-aks-baremetal.sh
-./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-localsff --get-nodes
+./scripts/connect-aks-baremetal.sh --name localsff-aks -g rg-azlocal-sff-eus01 --get-nodes
 ```
 
 Full walkthrough: [aks-baremetal-quickstart.md](aks-baremetal-quickstart.md).

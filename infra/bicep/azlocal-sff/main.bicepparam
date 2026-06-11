@@ -14,9 +14,10 @@ param windowsAdminUsername = 'arcdemo'
 param windowsAdminPassword = readEnvironmentVariable('LOCALSFF_ADMIN_PASSWORD', '')
 
 // --- Region & naming ---
-// SFF VM-based testing has no special Azure region constraint (unlike a full
-// Azure Local cluster). swedencentral matches the LocalBox profile default.
-param location = 'swedencentral'
+// SFF VM-based testing has no special Azure region constraint (unlike a full Azure
+// Local cluster). East US keeps the SFF host, site, edge machine, and (optional) AKS
+// on bare metal all in one region/resource group (AKS on bare metal is East US only).
+param location = 'eastus'
 param namePrefix = 'LocalSFF'
 
 // --- Host (nested-virtualization Hyper-V) ---
