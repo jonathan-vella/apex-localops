@@ -46,7 +46,6 @@
     CpuCount          = 4
     DiskGB            = 256
     Generation        = 2
-    # Azure-VM IMDS endpoint that must be denied on the nested adapter before boot.
     ImdsAddress       = "169.254.169.254"
     # Success signal the ROE/maintenance OS prints when ready. Regex (matched case-
     # insensitively) covering both documented wordings: "[Succeeded] ROE setup completed
