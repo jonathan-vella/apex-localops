@@ -37,6 +37,7 @@
     # Nested build
     'New-ApexUnattendXml'
     'New-ApexNestedVM'
+    'Wait-ApexVMReady'
     'New-ApexDomainController'
     'New-ApexLocalNode'
     'Connect-ApexNodeToArc'

@@ -23,15 +23,16 @@ evaluation environments inside a **single Azure VM** — no physical hardware. T
 templates and the in-VM build automation are **vendored in this repo**, so a deploy does not
 depend on any third-party repository.
 
-Two evaluation profiles are included — pick the one you need and follow its deployment guide:
+Three evaluation profiles are included — pick the one you need and follow its deployment guide:
 
 | Profile | What it builds | Est. cost (24×7) | Deployment guide |
 | --- | --- | --- | --- |
 | **Azure Local (LocalBox)** | A nested 2- or 3-node Azure Local cluster + management host (Domain Controller, router, Windows Admin Center) in one Hyper-V VM | ~$7,850/mo | **[Azure Local deployment guide →](docs/deployment-quickstart.md)** |
+| **Self-hosted (zero Jumpstart)** | A nested 3-node Azure Local cluster + Domain Controller built **clean-room** from two operator-staged ISOs — no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*` modules — across two VMs (cluster host + jumpbox) | ~$7,850/mo | **[Self-hosted deployment guide →](docs/selfhosted-quickstart.md)** |
 | **Small Form Factor (SFF)** | A lighter single nested-virtualization host that builds the SFF **Maintenance OS (ROE)** test VM (Gen2, TPM on, Secure Boot off, ≥4 vCPU) — the edge/SFF analogue at ~1/10th the cost | ~$700–900/mo | **[SFF deployment guide →](docs/sff-quickstart.md)** |
 
 > [!NOTE]
-> Both profiles deploy into a **Bastion-only** resource group (no public IP on the VMs) and
+> All profiles deploy into a **Bastion-only** resource group (no public IP on the VMs) and
 > register the required resource providers via a bundled `check-providers` script. SFF is in
 > **PREVIEW** and is for testing/evaluation only — production SFF must run on validated
 > hardware.
@@ -99,8 +100,15 @@ The SFF profile uses a lighter single-host topology — see its
 - `LocalSFF-Host` nested-virtualization VM (`Standard_D8s_v5`) that builds one Gen2 ROE test VM (TPM on, Secure Boot off, ≥4 vCPU)
 - Bastion, NAT Gateway, Key Vault (ownership voucher), staging storage, and an optional Windows 11 jumpbox
 
+**Self-hosted (zero Jumpstart)**:
+
+- `ApexLocal-Host` cluster host VM (`Standard_E64s_v6`) + 12 × 256 GB P30 disks (pooled `V:`) that builds a nested Domain Controller + 3-node Azure Local cluster from two ISOs
+- `ApexLocal-Mgmt` Windows Server 2025 jumpbox for staging the ISOs, a hardened ISO storage account, Bastion, NAT Gateway, and Log Analytics
+- No prebaked Jumpstart VHDs and no `Azure.Arc.Jumpstart.*` modules — the in-repo [`ApexLocalOps`](artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1) module does the whole nested build
+
 Topology profiles, host SKUs, and the full cost breakdown live in the sizing docs:
-[sizing-guidance.md](docs/sizing-guidance.md) (Azure Local) and
+[sizing-guidance.md](docs/sizing-guidance.md) (Azure Local),
+[selfhosted-sizing.md](docs/selfhosted-sizing.md) (self-hosted), and
 [sff-sizing.md](docs/sff-sizing.md) (SFF).
 
 ## Cost
@@ -111,6 +119,9 @@ delete the resource group to stop all charges.
 - **Azure Local:** ~$7,850/month at 24×7 (Sweden Central, retail pay-as-you-go) — the
   `Standard_E64s_v6` host plus 12 × P30 data disks dominate the bill. Breakdown:
   [sizing-guidance.md](docs/sizing-guidance.md).
+- **Self-hosted:** ~$7,850/month at 24×7 — same `Standard_E64s_v6` host + 12 × P30 footprint
+  as LocalBox, plus a small jumpbox and the ISO storage account. Breakdown:
+  [selfhosted-sizing.md](docs/selfhosted-sizing.md).
 - **SFF:** ~$700–900/month at 24×7 — roughly 1/10th the cost. Breakdown:
   [sff-sizing.md](docs/sff-sizing.md).
 
@@ -127,6 +138,7 @@ delete the resource group to stop all charges.
 | Product | Guide | What's inside |
 | --- | --- | --- |
 | **Azure Local** | [Azure Local deployment guide](docs/deployment-quickstart.md) | Prerequisites, register providers, deploy (incl. 2-node + pin-a-release), the in-VM build, monitoring, customization, and clean up. |
+| **Self-hosted (zero Jumpstart)** | [Self-hosted deployment guide](docs/selfhosted-quickstart.md) | Prerequisites, register providers + resolve the Azure Local RP id, deploy, stage the two ISOs from the jumpbox, monitor the clean-room nested build, and clean up. |
 | **Small Form Factor** | [SFF deployment guide](docs/sff-quickstart.md) | Prerequisites, register providers + ZTP, deploy, stage the ROE ISO + Configurator App, monitor, ownership voucher, and clean up. |
 
 **Reference:**

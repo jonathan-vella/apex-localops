@@ -30,6 +30,7 @@ REQUIRED_PROVIDERS=(
   Microsoft.Storage
   Microsoft.Insights
   Microsoft.KeyVault
+  Microsoft.EdgeMarketplace
 )
 
 CHECK_ONLY=false

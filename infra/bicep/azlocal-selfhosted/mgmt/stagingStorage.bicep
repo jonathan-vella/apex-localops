@@ -42,7 +42,7 @@ param logsContainerName string = 'logs'
 
 param resourceTags object
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   name: storageAccountName
   location: location
   sku: {
@@ -60,12 +60,12 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   tags: resourceTags
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = {
   parent: storageAccount
   name: 'default'
 }
 
-resource isoContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+resource isoContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = {
   parent: blobService
   name: isoContainerName
   properties: {
@@ -73,7 +73,7 @@ resource isoContainer 'Microsoft.Storage/storageAccounts/blobServices/containers
   }
 }
 
-resource logsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+resource logsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = {
   parent: blobService
   name: logsContainerName
   properties: {

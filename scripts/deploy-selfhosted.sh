@@ -142,7 +142,7 @@ preflight() {
   fi
 
   # 3) Critical resource providers registered.
-  local crit=(Microsoft.AzureStackHCI Microsoft.HybridCompute Microsoft.ExtendedLocation Microsoft.KeyVault Microsoft.Storage)
+  local crit=(Microsoft.AzureStackHCI Microsoft.HybridCompute Microsoft.ExtendedLocation Microsoft.EdgeMarketplace Microsoft.KeyVault Microsoft.Storage)
   local unreg=() rp st
   for rp in "${crit[@]}"; do
     st=$(az provider show --namespace "$rp" --query registrationState -o tsv 2>/dev/null || echo "Unknown")

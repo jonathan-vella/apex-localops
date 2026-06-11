@@ -259,7 +259,7 @@ module managementVmDeployment 'mgmt/mgmtVm.bicep' = if (deployManagementVm) {
 
 // --- Existing reference for least-privilege, resource-scoped role assignments ---
 // Name is a deterministic var (computed above), so .id is calculable at start.
-resource stagingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+resource stagingStorageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' existing = {
   name: stagingStorageAccountName
 }
 
@@ -272,11 +272,9 @@ resource hostStorageContributor 'Microsoft.Authorization/roleAssignments@2022-04
     roleDefinitionId: roleStorageBlobDataContributor
     principalType: 'ServicePrincipal'
   }
-  // stagingStorageAccount is referenced as 'existing' (by name), so Bicep does not infer a
-  // dependency on the module that creates it. Make it explicit to avoid a ResourceNotFound race.
-  dependsOn: [
-    stagingStorageDeployment
-  ]
+  // No explicit dependsOn needed: principalId reads hostDeployment's output, and
+  // hostDeployment consumes stagingStorageDeployment's output — so this assignment
+  // already orders after the storage account exists.
 }
 
 // Host identity: write ApexProgress/ApexStatus tags on the resource group.
