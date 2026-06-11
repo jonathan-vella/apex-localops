@@ -27,7 +27,7 @@
 #   ./deploy-aks-baremetal.sh --ssh-key-file <p>    # default: ~/.ssh/id_rsa.pub
 #   ./deploy-aks-baremetal.sh --admin-group <id>    # use a specific Entra group object id
 #   ./deploy-aks-baremetal.sh --admin-group-name <n># name for the auto-created/reused group
-#   ./deploy-aks-baremetal.sh --resource-group <n>  # default: rg-azlocal-sff-eus01 (EdgeMachine's RG)
+#   ./deploy-aks-baremetal.sh --resource-group <n>  # default: rg-sff-azl-eus01 (EdgeMachine's RG)
 #   ./deploy-aks-baremetal.sh --location <region>   # default: eastus (preview-only region)
 #   ./deploy-aks-baremetal.sh --help
 #
@@ -39,7 +39,7 @@ set -euo pipefail
 
 # Must be the resource group that contains the Provisioned SFF EdgeMachine — the
 # template references the machine by name within the deployment resource group.
-RESOURCE_GROUP="rg-azlocal-sff-eus01"
+RESOURCE_GROUP="rg-sff-azl-eus01"
 LOCATION="eastus"
 WHATIF_ONLY=false
 ASSUME_YES=false

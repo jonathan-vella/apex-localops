@@ -14,8 +14,8 @@
 #   ./deploy-sff.sh --skip-preflight       # skip the pre-deployment validation checks
 #   ./deploy-sff.sh --skip-providers       # skip the resource-provider + ZTP feature registration
 #   ./deploy-sff.sh --no-monitor           # do not launch scripts/monitor-sff.sh after deploying
-#   ./deploy-sff.sh --resource-group <n>   # default: rg-azlocal-sff-eus01
-#   ./deploy-sff.sh --location <region>    # default: eastus
+#   ./deploy-sff.sh --resource-group <n>   # default: rg-sff-host-swc01
+#   ./deploy-sff.sh --location <region>    # default: swedencentral
 #   ./deploy-sff.sh --help
 #
 # The ARM deployment provisions the host VM in ~10-15 min. The host then installs
@@ -30,8 +30,8 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-azlocal-sff-eus01"
-LOCATION="eastus"
+RESOURCE_GROUP="rg-sff-host-swc01"
+LOCATION="swedencentral"
 WHATIF_ONLY=false
 SKIP_PROVIDERS=false
 ASSUME_YES=false

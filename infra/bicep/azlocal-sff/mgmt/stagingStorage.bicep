@@ -33,7 +33,7 @@ param stagingArtifactsContainer string = 'sff-artifacts'
 
 param resourceTags object
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   name: storageAccountName
   location: location
   sku: {
@@ -49,12 +49,12 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   tags: resourceTags
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = {
   parent: storageAccount
   name: 'default'
 }
 
-resource artifactsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+resource artifactsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = {
   parent: blobService
   name: stagingArtifactsContainer
   properties: {

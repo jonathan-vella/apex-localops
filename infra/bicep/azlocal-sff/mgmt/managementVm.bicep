@@ -52,7 +52,7 @@ param enableAzureHybridBenefit bool = true
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
 
-resource networkInterface 'Microsoft.Network/networkInterfaces@2024-07-01' = {
+resource networkInterface 'Microsoft.Network/networkInterfaces@2024-10-01' = {
   name: networkInterfaceName
   location: location
   properties: {
@@ -71,7 +71,7 @@ resource networkInterface 'Microsoft.Network/networkInterfaces@2024-07-01' = {
   tags: resourceTags
 }
 
-resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
+resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
   name: vmName
   location: location
   tags: resourceTags
@@ -136,7 +136,7 @@ output managementVmPrivateIp string = networkInterface.properties.ipConfiguratio
 // stage Publish-SffArtifacts.ps1 + desktop instructions. A stock Windows 11 image has none
 // of this tooling, so without it the documented "upload from the jumpbox" path can't run.
 // Skipped when templateBaseUrl is empty (e.g. unit what-ifs).
-resource jumpboxSetup 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (!empty(templateBaseUrl)) {
+resource jumpboxSetup 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = if (!empty(templateBaseUrl)) {
   parent: vm
   name: 'SetupSffJumpbox'
   location: location

@@ -44,7 +44,7 @@ var bastionName = '${namePrefix}-Bastion'
 var bastionSubnetIpPrefix = '172.16.3.64/26'
 var bastionPublicIpAddressName = '${bastionName}-PIP'
 
-resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = {
+resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-10-01' = {
   name: virtualNetworkName
   location: location
   properties: {
@@ -105,7 +105,7 @@ resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = {
   tags: resourceTags
 }
 
-resource natGatewayPublicIp 'Microsoft.Network/publicIPAddresses@2024-07-01' = if (deployBastion == true) {
+resource natGatewayPublicIp 'Microsoft.Network/publicIPAddresses@2024-10-01' = if (deployBastion == true) {
   name: '${natGatewayName}-PIP'
   location: location
   properties: {
@@ -119,7 +119,7 @@ resource natGatewayPublicIp 'Microsoft.Network/publicIPAddresses@2024-07-01' = i
   tags: resourceTags
 }
 
-resource natGateway 'Microsoft.Network/natGateways@2024-07-01' = if (deployBastion == true) {
+resource natGateway 'Microsoft.Network/natGateways@2024-10-01' = if (deployBastion == true) {
   name: natGatewayName
   location: location
   sku: {
@@ -136,7 +136,7 @@ resource natGateway 'Microsoft.Network/natGateways@2024-07-01' = if (deployBasti
   tags: resourceTags
 }
 
-resource networkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2021-03-01' = {
+resource networkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-10-01' = {
   name: networkSecurityGroupName
   location: location
   properties: {
@@ -145,7 +145,7 @@ resource networkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2021-03-0
   tags: resourceTags
 }
 
-resource bastionNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2021-05-01' = if (deployBastion == true) {
+resource bastionNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-10-01' = if (deployBastion == true) {
   name: bastionNetworkSecurityGroupName
   location: location
   properties: {
@@ -271,7 +271,7 @@ resource bastionNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@20
   tags: resourceTags
 }
 
-resource bastionPublicIpAddress 'Microsoft.Network/publicIPAddresses@2021-05-01' = if (deployBastion == true) {
+resource bastionPublicIpAddress 'Microsoft.Network/publicIPAddresses@2024-10-01' = if (deployBastion == true) {
   name: bastionPublicIpAddressName
   location: location
   properties: {
@@ -285,7 +285,7 @@ resource bastionPublicIpAddress 'Microsoft.Network/publicIPAddresses@2021-05-01'
   tags: resourceTags
 }
 
-resource bastionHost 'Microsoft.Network/bastionHosts@2021-05-01' = if (deployBastion == true) {
+resource bastionHost 'Microsoft.Network/bastionHosts@2024-07-01' = if (deployBastion == true) {
   name: bastionName
   location: location
   properties: {

@@ -18,7 +18,7 @@
 #
 # Usage:
 #   ./provision-machine.sh --site <name> --machine <name>          # auto or guided + wait
-#   ./provision-machine.sh --resource-group rg-azlocal-sff-eus01   # default RG
+#   ./provision-machine.sh --resource-group rg-sff-azl-eus01     # default RG (East US Azure Local)
 #   ./provision-machine.sh --key-vault <name> --voucher-secret <n> # voucher in Key Vault
 #   ./provision-machine.sh --ssh-key-file ~/.ssh/id_rsa.pub        # public key for the OS
 #   ./provision-machine.sh --os-image AzureLinux                   # target OS image
@@ -35,7 +35,7 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-azlocal-sff-eus01"
+RESOURCE_GROUP="rg-sff-azl-eus01"
 SITE_NAME="local-sff"
 MACHINE_NAME=""
 KEY_VAULT=""

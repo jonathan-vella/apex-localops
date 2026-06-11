@@ -25,7 +25,7 @@ param resourceTags object
 @description('Enable Key Vault purge protection. OFF by default so the SFF demo can be fully torn down (cleanup-sff.sh purges the vault) and redeployed with the same resource-group name. Enable only if you must guarantee voucher-secret retention.')
 param enablePurgeProtection bool = false
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' = {
   name: keyVaultName
   location: location
   properties: {

@@ -14,10 +14,11 @@ param windowsAdminUsername = 'arcdemo'
 param windowsAdminPassword = readEnvironmentVariable('LOCALSFF_ADMIN_PASSWORD', '')
 
 // --- Region & naming ---
-// SFF VM-based testing has no special Azure region constraint (unlike a full Azure
-// Local cluster). East US keeps the SFF host, site, edge machine, and (optional) AKS
-// on bare metal all in one region/resource group (AKS on bare metal is East US only).
-param location = 'eastus'
+// The host VM, jumpbox, VNet, Bastion, NAT, Key Vault, and staging storage live in this
+// region (rg-sff-host-swc01). Sweden Central has the nested-virt VM capacity East US
+// currently restricts. The Azure Local site + edge machine are provisioned separately into
+// an East US resource group (rg-sff-azl-eus01) — AKS on bare metal is East US only.
+param location = 'swedencentral'
 param namePrefix = 'LocalSFF'
 
 // --- Host (nested-virtualization Hyper-V) ---

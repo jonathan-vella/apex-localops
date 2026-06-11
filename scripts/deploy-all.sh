@@ -25,8 +25,8 @@
 #   ./deploy-all.sh --admin-group-name "My AKS Admins"   # auto-create/reuse a named group
 #   ./deploy-all.sh --from <stage> --to <stage>          # run a subset (by name or number)
 #   ./deploy-all.sh --skip providers,sff                 # skip stages
-#   ./deploy-all.sh --resource-group rg-azlocal-sff-eus01
-#   ./deploy-all.sh --aks-resource-group rg-azlocal-sff-eus01
+#   ./deploy-all.sh --resource-group rg-sff-host-swc01
+#   ./deploy-all.sh --aks-resource-group rg-sff-azl-eus01
 #   ./deploy-all.sh --dry-run                            # print the plan, run nothing
 #   ./deploy-all.sh --help
 #
@@ -37,10 +37,11 @@
 
 set -euo pipefail
 
-RESOURCE_GROUP="rg-azlocal-sff-eus01"
-# The AKS cluster deploys into the SAME resource group as the Provisioned EdgeMachine
-# (the template references it by name within the deployment RG), so it tracks the SFF RG
-# unless explicitly overridden with --aks-resource-group. Empty here => resolved after parsing.
+RESOURCE_GROUP="rg-sff-host-swc01"
+# The host VM + plumbing (this RG, Sweden Central) and the Azure Local site + edge machine +
+# AKS (East US) live in SEPARATE resource groups. The AKS cluster deploys into the
+# EdgeMachine's resource group; default it to the East US Azure Local RG unless overridden
+# with --aks-resource-group. Empty here => resolved after parsing.
 AKS_RESOURCE_GROUP=""
 ADMIN_GROUP_ID="${AKSBM_ADMIN_GROUP_ID:-}"
 ADMIN_GROUP_NAME="${AKSBM_ADMIN_GROUP_NAME:-LocalSFF-AKS-Admins}"
@@ -73,8 +74,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# The AKS cluster must live in the EdgeMachine's resource group; default it to the SFF RG.
-AKS_RESOURCE_GROUP="${AKS_RESOURCE_GROUP:-$RESOURCE_GROUP}"
+# The AKS cluster + edge machine live in the East US Azure Local RG, separate from the
+# Sweden Central host RG. Default it unless explicitly overridden with --aks-resource-group.
+AKS_RESOURCE_GROUP="${AKS_RESOURCE_GROUP:-rg-sff-azl-eus01}"
 
 command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI (az) not found on PATH." >&2; exit 1; }
 az account show >/dev/null 2>&1 || { echo "ERROR: Not logged in to Azure. Run 'az login' first." >&2; exit 1; }
@@ -163,7 +165,8 @@ fi
 # --- Stage 4: Azure machine provisioning (auto if preview CLI present, else guided + wait) ---
 if should_run provision; then
   banner "provision (provision-machine.sh)"
-  run "$SCRIPT_DIR/provision-machine.sh" --resource-group "$RESOURCE_GROUP"
+  # Site + edge machine live in the East US Azure Local RG, not the Sweden host RG.
+  run "$SCRIPT_DIR/provision-machine.sh" --resource-group "$AKS_RESOURCE_GROUP"
 fi
 
 # --- Stage 5: AKS on bare metal (resolve inputs, then deploy) ---
@@ -179,7 +182,7 @@ if should_run aks; then
     fi
   else
     # shellcheck disable=SC1090,SC1091
-    source "$SCRIPT_DIR/resolve-aks-inputs.sh" --resource-group "$RESOURCE_GROUP" \
+    source "$SCRIPT_DIR/resolve-aks-inputs.sh" --resource-group "$AKS_RESOURCE_GROUP" \
       ${ADMIN_GROUP_ID:+--admin-group "$ADMIN_GROUP_ID"} \
       --admin-group-name "$ADMIN_GROUP_NAME" --ssh-key-file "$SSH_KEY_FILE"
     "$SCRIPT_DIR/deploy-aks-baremetal.sh" --resource-group "$AKS_RESOURCE_GROUP" --yes

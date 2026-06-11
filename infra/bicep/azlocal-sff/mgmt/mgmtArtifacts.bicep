@@ -13,7 +13,7 @@ param sku string = 'pergb2018'
 
 param resourceTags object
 
-resource workspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
+resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: workspaceName
   location: location
   properties: {

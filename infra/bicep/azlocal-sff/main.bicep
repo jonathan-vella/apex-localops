@@ -247,11 +247,11 @@ module managementVmDeployment 'mgmt/managementVm.bicep' = if (deployManagementVm
 
 // --- Existing references for least-privilege, resource-scoped role assignments ---
 // Names are deterministic vars (computed above), so .id is calculable at start.
-resource stagingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+resource stagingStorageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' existing = {
   name: stagingStorageAccountName
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: keyVaultName
 }
 
