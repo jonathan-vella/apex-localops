@@ -12,6 +12,7 @@
 #   ./deploy-sff.sh --what-if-only         # prompt + what-if preview only (no deploy)
 #   ./deploy-sff.sh --yes                  # skip the post-what-if confirmation
 #   ./deploy-sff.sh --skip-preflight       # skip the pre-deployment validation checks
+#   ./deploy-sff.sh --skip-whatif          # skip the what-if preview (go straight to deploy)
 #   ./deploy-sff.sh --skip-providers       # skip the resource-provider + ZTP feature registration
 #   ./deploy-sff.sh --no-monitor           # do not launch scripts/monitor-sff.sh after deploying
 #   ./deploy-sff.sh --resource-group <n>   # default: rg-sff-host-swc01
@@ -33,6 +34,7 @@ set -euo pipefail
 RESOURCE_GROUP="rg-sff-host-swc01"
 LOCATION="swedencentral"
 WHATIF_ONLY=false
+SKIP_WHATIF=false
 SKIP_PROVIDERS=false
 ASSUME_YES=false
 SKIP_PREFLIGHT=false
@@ -49,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --what-if-only) WHATIF_ONLY=true; shift ;;
     --yes|-y) ASSUME_YES=true; shift ;;
     --skip-preflight) SKIP_PREFLIGHT=true; shift ;;
+    --skip-whatif) SKIP_WHATIF=true; shift ;;
     --skip-providers) SKIP_PROVIDERS=true; shift ;;
     --no-monitor) RUN_MONITOR=false; shift ;;
     --resource-group|-g) RESOURCE_GROUP="${2:?missing value}"; shift 2 ;;
@@ -235,12 +238,16 @@ if [[ "$SKIP_PREFLIGHT" != "true" ]]; then
   preflight
 fi
 
-# --- What-if preview ---
-echo "Running what-if preview..."
-az deployment group what-if \
-  --resource-group "$RESOURCE_GROUP" \
-  --template-file "$TEMPLATE" \
-  --parameters "$PARAMS"
+# --- What-if preview (skippable) ---
+if [[ "$SKIP_WHATIF" == "true" && "$WHATIF_ONLY" != "true" ]]; then
+  echo "Skipping what-if preview (--skip-whatif)."
+else
+  echo "Running what-if preview..."
+  az deployment group what-if \
+    --resource-group "$RESOURCE_GROUP" \
+    --template-file "$TEMPLATE" \
+    --parameters "$PARAMS"
+fi
 
 if [[ "$WHATIF_ONLY" == "true" ]]; then
   echo "--what-if-only: stopping before deployment."

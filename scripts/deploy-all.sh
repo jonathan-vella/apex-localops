@@ -25,6 +25,7 @@
 #   ./deploy-all.sh --admin-group-name "My AKS Admins"   # auto-create/reuse a named group
 #   ./deploy-all.sh --from <stage> --to <stage>          # run a subset (by name or number)
 #   ./deploy-all.sh --skip providers,sff                 # skip stages
+#   ./deploy-all.sh --skip-whatif                        # skip the what-if preview (host deploy)
 #   ./deploy-all.sh --resource-group rg-sff-host-swc01
 #   ./deploy-all.sh --aks-resource-group rg-sff-azl-eus01
 #   ./deploy-all.sh --dry-run                            # print the plan, run nothing
@@ -49,6 +50,7 @@ SSH_KEY_FILE="${HOME}/.ssh/id_rsa.pub"
 FROM_STAGE="providers"
 TO_STAGE="connect"
 SKIP_CSV=""
+SKIP_WHATIF=false
 DRY_RUN=false
 VOUCHER_WAIT_SECONDS=21600   # 6h: the in-VM build + auto voucher extraction
 
@@ -63,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --from) FROM_STAGE="${2:?missing value}"; shift 2 ;;
     --to) TO_STAGE="${2:?missing value}"; shift 2 ;;
     --skip) SKIP_CSV="${2:?missing value}"; shift 2 ;;
+    --skip-whatif) SKIP_WHATIF=true; shift ;;
     --admin-group) ADMIN_GROUP_ID="${2:?missing value}"; shift 2 ;;
     --admin-group-name) ADMIN_GROUP_NAME="${2:?missing value}"; shift 2 ;;
     --ssh-key-file) SSH_KEY_FILE="${2:?missing value}"; shift 2 ;;
@@ -138,11 +141,10 @@ if should_run sff; then
   # If the providers stage ran in this invocation it already registered everything, so
   # tell deploy-sff.sh to skip the redundant re-check. When the providers stage is out of
   # range (e.g. --from sff), let deploy-sff.sh ensure providers itself.
-  if should_run providers; then
-    run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --skip-providers --no-monitor
-  else
-    run "$SCRIPT_DIR/deploy-sff.sh" --resource-group "$RESOURCE_GROUP" --no-monitor
-  fi
+  sff_args=(--resource-group "$RESOURCE_GROUP" --no-monitor)
+  should_run providers && sff_args+=(--skip-providers)
+  [[ "$SKIP_WHATIF" == "true" ]] && sff_args+=(--skip-whatif)
+  run "$SCRIPT_DIR/deploy-sff.sh" "${sff_args[@]}"
   if [[ "$DRY_RUN" != "true" ]]; then
     echo "ACTION REQUIRED (one-time-ever): stage roe.iso + configurator.msi into the staging"
     echo "account from an Azure resource (jumpbox/Cloud Shell). See docs/sff-quickstart.md §4."
