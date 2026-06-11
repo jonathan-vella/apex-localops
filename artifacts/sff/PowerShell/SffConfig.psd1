@@ -45,12 +45,14 @@
     MemoryMB           = 16000
     CpuCount           = 4
     DiskGB             = 256
-    Generation         = 2    # Number of nested SFF test VMs to build inside the host (>=1). With Count>1 each
+    Generation         = 2
+    # Number of nested SFF test VMs to build inside the host (>=1). With Count>1 each
     # instance gets a suffixed name (<Name>-<n>), a deterministic static MAC + DHCP
     # reservation, and its own Key Vault voucher secret (<VoucherSecretName>-<n>). The
     # host VM must be sized to fit Count x (CpuCount vCPU, MemoryMB) plus host overhead.
     Count              = 1
-    # Azure-VM IMDS endpoint that must be denied on the nested adapter before boot.    ImdsAddress        = "169.254.169.254"
+    # Azure-VM IMDS endpoint that must be denied on the nested adapter before boot.
+    ImdsAddress        = "169.254.169.254"
     # Success signal the ROE/maintenance OS prints when ready. Regex (matched case-
     # insensitively) covering both documented wordings: "[Succeeded] ROE setup completed
     # successfully" and "Status: [Succeeded] Maintenance environment setup completed
