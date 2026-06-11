@@ -26,6 +26,13 @@ SFF preview's Configurator App and machine-provisioning experience are portal/GU
 > below are the fallback if automatic extraction did not run (tag stuck at `RoeSucceeded`).
 > For the fully chained, hands-off path see [sff-zero-touch.md](sff-zero-touch.md).
 
+> [!NOTE]
+> **Multiple nested VMs (`nestedVmCount > 1`).** The shipped params build **two** guests
+> (`linuxsff-vm-1`, `linuxsff-vm-2`) reserved at `192.168.200.50`/`.51`, each storing its
+> voucher to a distinct Key Vault secret: `sff-ownership-voucher-1` and
+> `sff-ownership-voucher-2`. Provision one Azure Local machine per guest using its matching
+> secret. With a single VM (`nestedVmCount = 1`) the bare name `sff-ownership-voucher` is used.
+
 1. **RDP to `LocalSFF-Host`** over Azure Bastion (portal → the VM → Connect → Bastion).
 2. Open **Hyper-V Manager** → connect to **`linuxsff-vm`** → confirm the console shows
    `[Succeeded] ROE setup completed successfully`. Note the VM IP (`192.168.200.x`).

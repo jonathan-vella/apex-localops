@@ -24,6 +24,7 @@ param(
   [string]$EdgePassword = 'Password1',
   [string]$RemoteVoucherGlob = '/var/staging/export/vouchers/*/*.pem',
   [string]$KeyVaultName,
+  [string]$SecretName = 'sff-ownership-voucher',
   [string]$ResourceGroup,
   [int]$DiscoverTimeoutMinutes = 10
 )
@@ -109,7 +110,7 @@ try {
 
 # --- Store it in Key Vault via the existing helper ---
 try {
-  & (Join-Path $rootDir 'Save-OwnershipVoucher.ps1') -Path $localPem -KeyVaultName $KeyVaultName -ResourceGroup $ResourceGroup
+  & (Join-Path $rootDir 'Save-OwnershipVoucher.ps1') -Path $localPem -KeyVaultName $KeyVaultName -SecretName $SecretName -ResourceGroup $ResourceGroup
   # The local copy is no longer needed once it's safely in Key Vault.
   Remove-Item $localPem -Force -ErrorAction SilentlyContinue
   return $true

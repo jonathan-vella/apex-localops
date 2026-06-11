@@ -1,14 +1,16 @@
 # Azure Local SFF — Sizing & Cost
 
-The SFF profile is far lighter than the LocalBox cluster profile: it nests a **single**
-16 GB / 4 vCPU ROE test VM rather than a multi-node Azure Local cluster.
+The SFF profile is far lighter than the LocalBox cluster profile: it nests one or two
+16 GB / 4 vCPU ROE test VMs (set by `nestedVmCount`) rather than a multi-node Azure Local
+cluster. The shipped [main.bicepparam](../infra/bicep/azlocal-sff/main.bicepparam) builds
+**two** (a pair, e.g. for a 2-node Azure Local instance); set `nestedVmCount = 1` for one.
 
 ## Default footprint
 
 | Item | Default | Notes |
 | --- | --- | --- |
-| Host VM | `Standard_D8s_v5` (8 vCPU / 32 GB) | Nested-virtualization capable; hosts one 16 GB / 4 vCPU guest comfortably |
-| Host data disk | 1 × 512 GB Premium SSD (drive `V:`) | Holds the nested VHDX (256 GB dynamic) + the ROE ISO |
+| Host VM | `Standard_D16s_v5` (16 vCPU / 64 GB) | Nested-virtualization capable; hosts **two** 16 GB / 4 vCPU guests (32 GB / 8 vCPU committed) plus host overhead. Drop to `Standard_D8s_v5` for a single guest |
+| Host data disk | 1 × 1024 GB Premium SSD (drive `V:`) | Holds the nested VHDX(es) — 256 GB dynamic each — plus the ROE ISO/zip and transient extraction. 512 GB is enough for one guest |
 | Host OS disk | 256 GB Premium SSD | Windows Server 2025 |
 | Jumpbox (optional) | Win11 `Standard_D4s_v5` | Artifact-acquisition workstation |
 | Staging storage | Standard_LRS | ROE ISO + Configurator App MSI |
@@ -24,10 +26,30 @@ All are nested-virtualization capable (`allowed` in `main.bicep`):
 
 | SKU | vCPU / RAM | When to use |
 | --- | --- | --- |
-| `Standard_D8s_v5` (default) | 8 / 32 GB | Single ROE test VM |
-| `Standard_E8s_v5` | 8 / 64 GB | Extra RAM headroom |
-| `Standard_D16s_v5` / `Standard_E16s_v5` | 16 / 64–128 GB | Multiple/larger guests, faster builds |
+| `Standard_D8s_v5` | 8 / 32 GB | Single ROE test VM (`nestedVmCount = 1`) |
+| `Standard_E8s_v5` | 8 / 64 GB | Single guest, extra RAM headroom |
+| `Standard_D16s_v5` (shipped default) | 16 / 64 GB | **Two** ROE test VMs (`nestedVmCount = 2`) |
+| `Standard_E16s_v5` | 16 / 128 GB | Two larger guests / more RAM headroom |
 | `*_v6` variants | — | Newer generation; use if quota/availability favors v6 |
+
+## Nested VM count (`nestedVmCount`)
+
+`nestedVmCount` (in [main.bicepparam](../infra/bicep/azlocal-sff/main.bicepparam)) controls how
+many SFF guests the host builds **inside itself**, sequentially. Each guest is identical
+(Gen2 · TPM on · Secure Boot off · 4 vCPU · 16 GB · 256 GB VHD) and gets:
+
+| Per-instance resource | `nestedVmCount = 1` | `nestedVmCount = 2` |
+| --- | --- | --- |
+| VM name | `linuxsff-vm` | `linuxsff-vm-1`, `linuxsff-vm-2` |
+| Reserved IP (NAT scope) | `192.168.200.50` | `192.168.200.50`, `.51` |
+| Static MAC | `00:15:5D:5F:F0:01` | `…:01`, `…:02` |
+| Key Vault voucher secret | `sff-ownership-voucher` | `sff-ownership-voucher-1`, `-2` |
+
+Size the host so `nestedVmCount × (4 vCPU, 16 GB)` fits with headroom for the host OS +
+Hyper-V (the shipped `Standard_D16s_v5` leaves ~8 vCPU / 32 GB free for two guests). Provision
+each guest as a separate machine in the Azure Local site using its matching voucher secret.
+
+> Guests are built **sequentially**, so a two-VM run takes roughly twice as long as one.
 
 ## Rough monthly cost (24×7, East US, retail PAYG)
 

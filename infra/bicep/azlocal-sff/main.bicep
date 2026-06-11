@@ -82,6 +82,11 @@ param nestedVmCpuCount int = 4
 @description('OS disk size (GB) for the nested SFF test VM.')
 param nestedVmDiskGB int = 256
 
+@description('Number of nested SFF test VMs to build inside the host. Each consumes nestedVmCpuCount vCPU + nestedVmMemoryMB RAM; size hostVmSize + hostDataDiskSizeGB for the total. Default 1; set 2 for a pair.')
+@minValue(1)
+@maxValue(4)
+param nestedVmCount int = 1
+
 @description('Name of the internal Hyper-V switch created on the host.')
 param hvSwitchName string = 'HV-Internal-NAT'
 
@@ -222,6 +227,7 @@ module hostDeployment 'host/host.bicep' = {
     nestedVmMemoryMB: nestedVmMemoryMB
     nestedVmCpuCount: nestedVmCpuCount
     nestedVmDiskGB: nestedVmDiskGB
+    nestedVmCount: nestedVmCount
     hvSwitchName: hvSwitchName
     hvSubnetPrefix: hvSubnetPrefix
     hvGateway: hvGateway

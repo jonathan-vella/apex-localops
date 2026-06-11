@@ -22,7 +22,11 @@ param(
   [int]$CpuCount,
   [int]$DiskGB,
   [string]$SwitchName,
-  [int]$RoeTimeoutMinutes
+  [int]$RoeTimeoutMinutes,
+  [string]$NestedIp,
+  [string]$StaticMac,
+  [string]$SecretName,
+  [int]$InstanceIndex = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,13 +52,15 @@ $serialLog = Join-Path $cfg.Paths.LogsDir "$NestedVmName-serial.log"
 $pipeName = "$NestedVmName-com1"
 $imds = $cfg.NestedVm.ImdsAddress
 $roePattern = $cfg.NestedVm.RoeSuccessPattern
-$nestedIp = $cfg.NestedVm.IpAddress
+$nestedIp = if ($NestedIp) { $NestedIp } else { $cfg.NestedVm.IpAddress }
+$secretName = if ($SecretName) { $SecretName } else { $cfg.NestedVm.VoucherSecretName }
+$scopeId = ($cfg.Network.SubnetPrefix -split '/')[0]
 $rebootAfter = [int]$cfg.NestedVm.RebootAfterMinutes
 if ($rebootAfter -le 0) { $rebootAfter = 8 }
 
 if (-not (Test-Path $IsoPath)) { throw "ROE ISO not found at: $IsoPath" }
 
-Write-SffLog "Building nested SFF test VM '$NestedVmName' (Gen2, ${MemoryStartupMB}MB, ${CpuCount}vCPU, ${DiskGB}GB, switch '$SwitchName')."
+Write-SffLog "Building nested SFF test VM '$NestedVmName' (instance $InstanceIndex; Gen2, ${MemoryStartupMB}MB, ${CpuCount}vCPU, ${DiskGB}GB, switch '$SwitchName', ip $nestedIp)."
 
 # --- Idempotency: remove any prior instance of this VM ---
 $existing = Get-VM -Name $NestedVmName -ErrorAction SilentlyContinue
@@ -71,6 +77,24 @@ New-VHD -Path $vhdPath -SizeBytes ($DiskGB * 1GB) -Dynamic | Out-Null
 New-VM -Name $NestedVmName -Generation 2 `
   -MemoryStartupBytes ($MemoryStartupMB * 1MB) `
   -VHDPath $vhdPath -SwitchName $SwitchName | Out-Null
+
+# --- Deterministic MAC + DHCP reservation so the readiness/voucher probes hit a known IP ---
+# Without this, two nested VMs on the same NAT scope could receive .50/.51 in either order.
+if ($StaticMac) {
+  Set-VMNetworkAdapter -VMName $NestedVmName -StaticMacAddress $StaticMac
+  try {
+    Import-Module DhcpServer -ErrorAction Stop
+    $macHex = ($StaticMac -replace '[^0-9A-Fa-f]', '')
+    Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction SilentlyContinue |
+      Where-Object { $_.IPAddress.IPAddressToString -eq $nestedIp -or ($_.ClientId -replace '[^0-9A-Fa-f]', '') -ieq $macHex } |
+      ForEach-Object { Remove-DhcpServerv4Reservation -ScopeId $scopeId -IPAddress $_.IPAddress -ErrorAction SilentlyContinue }
+    Add-DhcpServerv4Reservation -ScopeId $scopeId -IPAddress $nestedIp -ClientId $macHex -Description "SFF nested VM $InstanceIndex" -ErrorAction Stop
+    Write-SffLog "DHCP reservation: $macHex -> $nestedIp (instance $InstanceIndex)."
+  }
+  catch {
+    Write-SffLog "DHCP reservation $StaticMac -> ${nestedIp} failed: $($_.Exception.Message); relying on dynamic lease + MAC resolution." -Level WARN
+  }
+}
 
 # --- Static memory + >= 4 vCPU ---
 Set-VMMemory -VMName $NestedVmName -DynamicMemoryEnabled $false
@@ -208,7 +232,7 @@ if ($roeOk) {
     $voucherScript = Join-Path $cfg.Paths.RootDir 'Get-OwnershipVoucher-Ssh.ps1'
     if (Test-Path $voucherScript) {
       Write-SffLog 'Attempting headless ownership-voucher extraction over SSH...'
-      $voucherStored = [bool](& $voucherScript -NestedVmName $NestedVmName -NestedVmIp $vmIp -ResourceGroup $resourceGroup)
+      $voucherStored = [bool](& $voucherScript -NestedVmName $NestedVmName -NestedVmIp $vmIp -ResourceGroup $resourceGroup -SecretName $secretName)
     }
   }
   catch {

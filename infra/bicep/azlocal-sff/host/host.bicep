@@ -4,9 +4,11 @@
 // A Windows Server VM (nested-virt capable SKU) that builds the Azure Local SFF
 // test VM INSIDE itself: it installs Hyper-V, configures an internal NAT+DHCP
 // switch (HV-Internal-NAT), waits for the operator to stage the ROE ISO +
-// Configurator App into the staging storage account, then creates a Generation 2
-// nested VM with TPM on, Secure Boot off, >= 4 vCPU, 16 GB RAM, a 256 GB disk,
-// boots the ROE Maintenance OS, and confirms "ROE setup completed successfully".
+// Configurator App into the staging storage account, then creates one or more
+// (nestedVmCount) Generation 2 nested VMs with TPM on, Secure Boot off, >= 4 vCPU,
+// 16 GB RAM, a 256 GB disk, boots the ROE Maintenance OS on each, and confirms
+// "ROE setup completed successfully". Each guest gets a deterministic MAC/IP and its
+// own ownership-voucher secret in Key Vault.
 //
 // Reached only over Azure Bastion (no public IP). The system-assigned identity is
 // granted least privilege in main.bicep: Blob Data Reader on the staging SA, Key
@@ -95,6 +97,11 @@ param nestedVmCpuCount int = 4
 
 @description('OS disk size (GB) for the nested SFF test VM. The Learn doc specifies 256.')
 param nestedVmDiskGB int = 256
+
+@description('Number of nested SFF test VMs to build inside the host. Each consumes nestedVmCpuCount vCPU + nestedVmMemoryMB RAM, so size the host (vmSize) and dataDiskSizeGB for the total. Defaults to 1; set 2 to build a pair (e.g. for a 2-node Azure Local instance).')
+@minValue(1)
+@maxValue(4)
+param nestedVmCount int = 1
 
 @description('Forces the bootstrap Custom Script Extension to re-run on each deployment. Defaults to a per-deployment timestamp; the bootstrap is idempotent so re-running is safe and lets a redeploy pick up a fixed script.')
 param bootstrapForceUpdateTag string = utcNow()
@@ -242,7 +249,7 @@ resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' =
       fileUris: [
         uri(templateBaseUrl, 'artifacts/sff/PowerShell/Bootstrap-Sff.ps1')
       ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap-Sff.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -stagingContainer ${stagingArtifactsContainer} -keyVaultName ${keyVaultName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon ${vmAutologon} -natDNS ${natDNS} -hvSwitchName ${hvSwitchName} -hvSubnetPrefix ${hvSubnetPrefix} -hvGateway ${hvGateway} -nestedVmName ${nestedVmName} -nestedVmMemoryMB ${nestedVmMemoryMB} -nestedVmCpuCount ${nestedVmCpuCount} -nestedVmDiskGB ${nestedVmDiskGB}'
+      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap-Sff.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -stagingContainer ${stagingArtifactsContainer} -keyVaultName ${keyVaultName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon ${vmAutologon} -natDNS ${natDNS} -hvSwitchName ${hvSwitchName} -hvSubnetPrefix ${hvSubnetPrefix} -hvGateway ${hvGateway} -nestedVmName ${nestedVmName} -nestedVmMemoryMB ${nestedVmMemoryMB} -nestedVmCpuCount ${nestedVmCpuCount} -nestedVmDiskGB ${nestedVmDiskGB} -nestedVmCount ${nestedVmCount}'
     }
   }
 }

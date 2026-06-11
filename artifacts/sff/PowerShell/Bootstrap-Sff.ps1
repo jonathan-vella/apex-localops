@@ -38,7 +38,8 @@ param(
   [string]$nestedVmName = 'linuxsff-vm',
   [string]$nestedVmMemoryMB = '16000',
   [string]$nestedVmCpuCount = '4',
-  [string]$nestedVmDiskGB = '256'
+  [string]$nestedVmDiskGB = '256',
+  [string]$nestedVmCount = '1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,6 +73,7 @@ $envVars = @{
   SFF_NestedVmMemoryMB      = $nestedVmMemoryMB
   SFF_NestedVmCpuCount      = $nestedVmCpuCount
   SFF_NestedVmDiskGB        = $nestedVmDiskGB
+  SFF_NestedVmCount         = $nestedVmCount
 }
 foreach ($kv in $envVars.GetEnumerator()) {
   [System.Environment]::SetEnvironmentVariable($kv.Key, $kv.Value, [System.EnvironmentVariableTarget]::Machine)

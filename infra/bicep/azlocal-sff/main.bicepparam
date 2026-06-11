@@ -22,10 +22,13 @@ param location = 'swedencentral'
 param namePrefix = 'LocalSFF'
 
 // --- Host (nested-virtualization Hyper-V) ---
-// Standard_D8s_v5 (8 vCPU / 32 GB) comfortably hosts one 16 GB / 4 vCPU nested
-// ROE test VM. Bump to an E-series SKU for extra RAM headroom.
-param hostVmSize = 'Standard_D8s_v5'
-param hostDataDiskSizeGB = 512
+// Standard_D16s_v5 (16 vCPU / 64 GB) hosts TWO 16 GB / 4 vCPU nested ROE test VMs
+// (32 GB / 8 vCPU committed) with headroom for the host OS + Hyper-V. For a single nested
+// VM, Standard_D8s_v5 (8 vCPU / 32 GB) is enough; for more RAM headroom use an E-series
+// SKU (e.g. Standard_E16s_v5 = 128 GB).
+param hostVmSize = 'Standard_D16s_v5'
+// Two 256 GB dynamic VHDX + the ROE ISO/zip + transient extraction want ~1 TB of headroom.
+param hostDataDiskSizeGB = 1024
 
 // --- Azure Hybrid Benefit (ON by default for this project) ---
 // Applies AHB across the SFF profile: Windows_Server on the host VM and
@@ -43,12 +46,15 @@ param natDNS = '8.8.8.8'
 param deployManagementVm = true
 param managementVmSize = 'Standard_D4s_v5'
 
-// --- Nested SFF test VM (fixed to satisfy the Learn "Review your VM setup" gate) ---
+// --- Nested SFF test VM(s) (each fixed to satisfy the Learn "Review your VM setup" gate) ---
 //   Generation 2 · TPM ON · Secure Boot OFF · >= 4 vCPU · 16000 MB · 256 GB VHD
+// nestedVmCount = 2 builds a pair (linuxsff-vm-1/-2) reserved at 192.168.200.50/.51, each
+// with its own ownership-voucher secret (sff-ownership-voucher-1/-2). Set 1 for a single VM.
 param nestedVmName = 'linuxsff-vm'
 param nestedVmMemoryMB = 16000
 param nestedVmCpuCount = 4
 param nestedVmDiskGB = 256
+param nestedVmCount = 2
 
 // --- Internal Hyper-V NAT network (created on the host by set-network.ps1) ---
 param hvSwitchName = 'HV-Internal-NAT'

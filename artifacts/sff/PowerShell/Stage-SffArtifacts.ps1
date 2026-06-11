@@ -184,8 +184,69 @@ foreach ($cb in $configuratorBlobs) {
 }
 
 #######################################################################
-# Build, configure, and boot the nested SFF test VM
+# Build, configure, and boot the nested SFF test VM(s).
+# With NestedVm.Count > 1 (env SFF_NestedVmCount) the host builds multiple instances
+# SEQUENTIALLY, each with a deterministic static MAC + DHCP-reserved IP (.50, .51, ...)
+# and its own Key Vault voucher secret (<VoucherSecretName>-<n>). Count == 1 keeps the
+# legacy single-VM names/IP/secret unchanged.
 #######################################################################
-& (Join-Path $rootDir 'New-SffTestVm.ps1') -IsoPath $resolvedIso
+$count = [int]([Environment]::GetEnvironmentVariable('SFF_NestedVmCount', 'Machine'))
+if (-not $count) { $count = [int]$cfg.NestedVm.Count }
+if ($count -lt 1) { $count = 1 }
+
+$baseName = [Environment]::GetEnvironmentVariable('SFF_NestedVmName', 'Machine')
+if (-not $baseName) { $baseName = $cfg.NestedVm.Name }
+$baseOctet = if ($cfg.NestedVm.BaseIpHostOctet) { [int]$cfg.NestedVm.BaseIpHostOctet } else { 50 }
+$macPrefix = if ($cfg.NestedVm.MacPrefix) { $cfg.NestedVm.MacPrefix } else { '00155D5FF0' }
+$secretBase = if ($cfg.NestedVm.VoucherSecretName) { $cfg.NestedVm.VoucherSecretName } else { 'sff-ownership-voucher' }
+$ipPrefix = ($cfg.NestedVm.IpAddress -split '\.')[0..2] -join '.'
+$kvName = [Environment]::GetEnvironmentVariable('SFF_KeyVaultName', 'Machine')
+
+Write-SffLog "Building $count nested SFF test VM(s) inside this host."
+try { Import-Module Az.KeyVault -ErrorAction SilentlyContinue } catch { }
+
+$built = @()
+foreach ($idx in 1..$count) {
+  if ($count -eq 1) {
+    $vmName = $baseName
+    $secretName = $secretBase
+  }
+  else {
+    $vmName = "$baseName-$idx"
+    $secretName = "$secretBase-$idx"
+  }
+  $nestedIp = "$ipPrefix." + ($baseOctet + $idx - 1)
+  $staticMac = ('{0}{1:X2}' -f $macPrefix, $idx)
+  Write-SffLog "=== Nested VM $idx/$count : name=$vmName ip=$nestedIp mac=$staticMac secret=$secretName ==="
+  try {
+    & (Join-Path $rootDir 'New-SffTestVm.ps1') -IsoPath $resolvedIso `
+      -NestedVmName $vmName -NestedIp $nestedIp -StaticMac $staticMac -SecretName $secretName -InstanceIndex $idx
+  }
+  catch {
+    Write-SffLog "Nested VM $idx build error: $($_.Exception.Message)" -Level WARN
+  }
+  $stored = $false
+  try {
+    if ($kvName) { $stored = [bool](Get-AzKeyVaultSecret -VaultName $kvName -Name $secretName -ErrorAction SilentlyContinue) }
+  }
+  catch { }
+  $built += [pscustomobject]@{ Index = $idx; Name = $vmName; Ip = $nestedIp; Secret = $secretName; Stored = $stored }
+}
+
+# --- Aggregate progress across all instances ---
+$storedCount = ($built | Where-Object { $_.Stored }).Count
+$summary = ($built | ForEach-Object { "vm$($_.Index)=$($_.Name)@$($_.Ip)[$(if ($_.Stored) { 'voucher' } else { 'pending' })]" }) -join '; '
+$aggProgress = if ($storedCount -eq $count) { 'VoucherStored' } elseif ($storedCount -gt 0) { 'RoeSucceeded' } else { 'RoeTimeout' }
+Set-SffProgress -ResourceGroup $resourceGroup -Progress $aggProgress -Status "$storedCount/$count vouchers stored: $summary" -Config $cfg
+
+$nextLines = $built | ForEach-Object { "  - $($_.Name)  IP $($_.Ip)  voucher secret '$($_.Secret)' in Key Vault $kvName  [$(if ($_.Stored) { 'stored' } else { 'NOT stored - check Hyper-V console' })]" }
+Set-Content -Path (Join-Path $logsDir 'NEXT-STEPS.txt') -Value @"
+Built $count nested SFF test VM(s) inside this host ($storedCount/$count vouchers stored):
+$($nextLines | Out-String)
+Provision each as a machine in the Azure Local site (portal or scripts/provision-machine.sh),
+using the matching voucher secret. Retrieve a voucher with:
+  az keyvault secret show --vault-name $kvName --name <secret> --query value -o tsv | base64 -d > voucher.pem
+"@
 
 Stop-Transcript
+
