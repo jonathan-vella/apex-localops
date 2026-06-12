@@ -17,6 +17,16 @@ param adminUsername = 'azureuser'
 // before deploying (an empty password is rejected by Azure Local).
 param adminPassword = readEnvironmentVariable('AZLOCAL_VM_ADMIN_PASSWORD', '')
 
+// Optional: pin VM placement to a specific storage path (CSV). Empty = automatic placement.
+// param storagePathId = '/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.AzureStackHCI/storageContainers/<name>'
+
+// Optional: AD domain-join every VM (JsonADDomainExtension). Leave domainToJoin empty to skip.
+// The VM's logical network must resolve the domain DNS/DC. The VM restarts after joining.
+// param domainToJoin = 'contoso.local'
+// param domainJoinUserName = 'domain-joiner'
+// param domainJoinPassword = readEnvironmentVariable('AZLOCAL_VM_ADMIN_PASSWORD', '')
+// param domainTargetOu = ''
+
 // Add or remove entries to scale the batch up or down.
 param vms = [
   {

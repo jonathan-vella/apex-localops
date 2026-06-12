@@ -36,10 +36,25 @@ Activate this skill when the user wants to:
 3. **Apply targeted fixes** from the matching troubleshooting doc.
 4. **Open support** with collected diagnostics if unresolved.
 
+## Workload VM / AVD symptoms
+
+For workload (Arc VM, SQL, AVD) failures rather than infrastructure failures, also see
+`azlocal-vm-management` and `azlocal-workloads`. Common symptoms observed in practice:
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| VM shows **0 CPU / 0 MB**, won't boot, guest agent never installs | Sized with an Azure SKU name / `Default`, or `--hardware-profile` without `vm-size="Custom"` | Recreate with `hardwareProfile.vmSize:'Custom'` + `processors` + `memoryMB` (Bicep). A post-create resize cannot revive a 0/0 VM. |
+| `guestAgentInstallStatus.status` is `null` on a healthy VM | Expected on Azure Local — that field is unreliable | Judge health by `instanceView.vmAgent.statuses[0].displayStatus` + Arc machine `status=Connected` and non-null `agentVersion`. |
+| In-guest run-command returns `Unknown` / empty; `az stack-hci-vm run-command` not found | HybridCompute `runCommands` doesn't dispatch reliably on Azure Local; that CLI verb doesn't exist | Use an Arc **machine extension** (`JsonADDomainExtension`, `CustomScriptExtension`) instead. |
+| `az stack-hci-vm show --query` returns empty | CLI quirk for these resource types | Read via `az rest GET .../virtualMachineInstances/default?api-version=2024-01-01`. |
+| AVD registration token comes back empty | Older `desktopvirtualization` CLI ext / `GET ?$expand=registrationInfo` | Use REST `POST .../hostPools/<hp>/retrieveRegistrationToken?api-version=2025-10-10`. |
+| Marketplace VM **image create fails** | `Microsoft.EdgeMarketplace` RP not registered | Register the provider, then recreate the image; confirm `Succeeded` before VM create. |
+| AVD session host stuck **Unavailable** | Agent/boot-loader not installed, not AD-joined, or no outbound 443 to the AVD broker / IMDS | Verify domain join + Connected Machine agent, install the AVD agent via extension, and confirm egress. |
+
 ## References
 
 - Canonical: <https://learn.microsoft.com/azure/azure-local/manage/collect-logs>
-- Related skills: `azlocal-deploy`, `azlocal-update-upgrade`, `azlocal-monitor`
+- Related skills: `azlocal-deploy`, `azlocal-update-upgrade`, `azlocal-monitor`, `azlocal-vm-management`, `azlocal-workloads`
 - Repo-specific recovery automation: [docs/troubleshooting.md](../../../docs/troubleshooting.md)
 
 ## Reference Index

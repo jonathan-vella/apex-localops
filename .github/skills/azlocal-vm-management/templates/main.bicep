@@ -60,6 +60,23 @@ param adminUsername string
 @description('Local administrator password applied to every VM.')
 param adminPassword string
 
+@description('Optional. Storage path (CSV) resource ID for VM config + non-OS disks. Empty = automatic placement.')
+param storagePathId string = ''
+
+// --- Optional AD domain join applied to every VM (JsonADDomainExtension). Empty domainToJoin = skip. ---
+@description('Optional. AD domain FQDN to join every VM to (for example: contoso.local). Empty = no domain join.')
+param domainToJoin string = ''
+
+@description('Optional. OU path for the computer objects.')
+param domainTargetOu string = ''
+
+@description('Optional. Domain-join account WITHOUT the domain prefix. Required when domainToJoin is set.')
+param domainJoinUserName string = ''
+
+@secure()
+@description('Optional. Password for the domain-join account. Required when domainToJoin is set.')
+param domainJoinPassword string = ''
+
 @description('The set of VMs to create. Each entry becomes one Arc VM.')
 param vms vmSpecType[]
 
@@ -78,6 +95,11 @@ module vm 'azlocal-vm.bicep' = [
       logicalNetworkName: logicalNetworkName
       customLocationName: customLocationName
       dataDisks: spec.?dataDisks ?? []
+      storagePathId: storagePathId
+      domainToJoin: domainToJoin
+      domainTargetOu: domainTargetOu
+      domainJoinUserName: domainJoinUserName
+      domainJoinPassword: domainJoinPassword
     }
   }
 ]

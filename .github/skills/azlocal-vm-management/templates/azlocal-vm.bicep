@@ -53,6 +53,23 @@ param customLocationName string
 @description('Data disks to attach. Empty array = OS disk only.')
 param dataDisks dataDiskType[] = []
 
+@description('Optional. Storage path (CSV) resource ID for VM config + non-OS disks. Empty = automatic high-availability placement.')
+param storagePathId string = ''
+
+// --- Optional AD domain join (JsonADDomainExtension). Leave domainToJoin empty to skip. ---
+@description('Optional. AD domain FQDN to join (for example: contoso.local). Empty = no domain join.')
+param domainToJoin string = ''
+
+@description('Optional. OU path for the computer object (for example: ou=computers,dc=contoso,dc=local).')
+param domainTargetOu string = ''
+
+@description('Optional. Domain-join account WITHOUT the domain prefix (for example: domain-joiner). Required when domainToJoin is set.')
+param domainJoinUserName string = ''
+
+@secure()
+@description('Optional. Password for the domain-join account. Required when domainToJoin is set.')
+param domainJoinPassword string = ''
+
 var nicName = 'nic-${name}'
 var customLocationId = resourceId('Microsoft.ExtendedLocation/customLocations', customLocationName)
 var imageId = isMarketplaceImage
@@ -62,7 +79,7 @@ var logicalNetworkId = resourceId('Microsoft.AzureStackHCI/logicalNetworks', log
 
 // Pre-create an Arc-connected machine with a system-assigned identity. This enables
 // zero-touch onboarding of the Arc VM during deployment.
-resource hybridComputeMachine 'Microsoft.HybridCompute/machines@2023-10-03-preview' = {
+resource hybridComputeMachine 'Microsoft.HybridCompute/machines@2025-01-13' = {
   name: name
   location: location
   kind: 'HCI'
@@ -106,6 +123,7 @@ resource dataDisk 'Microsoft.AzureStackHCI/virtualHardDisks@2024-01-01' = [
     properties: {
       diskSizeGB: disk.diskSizeGB
       dynamic: disk.?dynamic
+      containerId: empty(storagePathId) ? null : storagePathId
     }
   }
 ]
@@ -134,6 +152,7 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
       }
     }
     storageProfile: {
+      vmConfigStoragePathId: empty(storagePathId) ? null : storagePathId
       imageReference: {
         id: imageId
       }
@@ -151,6 +170,34 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
       ]
     }
   }
+}
+
+// Optional declarative AD domain join. Uses the Arc machine-extension framework
+// (JsonADDomainExtension), which is the reliable in-guest mechanism on Azure Local —
+// the VM must reach the domain's DNS/DC over its logical network. The VM restarts after joining.
+resource domainJoin 'Microsoft.HybridCompute/machines/extensions@2025-01-13' = if (!empty(domainToJoin)) {
+  parent: hybridComputeMachine
+  location: location
+  name: 'domainJoinExtension'
+  properties: {
+    publisher: 'Microsoft.Compute'
+    type: 'JsonADDomainExtension'
+    typeHandlerVersion: '1.3'
+    autoUpgradeMinorVersion: true
+    settings: {
+      name: domainToJoin
+      OUPath: domainTargetOu
+      User: '${domainToJoin}\\${domainJoinUserName}'
+      Restart: true
+      Options: 3
+    }
+    protectedSettings: {
+      Password: domainJoinPassword
+    }
+  }
+  dependsOn: [
+    virtualMachine
+  ]
 }
 
 @description('The VM name.')

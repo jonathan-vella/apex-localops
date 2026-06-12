@@ -27,14 +27,22 @@ Activate this skill when the user wants to:
 1. Prefer the vendored docs under `docs/upstream/`; cite the exact file used.
 2. Route to the most specific skill: VMs → `azlocal-vm-management`, AKS → `aksarc-on-azure-local`.
 3. Confirm the target instance is deployed and healthy before placing workloads.
-4. Microsoft Learn / discovered governance wins over the mirror on any conflict.
+4. **AVD on Azure Local**: the control plane (host pool, application group, workspace) lives in Azure; session hosts are Arc VMs on the instance. Use **Standard** host-pool management — "session host configuration" is **not supported** on Azure Local. Session hosts must be **AD DS domain-joined** (Entra-only join isn't supported) and have the Connected Machine agent (for IMDS).
+5. **AVD registration token**: retrieve it with the REST action `POST .../Microsoft.DesktopVirtualization/hostPools/<hp>/retrieveRegistrationToken?api-version=2025-10-10` (`--query token`). The `az desktopvirtualization hostpool retrieve-registration-token` CLI command and `GET ?$expand=registrationInfo` can return empty on older extension versions.
+6. **AVD agent install**: deliver it via an Arc **machine extension** (`CustomScriptExtension`) that installs the RDInfra Agent (with `REGISTRATIONTOKEN`) then the Agent Boot Loader — not run-commands (see `azlocal-vm-management` rule on in-guest execution). Win11/Win10 multi-session needs no RDSH role; Windows Server session hosts do.
+7. Microsoft Learn / discovered governance wins over the mirror on any conflict.
 
 ## Steps (route by workload)
 
 1. **Arc VMs** — use `azlocal-vm-management` for images, networks, and VM lifecycle.
 2. **AKS / containers** — use `aksarc-on-azure-local`; see `docs/upstream/aksarc/aks-create-clusters-portal.md`.
 3. **SQL Server** — follow `docs/upstream/azure-local/deploy/sql-server-23h2.md`.
-4. **Azure Virtual Desktop** — AVD on Azure Local (see References).
+4. **Azure Virtual Desktop** (AVD on Azure Local):
+   1. Deploy the **control plane** in Azure (Bicep): host pool (Standard, Pooled/BreadthFirst) + Desktop application group + workspace.
+   2. **Retrieve the registration token** via the REST `retrieveRegistrationToken` action (see Rules).
+   3. Create the **session host** as an Arc VM via `azlocal-vm-management` (sized with `vmSize:'Custom'`, AD domain-joined).
+   4. **Install the AVD agent** via a `CustomScriptExtension` machine extension using the token.
+   5. **Verify** the host is registered: `GET .../hostPools/<hp>/sessionHosts?api-version=2025-10-10` → `status` reaches **Available**. Activate VMs (Azure verification for VMs) for usability.
 
 ## References
 
