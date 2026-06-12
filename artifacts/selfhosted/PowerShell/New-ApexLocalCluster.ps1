@@ -37,19 +37,17 @@ $cfg = Get-ApexConfig -ConfigPath (Join-Path $rootDir 'ApexLocal-Config.psd1')
 
 # --- Read the deployment context from the machine environment variables ---
 function Env($n) { [Environment]::GetEnvironmentVariable($n, 'Machine') }
-$adminUser   = Env 'APEX_AdminUsername'
-$adminPwB64  = Env 'APEX_AdminPasswordB64'
-$subId       = Env 'APEX_SubscriptionId'
-$tenantId    = Env 'APEX_TenantId'
-$rg          = Env 'APEX_ResourceGroup'
-$location    = Env 'APEX_AzureLocation'
+$adminPwB64 = Env 'APEX_AdminPasswordB64'
+$subId = Env 'APEX_SubscriptionId'
+$tenantId = Env 'APEX_TenantId'
+$rg = Env 'APEX_ResourceGroup'
 $storageAcct = Env 'APEX_StagingStorageAccount'
-$isoCont     = Env 'APEX_IsoContainer'
-$logsCont    = Env 'APEX_LogsContainer'
+$isoCont = Env 'APEX_IsoContainer'
+$logsCont = Env 'APEX_LogsContainer'
 $clusterName = Env 'APEX_ClusterName'
 $instanceLoc = Env 'APEX_InstanceLocation'
-$hciRpOid    = Env 'APEX_HciRpObjectId'
-$nodeCount   = [int](Env 'APEX_ClusterNodeCount')
+$hciRpOid = Env 'APEX_HciRpObjectId'
+$nodeCount = [int](Env 'APEX_ClusterNodeCount')
 if ($nodeCount -lt 2) { $nodeCount = $cfg.Cluster.NodeCount }
 
 # Apply CSE overrides onto the config.
@@ -66,9 +64,8 @@ try {
   Connect-ApexAzure -SubscriptionId $subId | Out-Null
 
   # 1) Host fabric ------------------------------------------------------------
-  Set-ApexProgress -ResourceGroup $rg -Progress 'NetworkConfigured' -Status 'Creating internal switch + NAT' -Config $cfg
-  New-ApexHostSwitch -SwitchName $cfg.Network.SwitchName -NatName $cfg.Network.NatName `
-    -Gateway $cfg.Network.Gateway -SubnetPrefix $cfg.Network.SubnetPrefix -PrefixLength $cfg.Network.PrefixLength
+  Set-ApexProgress -ResourceGroup $rg -Progress 'NetworkConfigured' -Status 'Creating internal + NAT-uplink switches' -Config $cfg
+  New-ApexHostSwitch -Network $cfg.Network
 
   # 2) Wait for + download both ISOs -----------------------------------------
   Wait-ApexStagedIso -StorageAccountName $storageAcct -Container $isoCont `
@@ -84,22 +81,26 @@ try {
   # 3) Convert both ISOs to bootable base VHDXs -------------------------------
   Set-ApexProgress -ResourceGroup $rg -Progress 'BaseImagesConverted' -Status 'Converting ISOs to VHDX' -Config $cfg
   $azlBase = Convert-ApexIsoToVhdx -IsoPath $azlIso -VhdxPath (Join-Path $cfg.Paths.BaseVhdDir 'azurelocal-base.vhdx')
-  $wsBase  = Convert-ApexIsoToVhdx -IsoPath $wsIso  -VhdxPath (Join-Path $cfg.Paths.BaseVhdDir 'windowsserver-base.vhdx') `
+  $wsBase = Convert-ApexIsoToVhdx -IsoPath $wsIso  -VhdxPath (Join-Path $cfg.Paths.BaseVhdDir 'windowsserver-base.vhdx') `
     -ImageName 'Windows Server 2025 Datacenter (Desktop Experience)'
 
-  # 4) Nested domain controller ----------------------------------------------
+  # 4) Router VM (the management subnet's gateway; built from the WS base) -----
+  Set-ApexProgress -ResourceGroup $rg -Progress 'RouterReady' -Status "Building router $($cfg.Router.Name)" -Config $cfg
+  New-ApexRouterVM -Config $cfg -LocalAdminCredential $localAdminCred -WindowsServerBaseVhdx $wsBase
+
+  # 5) Nested domain controller ----------------------------------------------
   Set-ApexProgress -ResourceGroup $rg -Progress 'DomainControllerReady' -Status "Building DC $($cfg.Domain.DcHostName)" -Config $cfg
   $domainAdminCred = New-ApexDomainController -Config $cfg -LocalAdminCredential $localAdminCred `
     -SafeModePassword $securePw -WindowsServerBaseVhdx $wsBase
 
-  # 5) Azure Local node VMs ---------------------------------------------------
+  # 6) Azure Local node VMs ---------------------------------------------------
   $nodes = @()
   for ($i = 1; $i -le $cfg.Cluster.NodeCount; $i++) {
     $nodes += New-ApexLocalNode -Config $cfg -Index $i -LocalAdminCredential $localAdminCred -AzureLocalBaseVhdx $azlBase
   }
   Set-ApexProgress -ResourceGroup $rg -Progress 'NodesCreated' -Status "$($nodes.Count) nodes created" -Config $cfg
 
-  # 6) Arc-register the nodes -------------------------------------------------
+  # 7) Arc-register the nodes -------------------------------------------------
   $corr = [guid]::NewGuid().ToString()
   foreach ($n in $nodes) {
     Connect-ApexNodeToArc -VmName $n.Name -Credential $localAdminCred -SubscriptionId $subId `
@@ -119,11 +120,12 @@ try {
     Write-ApexLog "Only $($arcIds.Count)/$($nodes.Count) Arc machines discovered; the cluster deploy may need a retry." -Level WARN
   }
 
-  # 7) Validate + deploy the cluster -----------------------------------------
+  # 8) Validate + deploy the cluster -----------------------------------------
   Set-ApexProgress -ResourceGroup $rg -Progress 'ClusterValidating' -Status 'Validating cluster deployment' -Config $cfg
   Invoke-ApexLocalClusterDeploy -Config $cfg -ResourceGroup $rg -ClusterName $clusterName `
     -InstanceLocation $instanceLoc -HciResourceProviderObjectId $hciRpOid -ArcNodeResourceIds $arcIds `
     -Nodes $nodes -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred `
+    -WitnessStorageAccountName $storageAcct `
     -TemplatePath (Join-Path $rootDir 'azlocal.json')
 
   Set-ApexProgress -ResourceGroup $rg -Progress 'Completed' -Status "Cluster $clusterName deploy submitted" -Config $cfg

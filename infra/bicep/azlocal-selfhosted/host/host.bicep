@@ -6,7 +6,7 @@
 //   1. Installs Hyper-V, pools the Premium data disks into V:, and creates an
 //      internal switch + host NAT (192.168.1.0/24).
 //   2. Waits for the operator to stage BOTH ISOs (Azure Local OS + Windows Server)
-//      into the storage account from the jumpbox, then pulls them with its MI.
+//      into the storage account, then pulls them with its MI.
 //   3. Converts each ISO into a bootable Gen2 VHDX (ApexLocalOps/Convert-IsoToVhdx).
 //   4. Builds a nested domain controller, then N nested Azure Local nodes, Arc-
 //      registers the nodes, and runs the cluster validate -> deploy.
@@ -82,6 +82,9 @@ param logsContainerName string = 'logs'
 
 @description('Name of the Log Analytics workspace.')
 param workspaceName string
+
+@description('Resource id of the Data Collection Rule the Azure Monitor Agent associates with. Empty disables host monitoring.')
+param dataCollectionRuleId string = ''
 
 @description('Base URL used to fetch the vendored artifacts/ tree from this repo.')
 param templateBaseUrl string
@@ -257,6 +260,33 @@ resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' =
       commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -isoContainerName ${isoContainerName} -logsContainerName ${logsContainerName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon ${vmAutologon} -clusterNodeCount ${clusterNodeCount} -nodeMemoryMB ${nodeMemoryMB} -nodeCpuCount ${nodeCpuCount} -clusterName ${clusterName} -azureLocalInstanceLocation ${azureLocalInstanceLocation} -hciResourceProviderObjectId ${hciResourceProviderObjectId}'
     }
   }
+}
+
+// Azure Monitor Agent + DCR association so the long headless in-VM build is
+// diagnosable from Azure Monitor (Windows event logs + perf) without Bastion/RDP.
+// Skipped when no DCR id is supplied (e.g. unit what-ifs).
+resource azureMonitorAgent 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = if (!empty(dataCollectionRuleId)) {
+  parent: vm
+  name: 'AzureMonitorWindowsAgent'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Monitor'
+    type: 'AzureMonitorWindowsAgent'
+    typeHandlerVersion: '1.0'
+    autoUpgradeMinorVersion: true
+    enableAutomaticUpgrade: true
+  }
+}
+
+resource dcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = if (!empty(dataCollectionRuleId)) {
+  name: 'apexlocal-host-dcra'
+  scope: vm
+  properties: {
+    dataCollectionRuleId: dataCollectionRuleId
+  }
+  dependsOn: [
+    azureMonitorAgent
+  ]
 }
 
 output adminUsername string = windowsAdminUsername

@@ -32,9 +32,8 @@
 
   # Blob names the operator stages into the storage account from the jumpbox.
   # Both are Microsoft-owned, portal/eval gated, and CANNOT be vendored into the
-  # repo - so they are downloaded on the jumpbox and uploaded here. The host
-  # watcher blocks until BOTH are present, then pulls them with its managed
-  # identity (no storage keys).
+  # repo. The host watcher blocks until BOTH are present, then pulls them with its
+  # managed identity (no storage keys).
   Artifacts  = @{
     Container         = 'iso-images'
     AzureLocalIsoBlob = 'AzureLocalOS.iso'   # portal-gated Azure Local OS ISO
@@ -42,21 +41,53 @@
     LogsContainer     = 'logs'                # host uploads build logs here
   }
 
-  # Internal Hyper-V network. A single internal switch + host NAT provides the
-  # management/Arc path for the nested nodes and DC. The Azure Local STORAGE
-  # intents (StorageA/StorageB) are added as additional adapters per node by the
-  # ApexLocalOps fabric step - see New-ApexLocalCluster.ps1.
+  # Internal Hyper-V network — modeled on Jumpstart LocalBox. TWO host vSwitches:
+  #   • SwitchName  (ApexLocal-Internal) — the management/fabric subnet
+  #     (192.168.1.0/24) where the DC, the router VM, and the nodes live. The host
+  #     gets HostInternalIp here; the DEFAULT GATEWAY for this subnet is the router
+  #     VM (192.168.1.1), NOT the host (this is the Jumpstart model).
+  #   • NatSwitchName (ApexLocal-NAT) — the host NAT uplink subnet
+  #     (192.168.128.0/24). The host owns 192.168.128.1 + a WinNAT (New-NetNat)
+  #     that bridges nested egress onto the host's real Azure NIC. The router VM's
+  #     second NIC sits here and forwards/NATs the management subnet out to it.
+  # The Azure Local STORAGE intents (StorageA/StorageB) are added as additional
+  # per-node adapters by New-ApexLocalNode.
+  #
+  # 192.168.1.0/24 IP MAP (keep these non-overlapping):
+  #   .1          router VM (management gateway)
+  #   .5          cluster host vNIC (HostInternalIp)
+  #   .11-.13     Azure Local nodes (NodeStartIp incrementing)
+  #   .20-.30     Azure Local management/infra pool (Cluster.StartingIp/EndingIp)
+  #   .254        domain controller (authoritative DNS/NTP)
   Network    = @{
-    SwitchName   = 'ApexLocal-Internal'
-    NatName      = 'ApexLocal-NAT'
-    SubnetPrefix = '192.168.1.0/24'
-    Gateway      = '192.168.1.1'
-    PrefixLength = 24
-    DnsServers   = @('192.168.1.254')   # the nested DC is authoritative DNS
+    SwitchName     = 'ApexLocal-Internal'
+    SubnetPrefix   = '192.168.1.0/24'
+    Gateway        = '192.168.1.1'        # the ROUTER VM (not the host)
+    PrefixLength   = 24
+    HostInternalIp = '192.168.1.5'        # host vNIC on the management subnet (outside the .20-.30 cluster pool)
+    DnsServers     = @('192.168.1.254')   # the nested DC is authoritative DNS
+    # Host NAT uplink switch + subnet (Jumpstart's InternalNAT / 192.168.128.0/24).
+    NatSwitchName  = 'ApexLocal-NAT'
+    NatHostSubnet  = '192.168.128.0/24'
+    NatHostIp      = '192.168.128.1'      # host vNIC + WinNAT gateway on the uplink
     # Azure-VM IMDS endpoint denied on every nested adapter BEFORE first boot so
     # a nested node never picks up the Azure HOST VM's managed identity/metadata.
-    ImdsAddress  = '169.254.169.254'
+    ImdsAddress    = '169.254.169.254'
   }
+
+  # Router VM (modeled on Jumpstart's vm-router / BGP-ToR-Router). A lightweight
+  # Windows Server VM built from the SAME Windows Server base VHDX as the DC. It is
+  # the default gateway for the management subnet and provides the nested VMs'
+  # internet path: management traffic -> router (192.168.1.1) -> router NAT NIC
+  # (192.168.128.10) -> host WinNAT (192.168.128.1) -> host Azure NIC -> internet.
+  Router     = @{
+    Name     = 'apexlocal-rtr'          # <= 15 chars
+    MgmtIp   = '192.168.1.1'            # gateway for the management subnet
+    NatIp    = '192.168.128.10'         # router uplink NIC on the NAT switch
+    MemoryMB = 2048
+    CpuCount = 2
+  }
+
 
   # Active Directory domain hosted by the nested DC (created on the cluster host).
   Domain     = @{
@@ -113,6 +144,7 @@
     'AwaitingIsos'
     'IsosStaged'
     'BaseImagesConverted'
+    'RouterReady'
     'DomainControllerReady'
     'NodesCreated'
     'NodesArcConnected'

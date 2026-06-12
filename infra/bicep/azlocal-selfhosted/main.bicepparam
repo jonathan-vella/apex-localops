@@ -45,8 +45,8 @@ param deployBastion = true
 param vmAutologon = true
 
 // --- Acquisition / management jumpbox (Windows Server 2025, reached via Bastion) ---
-// This is the ONLY place the two ISOs are downloaded; Upload-Isos.ps1 pushes them
-// into the storage account from here.
+// The operator's in-Azure workstation for the one manual step: download the two
+// ISOs and upload them to the storage account with Upload-Isos.ps1.
 param deployManagementVm = true
 param managementVmSize = 'Standard_D4s_v5'
 

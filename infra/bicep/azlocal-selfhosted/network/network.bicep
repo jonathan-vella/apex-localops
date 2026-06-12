@@ -21,7 +21,7 @@ param subnetName string = '${namePrefix}-Subnet'
 @description('Azure region to deploy the network resources.')
 param location string = resourceGroup().location
 
-@description('Choice to deploy Bastion to connect to the host/jumpbox VMs.')
+@description('Choice to deploy Bastion to connect to the cluster-host VM.')
 param deployBastion bool = true
 
 @description('Name of the NAT Gateway.')

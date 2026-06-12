@@ -43,7 +43,9 @@ preflight + a what‑if preview, then deploys: the hardened **storage account**,
 **jumpbox**, and the **cluster host**. ARM finishes in ~15–20 min.
 
 The cluster host then installs Hyper‑V, pools its data disks into `V:`, configures
-the internal network, and **waits** for both ISOs to appear in storage.
+the internal + NAT‑uplink switches, and **waits** for both ISOs to appear in
+storage. (The nested **router VM** — the management gateway — is built later by the
+in‑VM automation, from the Windows Server ISO.)
 
 Preview only, no deploy:
 
@@ -83,8 +85,9 @@ PowerShell, AzCopy, and `Upload-Isos.ps1` (see `STAGE-ISOS-README.txt` on its de
 The host advances through these `ApexProgress` tag milestones:
 
 `Initializing → HyperVInstalling → HyperVInstalled → NetworkConfigured →
-AwaitingIsos → IsosStaged → BaseImagesConverted → DomainControllerReady →
-NodesCreated → NodesArcConnected → ClusterValidating → ClusterDeploying → Completed`
+AwaitingIsos → IsosStaged → BaseImagesConverted → RouterReady →
+DomainControllerReady → NodesCreated → NodesArcConnected → ClusterValidating →
+ClusterDeploying → Completed`
 
 (`Failed` on error — logs are uploaded to the storage `logs/` container.)
 

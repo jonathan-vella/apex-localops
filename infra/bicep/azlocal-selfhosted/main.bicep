@@ -4,10 +4,16 @@
 // Stands up a clean-room, ZERO-Jumpstart Azure Local lab in a Bastion-only,
 // NAT-gatewayed resource group:
 //   • a hardened storage account holding the two operator-staged ISOs,
-//   • a Windows Server 2025 jumpbox (the only place ISOs are downloaded),
-//   • a large nested-virtualization cluster host that builds a nested domain
-//     controller + a 3-node Azure Local cluster entirely from those ISOs,
+//   • a Windows Server 2025 jumpbox (the in-Azure workstation for staging ISOs),
+//   • a large nested-virtualization cluster host that builds a nested router VM,
+//     a domain controller, and a 3-node Azure Local cluster entirely from those
+//     ISOs (the router VM is the management subnet's gateway, Jumpstart-style),
 //   • a Log Analytics workspace, Bastion, and NAT Gateway.
+//
+// The nested router VM (built inside the cluster host by ApexLocalOps) is the
+// management subnet's gateway; the Azure jumpbox is the operator's workstation
+// for the one manual step (download the two ISOs, upload them to the storage
+// account). The cluster host pulls the ISOs with its managed identity.
 //
 // Public-safe by construction: NO tenant GUIDs and NO secrets are committed.
 // scripts/deploy-selfhosted.sh resolves the deployer object id + the Azure Local
@@ -25,7 +31,7 @@
 //   • jumpbox VM identity   -> Storage Blob Data Contributor on the ISO storage
 // =============================================================================
 
-@description('Username for the Windows accounts (host + jumpbox).')
+@description('Username for the Windows accounts (cluster host + jumpbox + nested VMs).')
 param windowsAdminUsername string = 'arcdemo'
 
 @description('Password for the Windows accounts. 12-123 chars; 3 of lower/upper/number/special.')
@@ -116,7 +122,7 @@ param isoContainerName string = 'iso-images'
 param logsContainerName string = 'logs'
 
 // --- Identity inputs (resolved at deploy time; never committed) ---
-@description('Object id of the principal RUNNING the deployment. Granted Storage Blob Data Owner so it (and the operator on the jumpbox) can upload the ISOs. scripts/deploy-selfhosted.sh resolves the signed-in user automatically. Leave empty to skip.')
+@description('Object id of the principal RUNNING the deployment. Granted Storage Blob Data Owner so it (and the operator on the jumpbox) can upload the two ISOs. scripts/deploy-selfhosted.sh resolves the signed-in user automatically. Leave empty to skip.')
 param deployerPrincipalId string = ''
 
 @description('Principal type for deployerPrincipalId. "User" for an individual, "ServicePrincipal" for CI.')
@@ -237,6 +243,7 @@ module hostDeployment 'host/host.bicep' = {
     clusterName: clusterName
     azureLocalInstanceLocation: azureLocalInstanceLocation
     hciResourceProviderObjectId: hciResourceProviderObjectId
+    dataCollectionRuleId: mgmtArtifactsDeployment.outputs.dcrId
   }
 }
 
@@ -339,7 +346,7 @@ resource jumpboxStorageContributor 'Microsoft.Authorization/roleAssignments@2022
 }
 
 // Deployer (human / SP / group): Storage Blob Data OWNER on the staging account so it can
-// upload the ISOs (from the jumpbox or Cloud Shell). Control-plane roles (Owner/Contributor)
+// upload the ISOs (from Cloud Shell or their workstation). Control-plane roles (Owner/Contributor)
 // do NOT grant blob data access, so this is required for the upload path to work.
 resource deployerStorageOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
   name: guid(stagingStorageAccount.id, deployerPrincipalId, roleStorageBlobDataOwner)

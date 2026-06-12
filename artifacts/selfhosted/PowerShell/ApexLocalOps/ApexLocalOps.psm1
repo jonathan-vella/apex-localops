@@ -350,36 +350,125 @@ function Convert-ApexIsoToVhdx {
 
 function New-ApexHostSwitch {
   <#
-  .SYNOPSIS Create the internal Hyper-V switch + host NAT for the nested network.
+  .SYNOPSIS Create the two internal Hyper-V switches + host WinNAT (Jumpstart model).
   .DESCRIPTION
-    OWNED-SCOPE (fabric): a single internal switch + WinNAT gives the nested DC and
-    nodes their management/Arc path on 192.168.1.0/24. Azure Local STORAGE intents
-    are provided as ADDITIONAL per-node adapters by New-ApexLocalNode (-StorageVlanA
-    /-StorageVlanB), converged on this switch for the nested lab. Idempotent.
+    OWNED-SCOPE (fabric): mirrors Jumpstart LocalBox's New-InternalSwitch + Set-HostNAT.
+    Creates TWO internal vSwitches:
+      • SwitchName (mgmt/fabric, 192.168.1.0/24) — DC, router, nodes. The host takes
+        HostInternalIp here but is NOT the gateway; the router VM (192.168.1.1) is.
+      • NatSwitchName (NAT uplink, 192.168.128.0/24) — the host takes NatHostIp and
+        runs a WinNAT (New-NetNat) that bridges nested egress onto the host's real
+        Azure NIC. The router's second NIC lives here.
+    Idempotent.
   #>
   [CmdletBinding()]
   param(
-    [Parameter(Mandatory)] [string]$SwitchName,
-    [Parameter(Mandatory)] [string]$NatName,
-    [Parameter(Mandatory)] [string]$Gateway,
-    [Parameter(Mandatory)] [string]$SubnetPrefix,
-    [int]$PrefixLength = 24
+    [Parameter(Mandatory)] [hashtable]$Network
   )
-  if (-not (Get-VMSwitch -Name $SwitchName -ErrorAction SilentlyContinue)) {
-    Write-ApexLog "Creating internal VM switch '$SwitchName'."
-    New-VMSwitch -Name $SwitchName -SwitchType Internal | Out-Null
+  # 1) Management/fabric internal switch (gateway is the router VM, not the host).
+  if (-not (Get-VMSwitch -Name $Network.SwitchName -ErrorAction SilentlyContinue)) {
+    Write-ApexLog "Creating internal VM switch '$($Network.SwitchName)' (management/fabric)."
+    New-VMSwitch -Name $Network.SwitchName -SwitchType Internal | Out-Null
   }
-  $alias = "vEthernet ($SwitchName)"
-  $existingIp = Get-NetIPAddress -InterfaceAlias $alias -IPAddress $Gateway -ErrorAction SilentlyContinue
-  if (-not $existingIp) {
-    Write-ApexLog "Assigning host gateway IP $Gateway/$PrefixLength on '$alias'."
-    New-NetIPAddress -InterfaceAlias $alias -IPAddress $Gateway -PrefixLength $PrefixLength | Out-Null
+  $mgmtAlias = "vEthernet ($($Network.SwitchName))"
+  if (-not (Get-NetIPAddress -InterfaceAlias $mgmtAlias -IPAddress $Network.HostInternalIp -ErrorAction SilentlyContinue)) {
+    Write-ApexLog "Assigning host management IP $($Network.HostInternalIp)/$($Network.PrefixLength) on '$mgmtAlias'."
+    # No default gateway here: the host reaches the internet via its Azure NIC, and
+    # the management subnet's gateway is the router VM.
+    New-NetIPAddress -InterfaceAlias $mgmtAlias -IPAddress $Network.HostInternalIp -PrefixLength $Network.PrefixLength | Out-Null
   }
-  if (-not (Get-NetNat -Name $NatName -ErrorAction SilentlyContinue)) {
-    Write-ApexLog "Creating host NAT '$NatName' for $SubnetPrefix."
-    New-NetNat -Name $NatName -InternalIPInterfaceAddressPrefix $SubnetPrefix | Out-Null
+
+  # 2) NAT uplink switch + host WinNAT (bridges nested egress to the host Azure NIC).
+  if (-not (Get-VMSwitch -Name $Network.NatSwitchName -ErrorAction SilentlyContinue)) {
+    Write-ApexLog "Creating internal VM switch '$($Network.NatSwitchName)' (NAT uplink)."
+    New-VMSwitch -Name $Network.NatSwitchName -SwitchType Internal | Out-Null
   }
-  Write-ApexLog "Host switch + NAT ready ($SwitchName / $NatName)."
+  $natAlias = "vEthernet ($($Network.NatSwitchName))"
+  if (-not (Get-NetIPAddress -InterfaceAlias $natAlias -IPAddress $Network.NatHostIp -ErrorAction SilentlyContinue)) {
+    Write-ApexLog "Assigning host NAT-uplink IP $($Network.NatHostIp)/$($Network.PrefixLength) on '$natAlias'."
+    New-NetIPAddress -InterfaceAlias $natAlias -IPAddress $Network.NatHostIp -PrefixLength $Network.PrefixLength | Out-Null
+  }
+  if (-not (Get-NetNat -Name $Network.NatSwitchName -ErrorAction SilentlyContinue)) {
+    Write-ApexLog "Creating host WinNAT '$($Network.NatSwitchName)' for $($Network.NatHostSubnet)."
+    New-NetNat -Name $Network.NatSwitchName -InternalIPInterfaceAddressPrefix $Network.NatHostSubnet | Out-Null
+  }
+  Write-ApexLog "Host switches ready: $($Network.SwitchName) (mgmt) + $($Network.NatSwitchName) (NAT uplink)."
+}
+
+function New-ApexRouterVM {
+  <#
+  .SYNOPSIS Build the nested router VM — the management subnet's gateway (Jumpstart model).
+  .DESCRIPTION
+    OWNED-SCOPE (fabric): mirrors Jumpstart's New-RouterVM (vm-router / BGP-ToR-Router)
+    adapted to this flat, single-level-nesting topology. A lightweight Windows Server
+    VM built from the SAME base VHDX as the DC, with two NICs:
+      • Mgmt (192.168.1.1) on the management switch — the gateway for DC + nodes.
+      • NAT  (192.168.128.10) on the NAT-uplink switch — default route to the host.
+    In-guest it enables IP forwarding, installs the Routing role (Install-RemoteAccess
+    -VpnType RoutingOnly, matching Jumpstart) and a WinNAT that translates the
+    management subnet out the NAT NIC. Net path:
+      node -> router(192.168.1.1) -> router WinNAT -> 192.168.128.10
+           -> host WinNAT(192.168.128.1) -> host Azure NIC -> internet.
+    The two NICs are pinned to static MACs so the guest can tell them apart.
+    Reuses New-ApexNestedVM for the disk/TPM/IMDS/unattend plumbing (DRY).
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [hashtable]$Config,
+    [Parameter(Mandatory)] [pscredential]$LocalAdminCredential,
+    [Parameter(Mandatory)] [string]$WindowsServerBaseVhdx
+  )
+  $r = $Config.Router
+  $net = $Config.Network
+  $paths = $Config.Paths
+  $mgmtMac = '0EAA00000101'
+  $natMac = '0EAA00000102'
+
+  $unattend = New-ApexUnattendXml -ComputerName $r.Name `
+    -AdminPassword ($LocalAdminCredential.GetNetworkCredential().Password) `
+    -OutputPath (Join-Path $paths.AnswerDir "$($r.Name)-unattend.xml")
+
+  # Reuse the generic builder for the diff disk, TPM, IMDS-deny, unattend, and the
+  # first (Mgmt) NIC on the management switch.
+  New-ApexNestedVM -VmName $r.Name -BaseVhdxPath $WindowsServerBaseVhdx `
+    -VmDiffDiskDir $paths.VmVhdDir -SwitchName $net.SwitchName `
+    -MemoryMB $r.MemoryMB -CpuCount $r.CpuCount -UnattendPath $unattend `
+    -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
+
+  # Pin the Mgmt NIC MAC (only one adapter exists yet), then add the NAT-uplink NIC.
+  Set-VMNetworkAdapter -VMName $r.Name -StaticMacAddress $mgmtMac
+  Add-VMNetworkAdapter -VMName $r.Name -Name 'NAT' -SwitchName $net.NatSwitchName -StaticMacAddress $natMac
+  $natAdapter = Get-VMNetworkAdapter -VMName $r.Name -Name 'NAT'
+  Add-VMNetworkAdapterAcl -VMNetworkAdapter $natAdapter -Action Deny -Direction Inbound  -RemoteIPAddress $net.ImdsAddress
+  Add-VMNetworkAdapterAcl -VMNetworkAdapter $natAdapter -Action Deny -Direction Outbound -RemoteIPAddress $net.ImdsAddress
+
+  Start-VM -Name $r.Name
+  Wait-ApexVMReady -VmName $r.Name -Credential $LocalAdminCredential | Out-Null
+
+  Write-ApexLog "Configuring router '$($r.Name)' (gateway $($r.MgmtIp), NAT uplink $($r.NatIp))."
+  Invoke-Command -VMName $r.Name -Credential $LocalAdminCredential -ScriptBlock {
+    param($mgmtMac, $natMac, $mgmtIp, $mgmtPfx, $dns, $natIp, $natPfx, $natGw, $mgmtSubnet)
+    $mgmtNic = Get-NetAdapter | Where-Object { ($_.MacAddress -replace '[:-]', '') -eq $mgmtMac }
+    $natNic = Get-NetAdapter | Where-Object { ($_.MacAddress -replace '[:-]', '') -eq $natMac }
+    # Mgmt NIC: gateway IP for the management subnet, DNS = DC, NO default gateway.
+    New-NetIPAddress -InterfaceIndex $mgmtNic.ifIndex -IPAddress $mgmtIp -PrefixLength $mgmtPfx -ErrorAction SilentlyContinue | Out-Null
+    Set-DnsClientServerAddress -InterfaceIndex $mgmtNic.ifIndex -ServerAddresses $dns
+    # NAT uplink NIC: address on the host NAT subnet + default route via the host.
+    New-NetIPAddress -InterfaceIndex $natNic.ifIndex -IPAddress $natIp -PrefixLength $natPfx -DefaultGateway $natGw -ErrorAction SilentlyContinue | Out-Null
+    # Enable IP forwarding on both interfaces.
+    Set-NetIPInterface -InterfaceIndex $mgmtNic.ifIndex -Forwarding Enabled
+    Set-NetIPInterface -InterfaceIndex $natNic.ifIndex -Forwarding Enabled
+    # Routing role (Jumpstart parity) + WinNAT to translate the mgmt subnet out the
+    # NAT NIC. RoutingOnly does not itself NAT, so WinNAT is the single translator
+    # here (no RRAS/WinNAT conflict).
+    Install-WindowsFeature -Name Routing, RSAT-RemoteAccess-PowerShell -IncludeManagementTools -ErrorAction SilentlyContinue | Out-Null
+    Import-Module RemoteAccess -ErrorAction SilentlyContinue
+    try { Install-RemoteAccess -VpnType RoutingOnly -ErrorAction SilentlyContinue } catch { }
+    Get-NetNat -ErrorAction SilentlyContinue | Remove-NetNat -Confirm:$false -ErrorAction SilentlyContinue
+    New-NetNat -Name 'ApexRouterNAT' -InternalIPInterfaceAddressPrefix $mgmtSubnet -ErrorAction SilentlyContinue | Out-Null
+  } -ArgumentList $mgmtMac, $natMac, $r.MgmtIp, $net.PrefixLength, $net.DnsServers[0], $r.NatIp, $net.PrefixLength, $net.NatHostIp, $net.SubnetPrefix
+
+  Write-ApexLog "Router '$($r.Name)' ready (management gateway $($r.MgmtIp))."
 }
 
 #endregion
@@ -693,21 +782,36 @@ function New-ApexLocalNode {
     -MemoryMB $c.NodeMemoryMB -CpuCount $c.NodeCpuCount -UnattendPath $unattend `
     -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
 
+  # Pin a deterministic MAC on the management NIC (only adapter so far) so the in-guest
+  # config can select it unambiguously once the two same-switch storage NICs are added.
+  # e.g. node 1 -> 0EAA00010001.
+  $mgmtMac = ('0EAA0001{0:D4}' -f $Index)
+  Set-VMNetworkAdapter -VMName $name -StaticMacAddress $mgmtMac
+
   # OWNED-SCOPE M1: add two storage-intent adapters (converged on the internal
   # switch for this nested lab; real hardware uses dedicated RDMA NICs/VLANs).
-  Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName -Name 'StorageA' -ErrorAction SilentlyContinue
-  Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName -Name 'StorageB' -ErrorAction SilentlyContinue
+  # Each also gets the IMDS deny ACL (every nested adapter must block 169.254.169.254).
+  foreach ($s in @('StorageA', 'StorageB')) {
+    Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName -Name $s -ErrorAction SilentlyContinue
+    $sAdapter = Get-VMNetworkAdapter -VMName $name -Name $s -ErrorAction SilentlyContinue
+    if ($sAdapter) {
+      Add-VMNetworkAdapterAcl -VMNetworkAdapter $sAdapter -Action Deny -Direction Inbound  -RemoteIPAddress $net.ImdsAddress
+      Add-VMNetworkAdapterAcl -VMNetworkAdapter $sAdapter -Action Deny -Direction Outbound -RemoteIPAddress $net.ImdsAddress
+    }
+  }
 
   Start-VM -Name $name
   Wait-ApexVMReady -VmName $name -Credential $LocalAdminCredential | Out-Null
 
   Write-ApexLog "Configuring node '$name' management IP $nodeIp."
   Invoke-Command -VMName $name -Credential $LocalAdminCredential -ScriptBlock {
-    param($ip, $prefix, $gw, $dns)
-    $if = (Get-NetAdapter | Where-Object Status -eq 'Up' | Sort-Object ifIndex | Select-Object -First 1)
-    New-NetIPAddress -InterfaceIndex $if.ifIndex -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gw -ErrorAction SilentlyContinue | Out-Null
-    Set-DnsClientServerAddress -InterfaceIndex $if.ifIndex -ServerAddresses $dns
-  } -ArgumentList $nodeIp, $net.PrefixLength, $net.Gateway, $net.DnsServers[0]
+    param($ip, $prefix, $gw, $dns, $mgmtMac)
+    # Select the management NIC by its pinned MAC (robust with 3 same-switch NICs).
+    $nic = Get-NetAdapter | Where-Object { ($_.MacAddress -replace '[:-]', '') -eq $mgmtMac } | Select-Object -First 1
+    if (-not $nic) { $nic = Get-NetAdapter | Where-Object Status -eq 'Up' | Sort-Object ifIndex | Select-Object -First 1 }
+    New-NetIPAddress -InterfaceIndex $nic.ifIndex -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gw -ErrorAction SilentlyContinue | Out-Null
+    Set-DnsClientServerAddress -InterfaceIndex $nic.ifIndex -ServerAddresses $dns
+  } -ArgumentList $nodeIp, $net.PrefixLength, $net.Gateway, $net.DnsServers[0], $mgmtMac
 
   Set-ApexNodeTimeSync -VmName $name -Credential $LocalAdminCredential -DcIpAddress $Config.Domain.DcIpAddress
 
@@ -731,6 +835,12 @@ function Connect-ApexNodeToArc {
     node-side prerequisites (e.g. enabling the required Windows features) are staged
     here. This function is intentionally explicit about that boundary so it can be
     hardened against the current Azure Local release.
+
+    AUTH: a nested node has NO Azure managed identity, so `azcmagent connect` cannot
+    use -Identity. The HOST holds a system-assigned MI with Contributor on the RG, so
+    we acquire an ARM access token on the host (Get-AzAccessToken) and broker it into
+    the guest via PowerShell Direct as `--access-token`. The token is short-lived and
+    only crosses the host->guest PowerShell Direct channel (never the network).
   #>
   [CmdletBinding()]
   param(
@@ -742,9 +852,21 @@ function Connect-ApexNodeToArc {
     [Parameter(Mandatory)] [string]$Location,
     [Parameter(Mandatory)] [string]$ArcCorrelationId
   )
+  # Acquire an ARM access token on the HOST using its managed identity. Handle both
+  # the legacy plaintext .Token and the newer -AsSecureString Az.Accounts behavior.
+  Import-Module Az.Accounts -ErrorAction Stop
+  $raw = Get-AzAccessToken -ResourceUrl 'https://management.azure.com/' -ErrorAction Stop
+  if ($raw.Token -is [System.Security.SecureString]) {
+    $accessToken = [System.Net.NetworkCredential]::new('', $raw.Token).Password
+  }
+  else {
+    $accessToken = [string]$raw.Token
+  }
+  if (-not $accessToken) { throw "Could not obtain an ARM access token from the host managed identity for '$VmName'." }
+
   Write-ApexLog "Arc-registering node '$VmName' into $ResourceGroup ($Location)."
   Invoke-Command -VMName $VmName -Credential $Credential -ScriptBlock {
-    param($subId, $rg, $tenant, $loc, $corr)
+    param($subId, $rg, $tenant, $loc, $corr, $token)
 
     # Stage the node-side OS prerequisites the cluster deploy expects.
     foreach ($f in @('Hyper-V', 'Failover-Clustering', 'Data-Center-Bridging', 'BitLocker', 'FS-FileServer')) {
@@ -760,17 +882,16 @@ function Connect-ApexNodeToArc {
     $azcm = Join-Path $env:ProgramW6432 'AzureConnectedMachineAgent\azcmagent.exe'
     if (-not (Test-Path $azcm)) { $azcm = 'azcmagent' }
 
-    # Managed-identity flow: the node connects using the deployment's context. For a
-    # nested lab the host's MI token is brokered in; in production the cloud
-    # deployment performs the Arc onboarding with its own credential.
+    # Connect using the host-brokered ARM access token (the node has no MI of its own).
     & $azcm connect `
       --subscription-id $subId `
       --resource-group $rg `
       --tenant-id $tenant `
       --location $loc `
       --correlation-id $corr `
+      --access-token $token `
       --cloud AzureCloud 2>&1 | Out-String | Write-Output
-  } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $ArcCorrelationId
+  } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $ArcCorrelationId, $accessToken
 
   Write-ApexLog "Node '$VmName' Arc onboarding attempted."
 }
@@ -810,6 +931,7 @@ function Invoke-ApexLocalClusterDeploy {
     [Parameter(Mandatory)] [array]$Nodes,            # objects: { Name, IpAddress }
     [Parameter(Mandatory)] [pscredential]$LocalAdminCredential,
     [Parameter(Mandatory)] [pscredential]$DomainAdminCredential,
+    [string]$WitnessStorageAccountName = '',         # existing SA, used only for a Cloud witness (2-node)
     [string]$TemplatePath = 'C:\ApexLocal\azlocal.json'
   )
   if (-not (Test-Path $TemplatePath)) { throw "Cluster template not found: $TemplatePath" }
@@ -854,10 +976,20 @@ function Invoke-ApexLocalClusterDeploy {
   )
 
   # --- generated, globally-unique resource names ---
+  # The diagnostics SA is CREATED by the template (LRS + lock), so a fresh name is
+  # correct. The cluster WITNESS, however, must be an EXISTING account: for a Cloud
+  # witness (2-node) we point it at the staging storage account (which already
+  # exists and the host MI can reach); for a 3-node 'None' quorum it is unused.
   $suffix = ([guid]::NewGuid().ToString('N')).Substring(0, 6).ToLower()
   $keyVaultName = "apxkv$suffix"
-  $witnessSa = "apxwit$suffix"
   $diagSa = "apxdiag$suffix"
+  $witnessSa = ''
+  if ($c.WitnessType -ne 'None') {
+    if (-not $WitnessStorageAccountName) {
+      throw "WitnessType '$($c.WitnessType)' requires -WitnessStorageAccountName (an existing storage account)."
+    }
+    $witnessSa = $WitnessStorageAccountName
+  }
 
   $common = @{
     ResourceGroupName                = $ResourceGroup
@@ -910,7 +1042,7 @@ function Invoke-ApexLocalClusterDeploy {
 Export-ModuleMember -Function @(
   'Get-ApexConfig', 'Write-ApexLog', 'Connect-ApexAzure', 'Set-ApexProgress', 'Send-ApexLogsToStorage',
   'Wait-ApexStagedIso', 'Get-ApexStagedIso', 'Convert-ApexIsoToVhdx',
-  'New-ApexHostSwitch',
+  'New-ApexHostSwitch', 'New-ApexRouterVM',
   'New-ApexUnattendXml', 'New-ApexNestedVM', 'Wait-ApexVMReady', 'New-ApexDomainController',
   'New-ApexLocalNode', 'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
   'Invoke-ApexLocalClusterDeploy'

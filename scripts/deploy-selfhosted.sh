@@ -4,8 +4,9 @@
 #
 # Stands up: a hardened ISO storage account, a Windows Server 2025 jumpbox, a large
 # nested-virtualization cluster host, Bastion, NAT Gateway, and Log Analytics. The
-# host then builds a nested domain controller + a 3-node Azure Local cluster from
-# two ISOs you stage on the jumpbox - NO prebaked VHDs, NO Jumpstart modules.
+# host then builds a nested router VM (the management gateway), a domain controller,
+# and a 3-node Azure Local cluster from two ISOs you stage on the jumpbox - NO
+# prebaked VHDs, NO Jumpstart modules.
 #
 # The Windows admin password is NEVER stored on disk. This script prompts for it
 # securely (no echo) and passes it via LOCALSELF_ADMIN_PASSWORD, which
@@ -290,8 +291,8 @@ cat <<EOF
 
 ────────────────────────────────────────────────────────────────────
 ARM resources are deployed. The cluster host is installing Hyper-V,
-pooling its data disks into V:, and configuring the internal network,
-then it WAITS for BOTH ISOs to appear in the storage account:
+pooling its data disks into V:, configuring the internal + NAT-uplink
+switches, then it WAITS for BOTH ISOs to appear in the storage account:
 
     storage account : ${STAGING_SA}
     container       : ${ISO_CONTAINER}
@@ -302,7 +303,7 @@ This is the ONE manual step. All downloads stay inside Azure - the
 (Azure CLI + Az PowerShell + AzCopy + Upload-Isos.ps1 in C:\\ApexLocal,
 and STAGE-ISOS-README.txt on its desktop):
 
-  1. RDP to the jumpbox over Bastion.
+  1. RDP to the jumpbox over Bastion (it has the tooling pre-installed).
   2. Download the Azure Local OS ISO (Azure portal > Azure Local >
      Get started > Download software) and the Windows Server 2025 ISO
      (microsoft.com/evalcenter).
@@ -311,6 +312,11 @@ and STAGE-ISOS-README.txt on its desktop):
        C:\\ApexLocal\\Upload-Isos.ps1 -StorageAccountName ${STAGING_SA} \`
          -AzureLocalIsoPath <azurelocal>.iso \`
          -WindowsServerIsoPath <windowsserver>.iso
+     or with the CLI:
+       az storage blob upload --account-name ${STAGING_SA} --auth-mode login \\
+         --container-name ${ISO_CONTAINER} --name AzureLocalOS.iso --file <azurelocal>.iso
+       az storage blob upload --account-name ${STAGING_SA} --auth-mode login \\
+         --container-name ${ISO_CONTAINER} --name WindowsServer.iso --file <windowsserver>.iso
 
 Track the in-VM build (tags + optional host log tail):
 

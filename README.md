@@ -28,7 +28,7 @@ Three evaluation profiles are included — pick the one you need and follow its 
 | Profile | What it builds | Est. cost (24×7) | Deployment guide |
 | --- | --- | --- | --- |
 | **Azure Local (LocalBox)** | A nested 2- or 3-node Azure Local cluster + management host (Domain Controller, router, Windows Admin Center) in one Hyper-V VM | ~$7,850/mo | **[Azure Local deployment guide →](docs/deployment-quickstart.md)** |
-| **Self-hosted (zero Jumpstart)** | A nested 3-node Azure Local cluster + Domain Controller built **clean-room** from two operator-staged ISOs — no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*` modules — across two VMs (cluster host + jumpbox) | ~$7,850/mo | **[Self-hosted deployment guide →](docs/selfhosted-quickstart.md)** |
+| **Self-hosted (zero Jumpstart)** | A nested 3-node Azure Local cluster + Domain Controller + a router VM (the management gateway), built **clean-room** from two operator-staged ISOs — no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*` modules — across two VMs (cluster host + jumpbox) | ~$7,850/mo | **[Self-hosted deployment guide →](docs/selfhosted-quickstart.md)** |
 | **Small Form Factor (SFF)** | A lighter single nested-virtualization host that builds the SFF **Maintenance OS (ROE)** test VM (Gen2, TPM on, Secure Boot off, ≥4 vCPU) — the edge/SFF analogue at ~1/10th the cost | ~$700–900/mo | **[SFF deployment guide →](docs/sff-quickstart.md)** |
 
 > [!NOTE]
@@ -102,9 +102,9 @@ The SFF profile uses a lighter single-host topology — see its
 
 **Self-hosted (zero Jumpstart)**:
 
-- `ApexLocal-Host` cluster host VM (`Standard_E64s_v6`) + 12 × 256 GB P30 disks (pooled `V:`) that builds a nested Domain Controller + 3-node Azure Local cluster from two ISOs
+- `ApexLocal-Host` cluster host VM (`Standard_E64s_v6`) + 12 × 256 GB P30 disks (pooled `V:`) that builds a nested router VM, a Domain Controller, and a 3-node Azure Local cluster from two ISOs
 - `ApexLocal-Mgmt` Windows Server 2025 jumpbox for staging the ISOs, a hardened ISO storage account, Bastion, NAT Gateway, and Log Analytics
-- No prebaked Jumpstart VHDs and no `Azure.Arc.Jumpstart.*` modules — the in-repo [`ApexLocalOps`](artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1) module does the whole nested build
+- No prebaked Jumpstart VHDs and no `Azure.Arc.Jumpstart.*` modules — the in-repo [`ApexLocalOps`](artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1) module does the whole nested build (router/DC/nodes/cluster)
 
 Topology profiles, host SKUs, and the full cost breakdown live in the sizing docs:
 [sizing-guidance.md](docs/sizing-guidance.md) (Azure Local),

@@ -34,6 +34,7 @@
     'Convert-ApexIsoToVhdx'
     # Host fabric
     'New-ApexHostSwitch'
+    'New-ApexRouterVM'
     # Nested build
     'New-ApexUnattendXml'
     'New-ApexNestedVM'
