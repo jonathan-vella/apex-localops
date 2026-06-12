@@ -8,3 +8,8 @@
 # and local clients agree, so the workflow becomes a true no-op unless upstream
 # content actually changes. text=auto still auto-detects and leaves binaries alone.
 .github/skills/** text=auto eol=lf
+
+# Same rationale for the auto-synced upstream documentation mirror
+# (sync-upstream-docs): MicrosoftDocs repos ship CRLF, so force LF to keep the
+# weekly sync a true no-op unless the upstream prose actually changes.
+docs/upstream/** text=auto eol=lf

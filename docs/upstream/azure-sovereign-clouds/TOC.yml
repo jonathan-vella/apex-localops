@@ -1,0 +1,130 @@
+- name: Microsoft Sovereign Cloud
+  href: index.yml
+  items:
+    - name: Overview
+      items:
+        - name: What is Microsoft Sovereign Cloud?
+          href: microsoft-sovereign-cloud.md
+        - name: Overview of digital sovereignty
+          href: digital-sovereignty.md
+        - name: What are the European digital commitments?
+          href: european-digital-commitments.md
+    - name: Concepts, controls, and considerations
+      items:
+        - name: Data controls
+          href: data-controls.md
+        - name: Operational controls
+          href: operational-controls.md
+        - name: Technological independence
+          href: technological-independence.md
+        - name: Key Management controls
+          href: key-controls.md
+        - name: Sovereign design and implementation
+          href: sovereignty-implementation.md
+    - name: Sovereign Public Cloud
+      items:
+        - name: Overview
+          href: public/overview-sovereign-public-cloud.md
+        - name: Foundational controls and principles
+          href: public/overview-controls-principles.md
+          items:
+        - name: Capabilities
+          items:
+          - name: Capabilities of Sovereign Public Cloud
+            href: public/sovereign-public-cloud-capabilities.md
+          - name: Data Guardian
+            href: public/data-guardian.md
+          - name: External key management
+            href: public/external-key-management.md
+          - name: Confidential computing
+            href: public/confidential-computing.md
+          - name: Regulated Environment Management (REM)
+            href: public/regulated-environment-management.md
+        - name: Sovereign Landing Zone
+          items: 
+            - name: Overview
+              href: public/overview-sovereign-landing-zone.md
+            - name: Implement controls and principles
+              href: public/implement-controls-principles.md
+            - name: Implementation options
+              href: public/implementation-options.md
+            - name: FAQs for Sovereign Landing Zone
+              href: public/questions-sovereign-landing-zone.md
+        - name: Implement workloads in the Sovereign Public Cloud
+          items:
+            - name: Overview
+              href: public/overview-implement-workloads.md
+            - name: AI workloads and sovereignty
+              href: public/ai-workloads-sovereignty.md
+            - name: Design sovereign policy initiatives in Azure
+              href: public/design-sovereign-policies.md
+            - name: BCDR impacts with sovereign controls
+              href: public/bcdr-impacts-sovereign-controls.md
+            - name: Key recovery management with Managed HSM
+              href: public/key-recovery-management.md
+            - name: Apply sovereign controls to Microsoft 365
+              items:
+              - name: Overview
+                href: public/microsoft-365-sovereign-controls.md
+              - name: Microsoft 365 Rights Management
+                href: public/microsoft-365-rights-management.md
+            - name: Apply sovereign controls to Dataverse and Power Platform
+              items:
+               - name: Access controls
+                 href: public/access-controls-dataverse-power-platform.md
+               - name: Security controls
+                 href: public/security-controls-dataverse-power-platform.md
+               - name: Sovereign controls
+                 href: public/sovereign-controls-dataverse-power-platform.md   
+               - name: Transparency controls
+                 href: public/operational-transparency-dataverse-power-platform.md  
+            - name: Apply sovereign controls to Dynamics 365 Business Central
+              items:
+              - name: Access controls
+                href: public/access-controls-d365-business-central.md
+              - name: Security controls
+                href: public/security-controls-d365-business-central.md
+              - name: Sovereign controls 
+                href: public/sovereign-controls-d365-business-central.md   
+              - name: Transparency controls
+                href: public/operational-transparency-d365-business-central.md         
+            - name: Services compatibility guides
+              items:
+                - name: Azure Key Vault and Managed HSM - CMK support by Azure service
+                  href: /azure/security/fundamentals/encryption-customer-managed-keys-support?bc=/industry/sovereign-cloud/_bread/toc.json&toc=/industry/sovereign-cloud/toc.json       
+    - name: Sovereign Private Cloud
+      items:
+        - name: Overview
+          href: private/overview/sovereign-private-cloud.md
+        - name: Use Cases and configurations
+          href: private/use-cases/use-cases.md
+        - name: Azure Local
+          items:
+            - name: Overview
+              href: private/azure-local/azure-local-overview.md
+            - name: Connected operations
+              href: private/azure-local/connected-operations-overview.md
+            - name: Disconnected operations
+              href: private/azure-local/disconnected-operations-overview.md
+        - name: Microsoft 365 Local
+          items:
+            - name: Overview
+              href: private/m365-local/microsoft-365-local-overview.md
+        - name: GitHub Enterprise Local
+          items:
+            - name: Overview
+              href: private/github-local/github-local-overview.md
+            - name: Get started
+              href: private/github-local/github-local-get-started.md
+        - name: AI suite
+          items:
+            - name: AI workloads on Azure Local
+              href: private/azure-local/ai-workloads-overview.md
+    - name: National Partner Clouds
+      items:
+        - name: Overview
+          href: partner/overview-national-partner-clouds.md
+    - name: Appendix
+      items:
+        - name: Glossary
+          href: glossary.md 

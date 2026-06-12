@@ -74,17 +74,17 @@
   AdminUsername      = 'arcdemo'
 
   # --- Workload VM definitions ------------------------------------------------
-  # Azure Local stack-hci-vm sizes VMs via NAMED SKUs (--size); this extension version
-  # has NO custom --memory-mb/--processors. Sizes chosen meet-or-exceed intent while
-  # staying modest (nested nodes are ~96 GB RAM each):
-  #   Standard_D2s_v3 = 2 vCPU /  8 GB ; Standard_D4s_v3 = 4 vCPU / 16 GB.
-  # Data disks are created + attached at create time (--attach-data-disks) then
-  # initialized/formatted in-guest.
+  # Azure Local sizes VMs by EXPLICIT vCPU + memory, NOT Azure SKU names. `az stack-hci-vm
+  # create` only has a free-form --size (an Azure SKU name there yields 0 CPU / 0 MB, an
+  # unbootable VM). The supported knobs are `az stack-hci-vm update --v-cpus-available N
+  # --memory-mb MB` (vmSize then shows as "Custom"). New-WorkloadVm creates then resizes.
+  # Sizes stay modest (nested nodes are ~96 GB RAM each). memory-mb must be a multiple of 4.
   Vms                = @{
     WindowsServer2025 = @{
       Name       = 'azl-ws2025-01'           # <=15 chars for NetBIOS/domain join
       ImageKey   = 'WindowsServer2025'
-      Size       = 'Standard_D2s_v3'         # 2 vCPU / 8 GB
+      VCpus      = 2
+      MemoryMb   = 8192                      # 8 GB
       DomainJoin = $true
       DataDisks  = @(
         @{ Name = 'azl-ws2025-01-data'; SizeGb = 128; Purpose = 'data' }
@@ -93,7 +93,8 @@
     Sql2022           = @{
       Name       = 'azl-sql2022-01'
       ImageKey   = 'Sql2022'
-      Size       = 'Standard_D4s_v3'         # 4 vCPU / 16 GB
+      VCpus      = 4
+      MemoryMb   = 16384                     # 16 GB
       DomainJoin = $true
       DataDisks  = @(
         @{ Name = 'azl-sql2022-01-data'; SizeGb = 128; Purpose = 'data' }
@@ -103,7 +104,8 @@
     AvdHost           = @{
       Name       = 'azl-avd-01'
       ImageKey   = 'Win11Avd'
-      Size       = 'Standard_D4s_v3'         # 4 vCPU / 16 GB
+      VCpus      = 4
+      MemoryMb   = 16384                     # 16 GB
       DomainJoin = $true
       DataDisks  = @()
     }

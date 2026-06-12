@@ -62,7 +62,22 @@ jobs:
           mkdir -p "$DEST_DIR"
           # --delete makes the destination an exact mirror: skills removed or
           # renamed upstream are removed locally too.
-          rsync -a --delete "$src/" "$DEST_DIR/"
+          #
+          # The --exclude globs protect this repo's hand-authored skills (which do
+          # NOT exist upstream) from being deleted by --delete. Every custom skill
+          # MUST use one of these reserved folder-name prefixes:
+          #   azlocal-*  Azure Local skills
+          #   aksarc-*   AKS on Azure Local skills
+          #   sov-*      Sovereign Cloud skills
+          # A glob (not an exact-name allow-list) means new custom skills are
+          # protected automatically as long as they follow the prefix convention.
+          # rsync --exclude protects matching receiver paths from --delete; we do
+          # NOT pass --delete-excluded, so these folders are always preserved.
+          rsync -a --delete \
+            --exclude='azlocal-*/' \
+            --exclude='aksarc-*/' \
+            --exclude='sov-*/' \
+            "$src/" "$DEST_DIR/"
 
       - name: Commit and push if changed
         env:

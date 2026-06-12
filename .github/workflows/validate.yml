@@ -80,3 +80,13 @@ jobs:
         with:
           scandir: ./scripts
           severity: warning
+
+  skills:
+    name: Custom skill validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate custom skills (frontmatter + docs/upstream references)
+        run: ./scripts/validate-skills.sh

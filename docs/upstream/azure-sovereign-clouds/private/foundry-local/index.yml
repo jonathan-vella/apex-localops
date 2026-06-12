@@ -1,0 +1,106 @@
+### YamlMime:Landing
+
+title: Foundry Local for Microsoft Sovereign Private Clouds # < 60 chars
+summary: Deploy and run AI inference workloads on Azure Local with Arc-enabled Kubernetes. Use OpenAI-compatible APIs with your AI models while keeping data on-premises. # < 160 chars
+
+metadata:
+  title: Foundry Local for Microsoft Sovereign Private Clouds documentation
+  description: Foundry Local on Azure Local enables you to deploy and run generative and predictive AI models on an Arc-enabled Kubernetes cluster for on-premises AI inference.
+  ms.topic: landing-page
+  author: cwatson-cat
+  ms.author: cwatson
+  ms.date: 05/17/2026
+  ms.service: azure
+  ms.subservice: sovereign-private-clouds
+
+landingContent:
+  - title: About Foundry Local for Sovereign Private Clouds
+    linkLists:
+      - linkListType: overview
+        links:
+          - text: What is Foundry Local on Azure Local?
+            url: overview.md
+          - text: Known issues
+            url: known-issues.md
+
+  - title: Key concepts
+    linkLists:
+      - linkListType: concept
+        links:
+          - text: Models
+            url: concept-models.md
+          - text: Model catalog and sourcing
+            url: concept-model-catalog.md
+          - text: Bring your own models
+            url: concept-bring-your-own-models.md
+          - text: Inference operator and model lifecycle
+            url: concept-inference-operator.md
+          - text: Model caching and StoreModel lifecycle
+            url: concept-model-caching.md
+          - text: Inference runtimes
+            url: concept-inference-runtimes.md
+          - text: Authentication and authorization
+            url: concept-authentication-authorization.md
+          - text: Automatic GPU inference tuning
+            url: concept-gpu-inference-planner.md
+
+  - title: Get started
+    linkLists:
+      - linkListType: quickstart
+        links:
+          - text: "Deploy your first model and run inference"
+            url: deploy-run-first-model.md
+      - linkListType: deploy
+        links:
+          - text: Configure TLS 
+            url: how-to-configure-tls-authentication.md
+          - text: Deploy Foundry Local as an Azure Arc extension
+            url: deploy-foundry-local-arc-extension.md
+          - text: Deploy a catalog model
+            url: how-to-deploy-model.md
+          - text: Deploy a bring-your-own model
+            url: how-to-deploy-custom-model.md
+
+  - title: Secure
+    linkLists:
+      - linkListType: how-to-guide
+        links:
+          - text: Configure Entra ID authentication
+            url: how-to-configure-authentication.md
+
+  - title: Run inference
+    linkLists:
+      - linkListType: how-to-guide
+        links:
+          - text: Run inference
+            url: how-to-run-inference.md
+
+  - title: Disconnected operations
+    linkLists:
+      - linkListType: overview
+        links:
+          - text: Overview
+            url: disconnected-operations/concept-overview.md
+      - linkListType: how-to-guide
+        links:
+          - text: Prepare deployment
+            url: disconnected-operations/how-to-prepare.md
+          - text: Deploy Foundry Local as an Azure Arc extension
+            url: disconnected-operations/deploy-platform.md
+          - text: Deploy your first model 
+            url: disconnected-operations/how-to-deploy-first-model.md
+
+  - title: Reference
+    linkLists:
+      - linkListType: reference
+        links:
+          - text: vLLM model reference
+            url: reference-models.md
+          - text: Inference API reference
+            url: reference-inference-api.md
+          - text: Inference API endpoints and payload reference
+            url: reference-inference-api-endpoints-payload.md
+          - text: ModelDeployment and operator configuration reference
+            url: reference-model-deployment-operator.md
+          - text: Glossary
+            url: glossary.md

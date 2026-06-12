@@ -281,16 +281,28 @@ function New-WorkloadVm {
     }
 
     # 3) Create the VM (guest agent on; attach data disks if any).
-    Write-Step "Creating VM '$($Vm.Name)' (size=$($Vm.Size), image=$($img.ImageName))..."
+    #    --size 'Default' is a VALID Azure Local size keyword that boots correctly so the
+    #    in-guest VM config agent installs. (Passing an *Azure* SKU name like Standard_D2s_v3
+    #    is NOT recognized by Azure Local and yields an unbootable 0-CPU/0-MB VM whose guest
+    #    agent never installs.) Exact vCPU/memory are then applied by the follow-up `update`.
+    Write-Step "Creating VM '$($Vm.Name)' (size=Default then resize to $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB, image=$($img.ImageName))..."
     $createArgs = @('stack-hci-vm','create','-g',$Config.ResourceGroup,'--custom-location',$CustomLocationId,
         '--location',$Config.Location,'--name',$Vm.Name,'--computer-name',$Vm.Name,
-        '--image',$img.ImageName,'--size',$Vm.Size,'--storage-path-id',$storagePathId,
+        '--image',$img.ImageName,'--size','Default','--storage-path-id',$storagePathId,
         '--admin-username',$Config.AdminUsername,'--admin-password',$AdminPassword,
         '--nics',$nicName,'--os-type',$img.OsType,'--enable-agent','true')
     if ($dataDiskIds.Count -gt 0) { $createArgs += @('--attach-data-disks'); $createArgs += $dataDiskIds }
     if ($PSCmdlet.ShouldProcess($Vm.Name, "create vm")) {
         $null = Invoke-Az -MustSucceed -Args $createArgs
         Write-Step "VM '$($Vm.Name)' created." 'OK'
+    }
+
+    # 4) Resize to the requested vCPU/memory (idempotent; safe to re-run).
+    Write-Step "Sizing VM '$($Vm.Name)' to $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB..."
+    if ($PSCmdlet.ShouldProcess($Vm.Name, "set $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB")) {
+        $null = Invoke-Az -MustSucceed -Args @('stack-hci-vm','update','-g',$Config.ResourceGroup,
+            '--name',$Vm.Name,'--v-cpus-available',"$($Vm.VCpus)",'--memory-mb',"$($Vm.MemoryMb)")
+        Write-Step "VM '$($Vm.Name)' sized." 'OK'
     }
     return $Vm.Name
 }

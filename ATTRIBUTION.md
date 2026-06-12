@@ -82,3 +82,27 @@ repository. It deploys `Microsoft.Kubernetes/connectedClusters` +
 Arc-enabled SFF machine. The AKS on bare metal preview documentation is **not** vendored here
 (it is not yet mirrored to a public GitHub repository); see
 <https://learn.microsoft.com/azure/aks/aksarc/aks-bare-metal-overview> for the canonical docs.
+
+## Upstream documentation mirror (Azure Local + Sovereign Cloud)
+
+The [`docs/upstream/`](docs/upstream/) folder is a read-only, **prose-only** mirror of selected
+Microsoft documentation, vendored so this repo's hand-authored skills stay grounded in the
+latest Microsoft docs and work offline. Only markdown/YAML is mirrored — all media/binaries are
+excluded (see [docs/upstream/README.md](docs/upstream/README.md) for the rationale and scope).
+Refreshed weekly by `.github/workflows/sync-upstream-docs.yml`.
+
+- **Azure Local, Azure Local max, AKS on Azure Local** — `docs/upstream/azure-local/` (excluding
+  `small-form-factor/`), `docs/upstream/azure-local-max/`, and `docs/upstream/aksarc/` are mirrored
+  from the `azure-local`, `azure-local-max`, and `AKS-Arc` folders of
+  [`MicrosoftDocs/azure-stack-docs`](https://github.com/MicrosoftDocs/azure-stack-docs), pinned to
+  commit `cb1df90`. Licensed **Creative Commons Attribution 4.0 International (CC BY 4.0)** ©
+  Microsoft. The upstream `LICENSE`, `LICENSE-CODE`, and `ThirdPartyNotices.md` travel with each
+  mirrored folder.
+- **Microsoft Sovereign Cloud (Azure Local + foundations subset)** —
+  `docs/upstream/azure-sovereign-clouds/` is mirrored from the `articles/` folder of
+  [`MicrosoftDocs/azure-sovereign-clouds`](https://github.com/MicrosoftDocs/azure-sovereign-clouds),
+  pinned to commit `f8b5e52`, limited to the sovereignty foundations, Sovereign Public Cloud
+  overviews, and Sovereign Private Cloud content (including Azure Local and Foundry Local);
+  Microsoft 365 Local, GitHub Enterprise Local, Dataverse / Power Platform, Dynamics 365 Business
+  Central, and National Partner Clouds are excluded. Licensed **Creative Commons Attribution 4.0
+  International (CC BY 4.0)** © Microsoft.

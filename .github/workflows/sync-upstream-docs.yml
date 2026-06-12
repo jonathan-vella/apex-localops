@@ -1,0 +1,130 @@
+name: sync-upstream-docs
+
+# Mirrors the PROSE (markdown + YAML, no images/binaries) of the Azure Local and
+# Sovereign Cloud documentation into docs/upstream/ and pushes the result directly
+# to main. Uses a partial (blobless) sparse checkout so we never pull the thousands
+# of unrelated files in these large MicrosoftDocs repos.
+#
+# Why prose-only: a full sparse checkout of the three azure-stack-docs folders is
+# ~231 MB across 2,137 files, 96% of which are screenshots the LLM cannot read.
+# Excluding media at the rsync stage commits ~9 MB of markdown/YAML instead -- the
+# only content useful for grounding. See docs/upstream/README.md and ATTRIBUTION.md.
+#
+# Note: pushing straight to main requires that branch protection on main does NOT
+# mandate a pull request for this actor. If it does, switch to a pull-request flow.
+
+on:
+  schedule:
+    # Every Monday at 06:45 UTC (offset from the skills + SFF syncs).
+    - cron: "45 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-docs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync upstream docs and push to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Mirror upstream prose into docs/upstream
+        id: mirror
+        env:
+          ASD_REPO: https://github.com/MicrosoftDocs/azure-stack-docs
+          SOV_REPO: https://github.com/MicrosoftDocs/azure-sovereign-clouds
+          DEST_DIR: docs/upstream
+        run: |
+          set -euo pipefail
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          # Media/binary excludes -- the LLM only consumes markdown + YAML prose.
+          media=(
+            --exclude='.git' --exclude='media/'
+            --exclude='*.png' --exclude='*.jpg' --exclude='*.jpeg' --exclude='*.gif'
+            --exclude='*.svg' --exclude='*.webp' --exclude='*.bmp' --exclude='*.ico'
+            --exclude='*.mp4' --exclude='*.mov' --exclude='*.zip' --exclude='*.vsdx'
+            --exclude='*.pdf' --exclude='*.xlsx' --exclude='*.pptx'
+          )
+
+          # --- azure-stack-docs: azure-local (minus SFF), azure-local-max, AKS-Arc ---
+          git clone --depth 1 --filter=blob:none --sparse "$ASD_REPO" "$tmp/asd"
+          git -C "$tmp/asd" sparse-checkout set azure-local azure-local-max AKS-Arc
+          asd_sha="$(git -C "$tmp/asd" rev-parse --short HEAD)"
+
+          for pair in "azure-local:azure-local" "azure-local-max:azure-local-max" "AKS-Arc:aksarc"; do
+            srcname="${pair%%:*}"; dstname="${pair##*:}"
+            src="$tmp/asd/$srcname"
+            if [[ ! -d "$src" ]]; then
+              echo "::error::Upstream folder '$srcname' not found in $ASD_REPO. Did the repo layout change?"
+              exit 1
+            fi
+            mkdir -p "$DEST_DIR/$dstname"
+            extra=()
+            # The SFF docs are vendored separately (docs/azure-local-sff/upstream) and
+            # pinned; exclude them here to avoid double-vendoring.
+            [[ "$srcname" == "azure-local" ]] && extra=(--exclude='small-form-factor/')
+            rsync -a --delete "${media[@]}" "${extra[@]}" "$src/" "$DEST_DIR/$dstname/"
+            cp "$tmp/asd/LICENSE" "$tmp/asd/LICENSE-CODE" "$tmp/asd/ThirdPartyNotices.md" "$DEST_DIR/$dstname/"
+          done
+
+          # --- azure-sovereign-clouds: Azure Local + foundations subset only ---
+          git clone --depth 1 --filter=blob:none --sparse "$SOV_REPO" "$tmp/sov"
+          git -C "$tmp/sov" sparse-checkout set articles
+          sov_sha="$(git -C "$tmp/sov" rev-parse --short HEAD)"
+
+          if [[ ! -d "$tmp/sov/articles" ]]; then
+            echo "::error::Upstream folder 'articles' not found in $SOV_REPO. Did the repo layout change?"
+            exit 1
+          fi
+          mkdir -p "$DEST_DIR/azure-sovereign-clouds"
+          # Keep foundations + Sovereign Public Cloud overviews + Sovereign Private
+          # Cloud (incl. Azure Local and Foundry Local). Drop unrelated products.
+          rsync -a --delete "${media[@]}" \
+            --exclude='partner/' \
+            --exclude='private/m365-local/' \
+            --exclude='private/github-local/' \
+            --exclude='*-d365-*' \
+            --exclude='*-dataverse-power-platform*' \
+            --exclude='microsoft-365-*' \
+            "$tmp/sov/articles/" "$DEST_DIR/azure-sovereign-clouds/"
+          cp "$tmp/sov/LICENSE" "$tmp/sov/LICENSE-CODE" "$tmp/sov/ThirdPartyNotices.md" "$DEST_DIR/azure-sovereign-clouds/"
+
+          {
+            echo "asd_sha=$asd_sha"
+            echo "sov_sha=$sov_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push if changed
+        env:
+          ASD_SHA: ${{ steps.mirror.outputs.asd_sha }}
+          SOV_SHA: ${{ steps.mirror.outputs.sov_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A -- docs/upstream
+
+          if git diff --cached --quiet; then
+            echo "No upstream doc changes. Up to date with azure-stack-docs@${ASD_SHA} and azure-sovereign-clouds@${SOV_SHA}."
+            exit 0
+          fi
+
+          echo "Changes detected:"
+          git diff --cached --name-status -- docs/upstream
+
+          git commit -m "chore(docs): sync upstream docs (azure-stack-docs@${ASD_SHA}, azure-sovereign-clouds@${SOV_SHA})"
+          git push origin HEAD:main

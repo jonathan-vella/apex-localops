@@ -1,0 +1,93 @@
+items:
+- name: Foundry Local for Microsoft Sovereign Private Clouds
+  href: index.yml
+  items:
+  - name: Overview
+    expanded: true
+    items:
+    - name: What is Foundry Local on Azure Local?
+      href: overview.md
+    - name: Multi-node deployment support
+      href: concept-multi-node-deployment.md
+    - name: Known issues
+      href: known-issues.md
+    - name: What's new
+      href: whats-new.md
+  - name: Quickstart
+    items:
+    - name: Deploy your first model and run inference
+      href: deploy-run-first-model.md
+  - name: Deploy platform
+    items:
+    - name: Authentication and authorization
+      href: concept-authentication-authorization.md
+    - name: Configure TLS
+      href: how-to-configure-tls-authentication.md
+    - name: Configure Entra ID authentication
+      href: how-to-configure-authentication.md
+    - name: Deploy as Azure Arc extension
+      href: deploy-foundry-local-arc-extension.md
+  - name: Deploy models
+    items:
+    - name: Deploy a catalog model
+      href: how-to-deploy-model.md
+    - name: Deploy a bring-your-own model
+      href: how-to-deploy-custom-model.md
+  - name: Run inference
+    items:
+    - name: Models
+      items:
+      - name: Small language models
+        href: concept-models.md
+      - name: Model catalog and sourcing
+        href: concept-model-catalog.md
+      - name: Bring your own models
+        href: concept-bring-your-own-models.md
+      - name: Inference operator and model lifecycle
+        href: concept-inference-operator.md
+      - name: Model caching and StoreModel lifecycle
+        href: concept-model-caching.md
+    - name: Inference runtimes
+      href: concept-inference-runtimes.md
+    - name: Automatic GPU inference tuning
+      href: concept-gpu-inference-planner.md
+    - name: Run inference
+      href: how-to-run-inference.md
+  - name: Troubleshoot
+    items:
+    - name: Troubleshoot deployment
+      href: troubleshoot.md
+  - name: Disconnected operations
+    items:
+    - name: Overview
+      href: disconnected-operations/concept-overview.md
+    - name: Deploy Platform
+      items: 
+      - name: Prepare deployment
+        href: disconnected-operations/how-to-prepare.md
+      - name: Deploy Foundry Local as an Azure Arc extension
+        href: disconnected-operations/deploy-platform.md
+      - name: Configure authentication and authorization
+        href: disconnected-operations/how-to-authenticate.md 
+    - name: Deploy Models
+      items: 
+      - name: Deploy your first model
+        href: disconnected-operations/how-to-deploy-first-model.md
+      - name: Expand model catalog
+        href: disconnected-operations/how-to-expand-catalog.md
+    - name: Troubleshoot
+      href: disconnected-operations/how-to-troubleshoot.md
+  - name: Reference
+    items:
+    - name: vLLM model reference
+      href: reference-models.md
+    - name: Inference API reference
+      href: reference-inference-api.md
+    - name: Inference API endpoints and payload reference
+      href: reference-inference-api-endpoints-payload.md
+    - name: ModelDeployment and operator configuration reference
+      href: reference-model-deployment-operator.md
+    - name: Glossary
+      href: glossary.md
+  - name: Foundry Local for devices
+    href: /azure/foundry-local
