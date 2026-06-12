@@ -47,6 +47,7 @@ Load these on demand — do NOT read all at once:
 
 | Reference | When to Load |
 | --- | --- |
+| [references/logical-network-and-nsg-cli.md](references/logical-network-and-nsg-cli.md) | **Code samples** — `az stack-hci-vm network` LNET + NSG CLI commands |
 | [docs/upstream/azure-local/concepts/network-atc-overview.md](../../../docs/upstream/azure-local/concepts/network-atc-overview.md) | Network ATC overview |
 | [docs/upstream/azure-local/concepts/software-defined-networking-23h2.md](../../../docs/upstream/azure-local/concepts/software-defined-networking-23h2.md) | SDN overview |
 | [docs/upstream/azure-local/concepts/network-controller-overview.md](../../../docs/upstream/azure-local/concepts/network-controller-overview.md) | Network Controller |

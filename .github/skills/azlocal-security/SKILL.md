@@ -47,6 +47,7 @@ Load these on demand — do NOT read all at once:
 
 | Reference | When to Load |
 | --- | --- |
+| [references/bitlocker-powershell.md](references/bitlocker-powershell.md) | **Code samples** — `Get/Enable/Disable-ASBitLocker` PowerShell cmdlets |
 | [docs/upstream/azure-local/concepts/security-features.md](../../../docs/upstream/azure-local/concepts/security-features.md) | Security features overview |
 | [docs/upstream/azure-local/manage/manage-secure-baseline.md](../../../docs/upstream/azure-local/manage/manage-secure-baseline.md) | Security baseline/defaults |
 | [docs/upstream/azure-local/manage/manage-bitlocker.md](../../../docs/upstream/azure-local/manage/manage-bitlocker.md) | BitLocker encryption |

@@ -47,6 +47,7 @@ Load these on demand — do NOT read all at once:
 
 | Reference | When to Load |
 | --- | --- |
+| [references/update-via-powershell.md](references/update-via-powershell.md) | **Code samples** — `Get-SolutionUpdate` / `Start-SolutionUpdate` PowerShell flow |
 | [docs/upstream/azure-local/update/about-updates-23h2.md](../../../docs/upstream/azure-local/update/about-updates-23h2.md) | About updates |
 | [docs/upstream/azure-local/update/update-phases-23h2.md](../../../docs/upstream/azure-local/update/update-phases-23h2.md) | Update phases |
 | [docs/upstream/azure-local/update/azure-update-manager-23h2.md](../../../docs/upstream/azure-local/update/azure-update-manager-23h2.md) | Updating via Azure Update Manager |

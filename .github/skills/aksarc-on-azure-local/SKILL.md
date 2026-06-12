@@ -49,6 +49,7 @@ Load these on demand — do NOT read all at once:
 
 | Reference | When to Load |
 | --- | --- |
+| [references/cli-quickstart.md](references/cli-quickstart.md) | **Code samples** — `az aksarc` create / connect / nodepool / delete CLI flow |
 | [docs/upstream/aksarc/aks-overview.md](../../../docs/upstream/aksarc/aks-overview.md) | Overview |
 | [docs/upstream/aksarc/cluster-architecture.md](../../../docs/upstream/aksarc/cluster-architecture.md) | Cluster architecture |
 | [docs/upstream/aksarc/aks-arc-local-requirements.md](../../../docs/upstream/aksarc/aks-arc-local-requirements.md) | Requirements |

@@ -1,15 +1,17 @@
 <#
 .SYNOPSIS
-    Deploy-AzLocalWorkloads.ps1 - in-VM orchestrator for post-cluster workloads
+    Deploy-AzLocalWorkloads.ps1 - orchestrator for post-cluster workloads
     (Windows Server 2025 VM, SQL 2022 VM, AVD session host) on the Azure Local cluster.
 
 .DESCRIPTION
-    Runs ON LocalBox-Client (the Azure Local management host), authenticated via
-    `az login --identity`. Imports AzLocalWorkloads.psm1 and drives the requested
-    stage(s). Every stage is idempotent and additive - safe to re-run, never modifies
-    cluster or InfraLNET config.
+    Runs FROM THE DEV CONTAINER (or any client) with the operator's `az` login - every
+    action is a cloud/ARM call, so nothing needs to run on LocalBox-Client. Imports
+    AzLocalWorkloads.psm1 and drives the requested stage(s): VM/disk/NIC/image/lnet via
+    the stack-hci-vm extension (custom location + Arc), and in-guest steps via the
+    Microsoft.HybridCompute machines/runCommands API. Every stage is idempotent and
+    additive - safe to re-run, never modifies cluster or InfraLNET config.
 
-    This script is HUMAN-INVOKED (directly, or delivered by scripts/deploy-workloads.sh).
+    This script is HUMAN-INVOKED (directly, or via scripts/deploy-workloads.sh).
     It never self-launches and never runs as a background/autopilot job.
 
 .PARAMETER Stage
@@ -37,7 +39,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('images','network','wait','ws2025','sql','avd-host','all')]
+    [ValidateSet('images', 'network', 'wait', 'ws2025', 'sql', 'avd-host', 'all')]
     [string]$Stage,
 
     [string]$RegistrationToken,
@@ -68,7 +70,7 @@ function Initialize-Context {
     if ([string]::IsNullOrWhiteSpace($who)) { throw "Not logged in. Run 'az login' (operator) before this script." }
     & az account set --subscription $Config.SubscriptionId 2>&1 | Out-Null
     & az config set extension.use_dynamic_install=yes_without_prompt 2>&1 | Out-Null
-    foreach ($ext in @('customlocation','stack-hci-vm')) {
+    foreach ($ext in @('customlocation', 'stack-hci-vm')) {
         & az extension add --name $ext 2>&1 | Out-Null
     }
     Write-Host "  Authenticated as: $who  Subscription: $($Config.SubscriptionId)" -ForegroundColor DarkGray
@@ -113,16 +115,16 @@ function Invoke-StageVm([string]$VmKey, $cl, [string]$pw, [int]$spIndex) {
 # functions below and the module's -WhatIf:$WhatIfPreference passthroughs.
 $cl = Initialize-Context
 $pw = $null
-if ($Stage -in @('ws2025','sql','avd-host','all') -and -not $WhatIfPreference) {
+if ($Stage -in @('ws2025', 'sql', 'avd-host', 'all') -and -not $WhatIfPreference) {
     $pw = Resolve-AdminPassword    # from LOCALBOX_ADMIN_PASSWORD env var; never logged
 }
 
 switch ($Stage) {
-    'images'  { Invoke-StageImages $cl }
+    'images' { Invoke-StageImages $cl }
     'network' { Invoke-StageNetwork $cl }
-    'wait'    { Invoke-StageWait }
-    'ws2025'  { Invoke-StageVm 'WindowsServer2025' $cl $pw 0 | Out-Null }
-    'sql'     {
+    'wait' { Invoke-StageWait }
+    'ws2025' { Invoke-StageVm 'WindowsServer2025' $cl $pw 0 | Out-Null }
+    'sql' {
         $name = Invoke-StageVm 'Sql2022' $cl $pw 1
         if (-not $WhatIfPreference) {
             Write-Host "  (run 'sql-postconfig' after the VM finishes domain-join reboot)" -ForegroundColor DarkGray

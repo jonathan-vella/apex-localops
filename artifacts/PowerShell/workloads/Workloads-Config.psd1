@@ -74,10 +74,11 @@
   AdminUsername      = 'arcdemo'
 
   # --- Workload VM definitions ------------------------------------------------
-  # Azure Local sizes VMs by EXPLICIT vCPU + memory, NOT Azure SKU names. `az stack-hci-vm
-  # create` only has a free-form --size (an Azure SKU name there yields 0 CPU / 0 MB, an
-  # unbootable VM). The supported knobs are `az stack-hci-vm update --v-cpus-available N
-  # --memory-mb MB` (vmSize then shows as "Custom"). New-WorkloadVm creates then resizes.
+  # Azure Local sizes VMs by EXPLICIT vCPU + memory, NOT Azure SKU names. New-WorkloadVm
+  # passes these at create time via `az stack-hci-vm create --hardware-profile
+  # memory-mb=<MemoryMb> processors=<VCpus>` (static memory). Do NOT use --size: an Azure
+  # SKU (e.g. Standard_D2s_v3) or the 'Default' keyword both yield an unbootable 0-CPU/0-MB
+  # VM whose guest agent never installs (a post-create resize can't revive it).
   # Sizes stay modest (nested nodes are ~96 GB RAM each). memory-mb must be a multiple of 4.
   Vms                = @{
     WindowsServer2025 = @{

@@ -280,29 +280,26 @@ function New-WorkloadVm {
         $dataDiskIds += "/subscriptions/$subId/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.AzureStackHCI/virtualHardDisks/$($d.Name)"
     }
 
-    # 3) Create the VM (guest agent on; attach data disks if any).
-    #    --size 'Default' is a VALID Azure Local size keyword that boots correctly so the
-    #    in-guest VM config agent installs. (Passing an *Azure* SKU name like Standard_D2s_v3
-    #    is NOT recognized by Azure Local and yields an unbootable 0-CPU/0-MB VM whose guest
-    #    agent never installs.) Exact vCPU/memory are then applied by the follow-up `update`.
-    Write-Step "Creating VM '$($Vm.Name)' (size=Default then resize to $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB, image=$($img.ImageName))..."
+    # 3) Create the VM, sized correctly AT CREATE TIME (guest agent on; attach data disks if any).
+    #    Azure Local sizes VMs via `--hardware-profile memory-mb=<MB> processors=<N>` (static
+    #    memory) on `create` - this is the only mechanism that boots the VM correctly so the
+    #    in-guest VM config agent installs. (NOTE: `--hardware-profile` is accepted by `create`
+    #    but is NOT shown in `az stack-hci-vm create --help` for ext 1.14.5 - verified empirically;
+    #    see docs/upstream/azure-local/manage/create-arc-virtual-machines.md.) Do NOT use `--size`:
+    #    an Azure SKU name (e.g. Standard_D2s_v3) OR the `Default` keyword both yield an unbootable
+    #    0-CPU/0-MB VM whose guest agent never installs. Post-create `update` resize cannot revive
+    #    a VM born at 0/0, so sizing MUST happen here at create.
+    Write-Step "Creating VM '$($Vm.Name)' ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB, image=$($img.ImageName))..."
     $createArgs = @('stack-hci-vm','create','-g',$Config.ResourceGroup,'--custom-location',$CustomLocationId,
         '--location',$Config.Location,'--name',$Vm.Name,'--computer-name',$Vm.Name,
-        '--image',$img.ImageName,'--size','Default','--storage-path-id',$storagePathId,
+        '--image',$img.ImageName,'--storage-path-id',$storagePathId,
+        '--hardware-profile',"memory-mb=$($Vm.MemoryMb)","processors=$($Vm.VCpus)",
         '--admin-username',$Config.AdminUsername,'--admin-password',$AdminPassword,
         '--nics',$nicName,'--os-type',$img.OsType,'--enable-agent','true')
     if ($dataDiskIds.Count -gt 0) { $createArgs += @('--attach-data-disks'); $createArgs += $dataDiskIds }
-    if ($PSCmdlet.ShouldProcess($Vm.Name, "create vm")) {
+    if ($PSCmdlet.ShouldProcess($Vm.Name, "create vm ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB)")) {
         $null = Invoke-Az -MustSucceed -Args $createArgs
         Write-Step "VM '$($Vm.Name)' created." 'OK'
-    }
-
-    # 4) Resize to the requested vCPU/memory (idempotent; safe to re-run).
-    Write-Step "Sizing VM '$($Vm.Name)' to $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB..."
-    if ($PSCmdlet.ShouldProcess($Vm.Name, "set $($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB")) {
-        $null = Invoke-Az -MustSucceed -Args @('stack-hci-vm','update','-g',$Config.ResourceGroup,
-            '--name',$Vm.Name,'--v-cpus-available',"$($Vm.VCpus)",'--memory-mb',"$($Vm.MemoryMb)")
-        Write-Step "VM '$($Vm.Name)' sized." 'OK'
     }
     return $Vm.Name
 }
