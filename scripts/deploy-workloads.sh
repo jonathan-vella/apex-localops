@@ -85,6 +85,9 @@ run_stage_local() {
   local whatif_flag=""
   $WHATIF && whatif_flag="-WhatIf"
   echo "==> pwsh Deploy-AzLocalWorkloads.ps1 -Stage ${stage} ${whatif_flag} ${extra}"
+  # Intentional word-splitting: $whatif_flag is one optional flag and $extra carries
+  # additional orchestrator args (e.g. -RegistrationToken <tok>); both must split into argv.
+  # shellcheck disable=SC2086
   pwsh -NoProfile -File "$ORCHESTRATOR" -Stage "$stage" $whatif_flag $extra
 }
 

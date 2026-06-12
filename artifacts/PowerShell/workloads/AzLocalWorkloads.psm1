@@ -221,135 +221,108 @@ function Ensure-WorkloadLogicalNetwork {
 # Phase 4/5/6 - Workload VMs (idempotent)
 # -----------------------------------------------------------------------------
 
+function Get-WorkloadVmInstance {
+    <# Return the Azure Local VM instance (virtualMachineInstances/default) object, or $null if
+       the VM does not exist yet. Uses the ARM REST path because `stack-hci-vm show --query`
+       returns empty for these resources. #>
+    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][string]$VmName)
+    $url = "https://management.azure.com/subscriptions/$($Config.SubscriptionId)/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.HybridCompute/machines/$VmName/providers/Microsoft.AzureStackHCI/virtualMachineInstances/default?api-version=2024-01-01"
+    return (Invoke-Az -Args @('rest', '--method', 'get', '--url', $url))
+}
+
+function Get-VmDomainJoinState {
+    <# Return the provisioningState of the JsonADDomainExtension on the VM ('Succeeded',
+       'Failed', 'Creating', ...), or 'NotFound' if the extension isn't present. This is the
+       reliable ARM-side signal for domain join (no in-guest run-command needed). #>
+    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][string]$VmName)
+    $url = "https://management.azure.com/subscriptions/$($Config.SubscriptionId)/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.HybridCompute/machines/$VmName/extensions/domainJoinExtension?api-version=2025-01-13"
+    $r = Invoke-Az -Args @('rest', '--method', 'get', '--url', $url)
+    if ($r -and $r.properties) { return $r.properties.provisioningState }
+    return 'NotFound'
+}
+
 function New-WorkloadVm {
-    <# Create NIC (on the lnet) + data disks + the VM, idempotently. Returns the VM name.
-       VM is created with guest agent enabled (--enable-agent) so run-command + Arc/IMDS work. #>
+    <# Deploy ONE Azure Local VM by deploying the canonical vm.bicep template: an Arc machine
+       (with a system-assigned identity, for zero-touch guest-agent onboarding) + a NIC on the
+       logical network + data disks + a correctly-sized VM instance, and - when $Vm.DomainJoin
+       is set - an AD domain join via the JsonADDomainExtension (no in-guest run-command).
+       Declarative and idempotent (ARM no-ops unchanged resources). Returns the VM name.
+
+       Sizing is applied AT CREATE via hardwareProfile.vmSize='Custom' + processors + memoryMB,
+       the only reliable mechanism: the CLI `--hardware-profile` path (without vm-size='Custom')
+       silently produces an unbootable 0-CPU/0-MB VM. See infra/.../workloads/vm.bicep. #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]$Config,
         [Parameter(Mandatory)]$Vm,                 # one entry from $Config.Vms
-        [string]$CustomLocationId,
         [string]$AdminPassword,                    # resolved by caller (not stored)
-        [int]$StoragePathIndex = 0
+        [int]$StoragePathIndex = 0,
+        [switch]$SkipDomainJoin,
+        [string]$TemplateFile
     )
-    if (-not $CustomLocationId) { $CustomLocationId = Resolve-CustomLocationId -Config $Config }
+    if (-not $TemplateFile) {
+        $TemplateFile = Join-Path $PSScriptRoot '../../../infra/bicep/azlocal-js/workloads/vm.bicep'
+    }
+    if (-not (Test-Path $TemplateFile)) { throw "VM template not found: $TemplateFile" }
+    $TemplateFile = (Resolve-Path $TemplateFile).Path
+
     $img = $Config.Images[$Vm.ImageKey]
     if (-not $img) { throw "VM '$($Vm.Name)': ImageKey '$($Vm.ImageKey)' not found in Config.Images." }
     $storagePathId = $Config.StoragePathIds[$StoragePathIndex % $Config.StoragePathIds.Count]
-    $lnetName = $Config.LogicalNetwork.Name
-    $subId = $Config.SubscriptionId
-    $lnetId = "/subscriptions/$subId/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.AzureStackHCI/logicalNetworks/$lnetName"
+    $doJoin = [bool]$Vm.DomainJoin -and -not $SkipDomainJoin
 
-    # Idempotency: VM already exists?
-    $existingVm = Invoke-Az -Args @('stack-hci-vm','list','-g',$Config.ResourceGroup,
-        '--query',"[?name=='$($Vm.Name)'].{n:name,p:provisioningState}",'-o','json')
-    if ($existingVm -and $existingVm.Count -gt 0) {
-        Write-Step "VM '$($Vm.Name)' already exists (state=$($existingVm[0].p)) - skipping create." 'SKIP'
-        return $Vm.Name
+    # Idempotency: skip if the VM already exists (and, when joining, the join already succeeded).
+    $existing = Get-WorkloadVmInstance -Config $Config -VmName $Vm.Name
+    if ($existing) {
+        if (-not $doJoin) {
+            Write-Step "VM '$($Vm.Name)' already exists (state=$($existing.properties.provisioningState)) - skipping." 'SKIP'
+            return $Vm.Name
+        }
+        if ((Get-VmDomainJoinState -Config $Config -VmName $Vm.Name) -eq 'Succeeded') {
+            Write-Step "VM '$($Vm.Name)' already exists and is domain-joined - skipping." 'SKIP'
+            return $Vm.Name
+        }
+        Write-Step "VM '$($Vm.Name)' exists but not yet domain-joined - redeploying to add the join." 'INFO'
     }
 
-    # Password is only needed to actually create the VM; skip resolving it on a -WhatIf dry run.
+    # Password is only needed to actually deploy; skip resolving it on a -WhatIf dry run.
     if (-not $AdminPassword -and -not $WhatIfPreference) { $AdminPassword = Resolve-AdminPassword }
 
-    # 1) NIC on the logical network (auto-allocate IP from the pool).
-    $nicName = "$($Vm.Name)-nic"
-    $nicExists = Invoke-Az -Args @('stack-hci-vm','network','nic','list','-g',$Config.ResourceGroup,
-        '--query',"[?name=='$nicName'].name",'-o','tsv') -Raw
-    if ([string]::IsNullOrWhiteSpace(($nicExists | Out-String).Trim())) {
-        Write-Step "Creating NIC '$nicName' on lnet '$lnetName'..."
-        if ($PSCmdlet.ShouldProcess($nicName, "create nic")) {
-            $null = Invoke-Az -MustSucceed -Args @('stack-hci-vm','network','nic','create',
-                '-g',$Config.ResourceGroup,'--custom-location',$CustomLocationId,'--location',$Config.Location,
-                '--name',$nicName,'--subnet-id',$lnetId)
-        }
-    } else { Write-Step "NIC '$nicName' already exists - reusing." 'SKIP' }
+    # Data-disk parameter as a JSON array matching vm.bicep's dataDiskType ({name,diskSizeGB,dynamic}).
+    $disks = foreach ($d in $Vm.DataDisks) { [ordered]@{ name = $d.Name; diskSizeGB = $d.SizeGb; dynamic = $true } }
+    $disksJson = ConvertTo-Json -InputObject @($disks) -AsArray -Compress -Depth 5
 
-    # 2) Data disks (created up front; attached at VM create).
-    $dataDiskIds = @()
-    foreach ($d in $Vm.DataDisks) {
-        $diskExists = Invoke-Az -Args @('stack-hci-vm','disk','list','-g',$Config.ResourceGroup,
-            '--query',"[?name=='$($d.Name)'].name",'-o','tsv') -Raw
-        if ([string]::IsNullOrWhiteSpace(($diskExists | Out-String).Trim())) {
-            Write-Step "Creating data disk '$($d.Name)' ($($d.SizeGb) GB, $($d.Purpose))..."
-            if ($PSCmdlet.ShouldProcess($d.Name, "create disk")) {
-                $null = Invoke-Az -MustSucceed -Args @('stack-hci-vm','disk','create',
-                    '-g',$Config.ResourceGroup,'--custom-location',$CustomLocationId,'--location',$Config.Location,
-                    '--name',$d.Name,'--size-gb',"$($d.SizeGb)",'--storage-path-id',$storagePathId,'--dynamic','true')
-            }
-        } else { Write-Step "Data disk '$($d.Name)' already exists - reusing." 'SKIP' }
-        $dataDiskIds += "/subscriptions/$subId/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.AzureStackHCI/virtualHardDisks/$($d.Name)"
+    $deployParams = @(
+        "name=$($Vm.Name)", "location=$($Config.Location)",
+        "vCPUCount=$($Vm.VCpus)", "memoryMB=$($Vm.MemoryMb)",
+        "adminUsername=$($Config.AdminUsername)", "adminPassword=$AdminPassword",
+        "imageName=$($img.ImageName)", "isMarketplaceImage=true",
+        "hciLogicalNetworkName=$($Config.LogicalNetwork.Name)",
+        "customLocationName=$($Config.CustomLocationName)",
+        "storagePathId=$storagePathId", "dataDiskParams=$disksJson"
+    )
+    $joinSuffix = ''
+    if ($doJoin) {
+        $joinUser = if ($Config.Domain.JoinUsername) { $Config.Domain.JoinUsername } else { 'Administrator' }
+        $deployParams += @("domainToJoin=$($Config.Domain.Fqdn)", "domainJoinUserName=$joinUser", "domainJoinPassword=$AdminPassword")
+        if ($Config.Domain.OuPath) { $deployParams += "domainTargetOu=$($Config.Domain.OuPath)" }
+        $joinSuffix = " + domain join $($Config.Domain.Fqdn)"
     }
 
-    # 3) Create the VM, sized correctly AT CREATE TIME (guest agent on; attach data disks if any).
-    #    Azure Local sizes VMs via `--hardware-profile memory-mb=<MB> processors=<N>` (static
-    #    memory) on `create` - this is the only mechanism that boots the VM correctly so the
-    #    in-guest VM config agent installs. (NOTE: `--hardware-profile` is accepted by `create`
-    #    but is NOT shown in `az stack-hci-vm create --help` for ext 1.14.5 - verified empirically;
-    #    see docs/upstream/azure-local/manage/create-arc-virtual-machines.md.) Do NOT use `--size`:
-    #    an Azure SKU name (e.g. Standard_D2s_v3) OR the `Default` keyword both yield an unbootable
-    #    0-CPU/0-MB VM whose guest agent never installs. Post-create `update` resize cannot revive
-    #    a VM born at 0/0, so sizing MUST happen here at create.
-    Write-Step "Creating VM '$($Vm.Name)' ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB, image=$($img.ImageName))..."
-    $createArgs = @('stack-hci-vm','create','-g',$Config.ResourceGroup,'--custom-location',$CustomLocationId,
-        '--location',$Config.Location,'--name',$Vm.Name,'--computer-name',$Vm.Name,
-        '--image',$img.ImageName,'--storage-path-id',$storagePathId,
-        '--hardware-profile',"memory-mb=$($Vm.MemoryMb)","processors=$($Vm.VCpus)",
-        '--admin-username',$Config.AdminUsername,'--admin-password',$AdminPassword,
-        '--nics',$nicName,'--os-type',$img.OsType,'--enable-agent','true')
-    if ($dataDiskIds.Count -gt 0) { $createArgs += @('--attach-data-disks'); $createArgs += $dataDiskIds }
-    if ($PSCmdlet.ShouldProcess($Vm.Name, "create vm ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB)")) {
-        $null = Invoke-Az -MustSucceed -Args $createArgs
-        Write-Step "VM '$($Vm.Name)' created." 'OK'
+    $depName = "vm-$($Vm.Name)-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+    $action = "deploy vm.bicep ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB$joinSuffix)"
+    Write-Step "Deploying VM '$($Vm.Name)': $action ..."
+    if ($PSCmdlet.ShouldProcess($Vm.Name, $action)) {
+        $null = Invoke-Az -MustSucceed -Args (@('deployment', 'group', 'create', '-g', $Config.ResourceGroup,
+                '--name', $depName, '--template-file', $TemplateFile, '-o', 'none', '--parameters') + $deployParams)
+        Write-Step "VM '$($Vm.Name)' deployment completed." 'OK'
+        if ($doJoin) {
+            $state = Get-VmDomainJoinState -Config $Config -VmName $Vm.Name
+            if ($state -eq 'Succeeded') { Write-Step "VM '$($Vm.Name)' domain-join extension = Succeeded." 'OK' }
+            else { Write-Step "VM '$($Vm.Name)' domain-join extension state = $state - verify before dependent steps." 'WARN' }
+        }
     }
     return $Vm.Name
-}
-
-function Test-WorkloadVmDomain {
-    <# Returns the joined domain (or workgroup) reported by the guest, via Arc runCommand. #>
-    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][string]$VmName)
-    return (Invoke-ArcRunCommand -Config $Config -VmName $VmName -Script '(Get-CimInstance Win32_ComputerSystem).Domain' -TimeoutSeconds 120).Trim()
-}
-
-function Join-VmToDomain {
-    <# Domain-join the guest via run-command. Pre-checks DNS resolution of the domain first.
-       Idempotent: returns early if the guest already reports the target domain. #>
-    [CmdletBinding(SupportsShouldProcess)]
-    param(
-        [Parameter(Mandatory)]$Config,
-        [Parameter(Mandatory)][string]$VmName,
-        [string]$AdminPassword
-    )
-    $fqdn = $Config.Domain.Fqdn
-    $netbios = $Config.Domain.NetbiosPrefix
-    $current = Test-WorkloadVmDomain -Config $Config -VmName $VmName
-    if ($current -like "*$fqdn*") {
-        Write-Step "VM '$VmName' already joined to '$fqdn' - skipping." 'SKIP'
-        return $true
-    }
-    if (-not $AdminPassword) { $AdminPassword = Resolve-AdminPassword }
-
-    # Build the in-guest join script. DNS pre-check guards against the vlan200->DC path being down.
-    $ouArg = if ($Config.Domain.OuPath) { "-OUPath '$($Config.Domain.OuPath)'" } else { '' }
-    $joinScript = @"
-`$ErrorActionPreference='Stop'
-`$dns = '$($Config.LogicalNetwork.DnsServers[0])'
-if (-not (Resolve-DnsName -Name '$fqdn' -Server `$dns -ErrorAction SilentlyContinue)) {
-    Write-Output "DNS_FAIL: cannot resolve $fqdn via `$dns"; exit 1
-}
-`$sec = ConvertTo-SecureString '$AdminPassword' -AsPlainText -Force
-`$cred = New-Object System.Management.Automation.PSCredential('$netbios\Administrator', `$sec)
-Add-Computer -DomainName '$fqdn' -Credential `$cred $ouArg -Force -ErrorAction Stop
-Write-Output 'JOIN_OK'
-Restart-Computer -Force
-"@
-    Write-Step "Domain-joining VM '$VmName' to '$fqdn'..."
-    if ($PSCmdlet.ShouldProcess($VmName, "domain join $fqdn")) {
-        $text = (Invoke-ArcRunCommand -Config $Config -VmName $VmName -Script $joinScript -TimeoutSeconds 300).Trim()
-        if ($text -match 'DNS_FAIL') { throw "Domain join '$VmName': $text (check the vlan200->DC routing/DNS)." }
-        if ($text -notmatch 'JOIN_OK') { Write-Step "Join output for '$VmName': $text" 'WARN' }
-        else { Write-Step "VM '$VmName' domain-join submitted (rebooting)." 'OK' }
-    }
-    return $true
 }
 
 function Set-SqlStoragePaths {
@@ -431,5 +404,5 @@ Write-Output 'AVD_AGENT_INSTALLED'
 
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
-    New-WorkloadVm, Join-VmToDomain, Test-WorkloadVmDomain, Set-SqlStoragePaths, `
+    New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Set-SqlStoragePaths, `
     Add-AvdSessionHost, Resolve-CustomLocationId, Resolve-AdminPassword, Invoke-ArcRunCommand

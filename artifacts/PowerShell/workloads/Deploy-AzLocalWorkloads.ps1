@@ -99,13 +99,12 @@ function Invoke-StageWait {
     }
 }
 
-function Invoke-StageVm([string]$VmKey, $cl, [string]$pw, [int]$spIndex) {
+function Invoke-StageVm([string]$VmKey, [string]$pw, [int]$spIndex) {
     $vm = $Config.Vms[$VmKey]
     Write-Banner "Stage: VM '$($vm.Name)' ($VmKey)"
-    New-WorkloadVm -Config $Config -Vm $vm -CustomLocationId $cl -AdminPassword $pw -StoragePathIndex $spIndex -WhatIf:$WhatIfPreference | Out-Null
-    if ($vm.DomainJoin -and -not $WhatIfPreference) {
-        Join-VmToDomain -Config $Config -VmName $vm.Name -AdminPassword $pw | Out-Null
-    }
+    # New-WorkloadVm deploys vm.bicep (Arc machine + NIC + disks + sized VM instance) and, when
+    # $vm.DomainJoin is set, the AD domain join via the JsonADDomainExtension - all declarative.
+    New-WorkloadVm -Config $Config -Vm $vm -AdminPassword $pw -StoragePathIndex $spIndex -WhatIf:$WhatIfPreference | Out-Null
     return $vm.Name
 }
 
@@ -123,16 +122,16 @@ switch ($Stage) {
     'images' { Invoke-StageImages $cl }
     'network' { Invoke-StageNetwork $cl }
     'wait' { Invoke-StageWait }
-    'ws2025' { Invoke-StageVm 'WindowsServer2025' $cl $pw 0 | Out-Null }
+    'ws2025' { Invoke-StageVm 'WindowsServer2025' $pw 0 | Out-Null }
     'sql' {
-        $name = Invoke-StageVm 'Sql2022' $cl $pw 1
+        $name = Invoke-StageVm 'Sql2022' $pw 1
         if (-not $WhatIfPreference) {
             Write-Host "  (run 'sql-postconfig' after the VM finishes domain-join reboot)" -ForegroundColor DarkGray
         }
     }
     'avd-host' {
         if (-not $RegistrationToken) { throw "Stage 'avd-host' requires -RegistrationToken (from the AVD host pool)." }
-        $name = Invoke-StageVm 'AvdHost' $cl $pw 2
+        $name = Invoke-StageVm 'AvdHost' $pw 2
         if (-not $WhatIfPreference) {
             Add-AvdSessionHost -Config $Config -VmName $name -RegistrationToken $RegistrationToken | Out-Null
         }
@@ -141,8 +140,8 @@ switch ($Stage) {
         Invoke-StageImages $cl
         Invoke-StageNetwork $cl
         Invoke-StageWait
-        Invoke-StageVm 'WindowsServer2025' $cl $pw 0 | Out-Null
-        Invoke-StageVm 'Sql2022' $cl $pw 1 | Out-Null
+        Invoke-StageVm 'WindowsServer2025' $pw 0 | Out-Null
+        Invoke-StageVm 'Sql2022' $pw 1 | Out-Null
         Write-Host "  AVD session host is intentionally NOT part of 'all' - run -Stage avd-host with a token after the control plane exists." -ForegroundColor Yellow
     }
 }

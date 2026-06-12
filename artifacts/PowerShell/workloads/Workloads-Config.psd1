@@ -61,9 +61,12 @@
   }
 
   # --- Domain join (nested AD; creds resolved at runtime, never stored) --------
+  # vm.bicep performs the join declaratively via the JsonADDomainExtension; the join user is
+  # '<Fqdn>\<JoinUsername>' and the password is the runtime admin password (env var).
   Domain             = @{
     Fqdn          = 'jumpstart.local'
-    NetbiosPrefix = 'jumpstart'            # join user = jumpstart\Administrator
+    NetbiosPrefix = 'jumpstart'            # informational; bicep joins as <Fqdn>\<JoinUsername>
+    JoinUsername  = 'Administrator'        # domain account with rights to join computers
     # OU left null => default Computers container
     OuPath        = $null
   }
