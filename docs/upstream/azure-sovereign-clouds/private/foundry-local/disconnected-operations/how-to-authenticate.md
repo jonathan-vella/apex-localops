@@ -19,6 +19,8 @@ To secure inference endpoints by using role-based access control (RBAC), configu
 
 In disconnected environments, authentication integrates with the Active Directory infrastructure configured in Azure Local rather than with the public Microsoft Entra ID endpoint.
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Configure RBAC authentication
 
 The following script creates an application registration and service principal, and grants the Arc-connected cluster managed identity read access to the cluster resource.

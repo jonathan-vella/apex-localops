@@ -59,7 +59,7 @@ The following diagram shows how these components work together. An Arc-enabled K
 
 For Azure platform context, see [Azure Arc-enabled Kubernetes](/azure/azure-arc/kubernetes/overview) and [What is Azure Local?](/azure/azure-local/overview).
 
-For information about the differences with disconnected operations, see [Foundry Local on Azure Local in disconnected environments overview](disconnected-operations/concept-overview.md).
+For architecture differences in disconnected deployments, see [Disconnected environment architecture](disconnected-operations/concept-overview.md#architecture-summary).
 
 ## How it works
 

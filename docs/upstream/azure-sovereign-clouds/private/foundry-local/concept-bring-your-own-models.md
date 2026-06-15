@@ -19,6 +19,8 @@ A bring your own (BYO) model is any model that's not in the catalog. Instead of 
 
 BYO models give you the flexibility to run custom, fine-tuned, or third-party models that aren't available in the catalog.
 
+[!INCLUDE [foundry-local-preview](includes/foundry-local-preview.md)]
+
 ## BYO models vs. catalog models
 
 The following table shows how catalog models and BYO models differ in source, authentication, deployment behavior, and workload support.

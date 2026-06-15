@@ -221,3 +221,4 @@ kubectl describe model <name>
 
 - [Package and deploy a bring-your-own model on Foundry Local](how-to-deploy-custom-model.md)
 - [Run inference on Foundry Local on Azure Local](how-to-run-inference.md)
+- [Update the Foundry Local Azure Arc extension in connected environments](how-to-update-arc-extension.md)

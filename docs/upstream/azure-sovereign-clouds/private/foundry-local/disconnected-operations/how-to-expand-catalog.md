@@ -19,6 +19,8 @@ To make more models available in a disconnected environment, transfer and instal
 
 This article covers model expansion packs. For the Foundry Local extension expansion pack, see [Prepare to deploy Foundry Local on Azure Local in disconnected environments](how-to-prepare.md).
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Prerequisites
 
 Before you begin, make sure you complete the following prerequisites:

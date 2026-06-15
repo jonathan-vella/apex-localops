@@ -69,5 +69,6 @@ These flags are required for cross-namespace secret distribution to work correct
 
 - [Troubleshoot Foundry Local on Azure Local](troubleshoot.md)
 - [Deploy Foundry Local as an Azure Arc extension](deploy-foundry-local-arc-extension.md)
+- [Update the Foundry Local Azure Arc extension in connected environments](how-to-update-arc-extension.md)
 - [Configure TLS and authentication for Foundry Local on Azure Local](how-to-configure-tls-authentication.md)
 - [What is Foundry Local on Azure Local?](overview.md)

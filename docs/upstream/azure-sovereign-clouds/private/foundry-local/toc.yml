@@ -27,6 +27,8 @@ items:
       href: how-to-configure-authentication.md
     - name: Deploy as Azure Arc extension
       href: deploy-foundry-local-arc-extension.md
+    - name: Update extension
+      href: how-to-update-arc-extension.md
   - name: Deploy models
     items:
     - name: Deploy a catalog model

@@ -17,6 +17,8 @@ customer intent: As a platform engineer, I want to fulfill the prerequisites and
 
 This article outlines the prerequisites and steps to download and import the Foundry Local extension expansion pack in preparation for deployment in a disconnected environment.
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Prerequisites
 
 Before you begin, ensure the following components are available:

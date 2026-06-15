@@ -8,7 +8,7 @@ appliesto:
 ms.topic: article
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/03/2026
+ms.date: 06/11/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to understand which inference runtime is used for my model and when to choose each runtime so that I can deploy workloads with the right performance profile.
 ---
@@ -95,11 +95,9 @@ Use the following comparison to quickly identify which runtime best matches your
 | Custom (BYO) models | Yes                                           | Yes                                                |
 | API compatibility   | OpenAI chat completions                       | OpenAI chat completions                            |
 
-## Example model availability by runtime
+## Model availability by runtime
 
-For example models available in the catalog by runtime, see [Runtime diversity in the curated catalog](concept-model-catalog.md#runtime-diversity-in-the-curated-catalog).
-
-For the complete and most current model list, see [Foundry Local model catalog](https://aka.ms/FL_Models).
+For the complete and most current model list, including runtime availability, see [Foundry Local model catalog](https://aka.ms/FL_Models). Many model families appear as separate ONNX and vLLM catalog entries, while some models are available only for one runtime depending on framework packaging and hardware profile.
 
 ## Predictive workloads
 

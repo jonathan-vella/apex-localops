@@ -17,6 +17,8 @@ customer intent: As a platform engineer, I want to find and fix issues with my F
 
 This article provides troubleshooting steps for common issues that might arise when deploying and running Foundry Local on Azure Local in a disconnected environment. Use the following guidance to identify and resolve problems related to expansion pack installation, extension installation, model syncing, authentication and authorization, GPU deployments, and API requests.
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Expansion pack installation times out or stays in noninstalled state
 
 If expansion pack installation doesn't complete, remove the failed pack and reinstall it.
@@ -110,6 +112,8 @@ In disconnected Autonomous environments, ensure `nvidia/k8s-device-plugin:v0.11.
 
 ## Related content
 
+* [Prepare to deploy Foundry Local on Azure Local in disconnected environments](how-to-prepare.md)
+* [Deploy Foundry Local on Azure Local in a disconnected environment](deploy-platform.md)
 * [Troubleshoot Foundry Local on Azure Local](../troubleshoot.md)
 * [Configure authentication and authorization for Foundry Local on Azure Local in disconnected environments](how-to-authenticate.md)
 * [Troubleshoot Azure Kubernetes Service (AKS) issues](/troubleshoot/azure/azure-kubernetes/welcome-azure-kubernetes)

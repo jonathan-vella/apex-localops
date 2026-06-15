@@ -17,6 +17,8 @@ customer intent: As a platform engineer, I want to deploy Foundry Local as an Az
 
 This article shows you how to set up Foundry Local as an extension on your Azure Kubernetes Service (AKS) cluster enabled by Azure Arc in a disconnected environment. Use the Azure CLI to deploy Foundry Local as an extension on your Azure Arc-enabled Kubernetes cluster. Use Helm to install the required Kubernetes prerequisites.
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Prerequisites
 
 Before you begin, complete the steps in [Prepare to deploy Foundry Local on Azure Local in disconnected environments](how-to-prepare.md) to fulfill prerequisites and download and import the Foundry Local expansion pack.

@@ -5,6 +5,8 @@ author: cwatson-cat
 ms.author: cwatson
 ms.topic: concept-article
 ms.date: 05/30/2026
+ms.collection: ce-skilling-ai-copilot
+ms.update-cycle: 180-days
 ai-usage: ai-assisted
 #CustomerIntent: As an IT admin or AI developer, I want to understand how Azure Local enables AI workloads on my own infrastructure so that I can process data locally while meeting latency, sovereignty, and compliance requirements.
 ---

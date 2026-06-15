@@ -8,7 +8,7 @@ appliesto:
 ms.topic: article
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/03/2026
+ms.date: 06/11/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to understand how models are sourced and referenced in Foundry Local on Azure Local so that I can deploy catalog and custom models effectively.
 ---
@@ -82,11 +82,11 @@ BYO models let you deploy any model you package as an OCI artifact in a containe
 
 For generative models, package your model in ONNX format. The inference runtime (ONNX Runtime GenAI) loads it directly. For predictive models, package your ONNX model and any preprocessing logic.
 
-### Runtime diversity in the curated catalog
+## Example models in the curated catalog
 
-The curated catalog includes hundreds of supported models across multiple publishers, formats, and runtimes. Many model families appear as separate ONNX and vLLM catalog entries, while some models are available only for one runtime depending on framework packaging and hardware profile.
+The Foundry Local curated catalog is broad and continuously expanding, covering general chat, reasoning, coding, speech, and multimodal workloads. The following table highlights a small, representative sample of commonly used models to demonstrate the diversity of supported publishers, runtimes, and usage intents.
 
-The following table shows a representative sample to illustrate the breadth of the catalog. It isn't an exhaustive list.
+This table isn't exhaustive. The full catalog includes many additional model families, sizes, variants, and publishers, and is updated regularly.
 
 | Model | Publisher | Runtime | Primary use case | Notes |
 | --- | --- | --- | --- | --- |

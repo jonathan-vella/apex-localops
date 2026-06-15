@@ -17,6 +17,8 @@ customer intent: As a platform engineer or developer, I want to deploy and run m
 
 After you install the Foundry Local extension expansion pack, the `phi-4-mini` CPU is available as part of the base pack. This article shows you how to create your first deployment from the catalog.
 
+[!INCLUDE [foundry-local-preview](../includes/foundry-local-preview.md)]
+
 ## Prerequisites
 
 Make sure you followed the steps in [Prepare to deploy Foundry Local on Azure Local in disconnected environments](how-to-prepare.md) and [Deploy Foundry Local on Azure Local in a disconnected environment](deploy-platform.md) to set up your environment and deploy the Foundry Local extension.
