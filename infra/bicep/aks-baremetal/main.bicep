@@ -4,7 +4,7 @@
 // This is the DOWNSTREAM continuation of the Azure Local SFF profile
 // (infra/bicep/azlocal-sff). It deploys a single-node Kubernetes cluster directly
 // onto the Arc-enabled SFF edge machine that the SFF flow produces AFTER the machine
-// is provisioned from the Azure portal (see docs/sff-runbook.md). It therefore runs
+// is provisioned from the Azure portal (see docs/sff/runbook.md). It therefore runs
 // as a SEPARATE, post-provisioning deployment — the edge machine must already be in
 // the "Provisioned" state.
 //

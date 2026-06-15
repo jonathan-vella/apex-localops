@@ -1,11 +1,34 @@
-# Self-hosted Azure Local — architecture
+# Self-hosted overview
 
-This profile (`azlocal-selfhosted`) stands up a nested 3‑node Azure Local cluster
-with a **clean‑room, zero‑Jumpstart** build: no prebaked Jumpstart VHDs, no
-`Azure.Arc.Jumpstart.*` PowerShell modules, and no vendored Jumpstart scripts.
-Both base images come from **ISOs the operator stages into a storage account**;
-the cluster host converts them to bootable VHDXs and builds everything itself with
-the in‑repo [`ApexLocalOps`](../artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1) module.
+[Documentation home](../README.md) / Self-hosted / Overview
+
+The self-hosted profile (`azlocal-selfhosted`) builds a nested 3-node Azure Local cluster with
+a clean-room, zero-Jumpstart build: no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*`
+PowerShell modules, and no vendored Jumpstart scripts. Both base images come from ISOs that you
+stage into a storage account; the cluster host converts them to bootable VHDXs and builds
+everything itself with the in-repo
+[`ApexLocalOps`](../../artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1) module.
+
+This page explains the topology, the role-based access control (RBAC) model, and the build
+flow. To deploy, go to the [Self-hosted quickstart](quickstart.md).
+
+## In this guide
+
+- [When to use this profile](#when-to-use-this-profile)
+- [Azure topology](#azure-topology)
+- [Nested topology](#nested-topology)
+- [End-to-end build flow](#end-to-end-build-flow)
+- [Why no marketplace image for the nested base](#why-no-marketplace-image-for-the-nested-base)
+- [Owned build scope](#owned-build-scope)
+
+## When to use this profile
+
+Choose self-hosted when you need a transparent build with no Arc Jumpstart dependency — for
+example, in a sovereign, restricted, or audit-sensitive environment. If you want the fastest
+path to a cluster and a Jumpstart-based build is acceptable, use the
+[LocalBox profile](../localbox/overview.md) instead. For a lighter edge device, use the
+[SFF profile](../sff/overview.md). For a full comparison, see
+[Choose a profile](../choose-a-profile.md).
 
 ## Azure topology
 
@@ -33,21 +56,27 @@ flowchart TB
     HOST -. progress tags / cluster .-> ARM["Azure Local instance<br/>(Arc-projected)"]
 ```
 
-**RBAC (assigned in [main.bicep](../infra/bicep/azlocal-selfhosted/main.bicep)):**
+**Diagram key:** solid arrows are network and data paths; the dotted arrow is the Arc
+projection of the cluster into Azure. `MI` is a managed identity; the VMs have no public IP and
+all egress goes through the NAT Gateway.
+
+The RBAC assignments, made in
+[main.bicep](../../infra/bicep/azlocal-selfhosted/main.bicep), are:
 
 | Principal | Role | Scope | Why |
-|---|---|---|---|
-| Deployer (you / CI) | Storage Blob Data **Owner** | storage account | upload the ISOs (control‑plane Owner ≠ data access) |
-| `apex-host` identity | Storage Blob Data **Contributor** | storage account | read ISOs, write build logs |
-| `apex-host` identity | **Tag Contributor** + **Reader** | resource group | progress tags + metadata |
-| `apex-host` identity | **Contributor** + **User Access Administrator** | resource group | the in‑VM cluster deploy creates resources **and assigns roles** — UAA is required, not optional |
-| `apex-mgmt` identity | Storage Blob Data **Contributor** | storage account | upload the ISOs from the jumpbox |
+| --- | --- | --- | --- |
+| Deployer (you / CI) | Storage Blob Data **Owner** | Storage account | Upload the ISOs (a control-plane Owner role is not data access). |
+| `apex-host` identity | Storage Blob Data **Contributor** | Storage account | Read ISOs and write build logs. |
+| `apex-host` identity | **Tag Contributor** + **Reader** | Resource group | Progress tags and metadata. |
+| `apex-host` identity | **Contributor** + **User Access Administrator** | Resource group | The in-VM cluster deploy creates resources **and assigns roles** — UAA is required, not optional. |
+| `apex-mgmt` identity | Storage Blob Data **Contributor** | Storage account | Upload the ISOs from the jumpbox. |
 
-> The `apex-mgmt` **jumpbox** is the operator's in‑Azure workstation for the one
-> manual step (download + upload the two ISOs). Separately, the nested **router VM**
-> (built inside `apex-host`) is the management subnet's gateway — the Jumpstart model.
+> [!NOTE]
+> The `apex-mgmt` jumpbox is the operator's in-Azure workstation for the one manual step
+> (download and upload the two ISOs). Separately, the nested router VM — built inside
+> `apex-host` — is the management subnet's gateway, mirroring the Jumpstart model.
 
-## Nested topology (inside `apex-host`)
+## Nested topology
 
 ```mermaid
 flowchart TB
@@ -71,12 +100,16 @@ flowchart TB
     DC -. DNS/NTP/OU .-> N1 & N2 & N3
 ```
 
-The **router VM** (`apexlocal-rtr`) is the management subnet's default gateway
-(`192.168.1.1`) — exactly as Jumpstart's `vm-router` is. It has a second NIC on the
-`ApexLocal-NAT` switch and forwards/NATs nested egress to the host's WinNAT, which
-in turn bridges onto the host's real Azure NIC. The DC is the authoritative DNS/NTP
-source. Nodes carry extra `StorageA`/`StorageB` adapters for the Azure Local storage
-intent.
+**Diagram key:** the two `subgraph` boxes are the host's internal and NAT-uplink Hyper-V
+switches. Solid arrows are routed traffic; the dotted arrow is the DNS, NTP, and organizational
+unit (OU) configuration the domain controller applies to the nodes.
+
+The router VM (`apexlocal-rtr`) is the management subnet's default gateway (`192.168.1.1`),
+exactly as Jumpstart's `vm-router` is. It has a second network interface on the
+`ApexLocal-NAT` switch and forwards and NATs nested egress to the host's WinNAT, which in turn
+bridges onto the host's real Azure network interface. The domain controller is the
+authoritative DNS and NTP source. The nodes carry extra `StorageA` and `StorageB` adapters for
+the Azure Local storage intent.
 
 ## End-to-end build flow
 
@@ -107,33 +140,43 @@ sequenceDiagram
     ARM-->>Op: cluster Succeeded / Connected (monitor-selfhosted.sh)
 ```
 
-## Why no marketplace image for the nested base?
+**Diagram key:** this sequence runs top to bottom. The only operator action after starting the
+deploy is downloading and uploading the two ISOs (the `Op → Box` and `Box → SA` steps);
+everything else is automated.
 
-Azure platform (marketplace) images are specialized and are **not** usable to seed
-a nested Hyper‑V VM. So all three nested base images — the router, the Windows
-Server DC base, and the Azure Local node base — are built from **ISOs** via DISM
-([`Convert-ApexIsoToVhdx`](../artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1));
-the router and DC share the one Windows Server base VHDX. The two *Azure* VMs
-(cluster host + jumpbox) still boot from a normal WS2025 marketplace image, which is
-fine for real Azure VMs.
+## Why no marketplace image for the nested base
 
-## Owned build scope (clean-room consequences)
+Azure platform (marketplace) images are specialized and **cannot** seed a nested Hyper-V VM. So
+all three nested base images — the router, the Windows Server domain controller base, and the
+Azure Local node base — are built from ISOs through DISM
+([`Convert-ApexIsoToVhdx`](../../artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psm1));
+the router and domain controller share the one Windows Server base VHDX. The two Azure VMs (the
+cluster host and the jumpbox) still boot from a normal Windows Server 2025 marketplace image,
+which is fine for real Azure VMs.
 
-Because this is a clean‑room build, several areas Jumpstart provided as a black box
-are implemented here from first principles and are the highest‑risk parts. They are
-flagged inline in the module with `OWNED-SCOPE:` and summarized in
-[the plan](plans/plan-selfHostedAzureLocal.prompt.md):
+## Owned build scope
 
-- **ISO → bootable VHDX** (`Convert-ApexIsoToVhdx`) — no prebaked VHD exists. A
-  boot‑from‑ISO + `autounattend` fallback is built into `New-ApexNestedVM
-  -BootFromIso` if offline imaging stalls on a given Azure Local build.
-- **Arc bootstrap** (`Connect-ApexNodeToArc`) — node Arc onboarding + the
-  deployment prerequisites the cloud deploy expects (more than `azcmagent connect`).
-- **Fabric networking** (`New-ApexHostSwitch` + `New-ApexRouterVM` + node storage
-  NICs) — two host switches (mgmt + NAT uplink), a router VM as the management
-  gateway (Jumpstart's `vm-router` model), and intent‑based storage adapters.
-- **Time sync** (`Set-ApexNodeTimeSync`) — Azure Local is acutely time‑sensitive;
-  the DC is NTP‑authoritative and Hyper‑V time integration is disabled on guests.
+Because this is a clean-room build, several areas that Jumpstart provided as a black box are
+implemented here from first principles and are the highest-risk parts. They are flagged inline
+in the module with `OWNED-SCOPE:` and summarized in
+[the plan](../plans/plan-selfHostedAzureLocal.prompt.md):
 
-See also: [selfhosted-quickstart.md](selfhosted-quickstart.md) ·
-[selfhosted-sizing.md](selfhosted-sizing.md).
+- **ISO to bootable VHDX** (`Convert-ApexIsoToVhdx`) — no prebaked VHD exists. A boot-from-ISO
+  plus `autounattend` fallback is built into `New-ApexNestedVM -BootFromIso` if offline imaging
+  stalls on a given Azure Local build.
+- **Arc bootstrap** (`Connect-ApexNodeToArc`) — node Arc onboarding plus the deployment
+  prerequisites the cloud deploy expects (more than `azcmagent connect`).
+- **Fabric networking** (`New-ApexHostSwitch` + `New-ApexRouterVM` + node storage NICs) — two
+  host switches (management and NAT uplink), a router VM as the management gateway (Jumpstart's
+  `vm-router` model), and intent-based storage adapters.
+- **Time sync** (`Set-ApexNodeTimeSync`) — Azure Local is acutely time-sensitive; the domain
+  controller is NTP-authoritative and Hyper-V time integration is disabled on guests.
+
+## Next steps
+
+- Plan capacity and cost: [Self-hosted sizing and cost](sizing.md).
+- Deploy the cluster: [Self-hosted quickstart](quickstart.md).
+
+---
+
+[Documentation home](../README.md) · [Choose a profile](../choose-a-profile.md) · [Glossary](../glossary.md)

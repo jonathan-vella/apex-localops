@@ -66,5 +66,5 @@ az aksarc delete --name $aksclustername --resource-group $resource_group
   [aksarc-on-azure-local](../SKILL.md) Reference Index.
 - IaC alternative: this repo ships an AKS-on-bare-metal Bicep deployment at
   [infra/bicep/aks-baremetal/](../../../../infra/bicep/aks-baremetal/)
-  ([quickstart](../../../../docs/aks-baremetal-quickstart.md)); upstream Bicep cluster templates live in
+  ([quickstart](../../../../docs/sff/aks-baremetal.md)); upstream Bicep cluster templates live in
   the [Azure/aksArc](https://github.com/Azure/aksArc/tree/main/deploymentTemplates/aksarc-bicep-azlocal/Cluster) repo.

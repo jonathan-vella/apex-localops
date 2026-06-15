@@ -41,7 +41,7 @@ Activate this skill when the user wants to:
 
 - Canonical: <https://learn.microsoft.com/azure/aks/aksarc/aks-overview>
 - Related skills: `azlocal-workloads`, `azure-kubernetes` (cloud), `airunway-aks-setup`
-- Repo-specific AKS on bare metal (SFF) flow: [docs/aks-baremetal-quickstart.md](../../../docs/aks-baremetal-quickstart.md)
+- Repo-specific AKS on bare metal (SFF) flow: [docs/sff/aks-baremetal.md](../../../docs/sff/aks-baremetal.md)
 
 ## Reference Index
 

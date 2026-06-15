@@ -76,7 +76,7 @@ Microsoft materials:
 ## AKS on bare metal (preview) profile
 
 The AKS on bare metal profile ([infra/bicep/aks-baremetal](infra/bicep/aks-baremetal),
-`scripts/*-aks-baremetal.sh`, `docs/aks-baremetal-quickstart.md`) is original work in this
+`scripts/*-aks-baremetal.sh`, `docs/sff/aks-baremetal.md`) is original work in this
 repository. It deploys `Microsoft.Kubernetes/connectedClusters` +
 `Microsoft.HybridContainerService/provisionedClusterInstances` (preview API versions) onto an
 Arc-enabled SFF machine. The AKS on bare metal preview documentation is **not** vendored here

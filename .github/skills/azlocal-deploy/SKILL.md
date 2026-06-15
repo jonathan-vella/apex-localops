@@ -46,7 +46,7 @@ Activate this skill when the user wants to:
 
 - Canonical: <https://learn.microsoft.com/azure/azure-local/deploy/deployment-introduction>
 - Related skills: `azlocal-plan-size` (before), `azlocal-networking`, `azlocal-update-upgrade` (after)
-- This repo's nested deployment automation: [docs/deployment-quickstart.md](../../../docs/deployment-quickstart.md)
+- This repo's nested deployment automation: [docs/localbox/quickstart.md](../../../docs/localbox/quickstart.md)
 
 ## Reference Index
 

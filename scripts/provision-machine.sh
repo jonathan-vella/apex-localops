@@ -2,7 +2,7 @@
 #
 # provision-machine.sh - Create the Azure Arc site, register the SFF machine from its
 # ownership voucher, and install the target OS - the "connect a provisioned machine"
-# step (docs/sff-runbook.md), automated where the preview CLI allows.
+# step (docs/sff/runbook.md), automated where the preview CLI allows.
 #
 # CAPABILITY-DETECTED SEAM: the SFF machine-provisioning CLI (`az provisionedmachine`
 # / the preview site+voucher commands) is gated behind the Azure Local SFF preview and
@@ -143,7 +143,7 @@ after it is automated.
      SSH public key > Review + create.
   5. This script will keep polling until the machine shows 'Provisioned'.
 
-Docs: docs/sff-runbook.md  ·  this is the only per-deploy manual touch in the chain.
+Docs: docs/sff/runbook.md  ·  this is the only per-deploy manual touch in the chain.
 ────────────────────────────────────────────────────────────────────
 EOF
 }

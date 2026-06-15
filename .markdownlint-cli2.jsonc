@@ -1,0 +1,29 @@
+{
+  // markdownlint-cli2 configuration for owned apex-localops documentation.
+  // Vendored mirrors and internal planning docs are excluded (see "ignores").
+  // Rule reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  "config": {
+    "default": true,
+    // Line length is not enforced — readability over a hard cap (see markdown.instructions.md).
+    "MD013": false,
+    // Inline HTML is allowed: the README hero uses <div align="center"> and &nbsp; separators.
+    "MD033": false,
+    // The first line need not be an H1: the README opens with a centered <div> block.
+    "MD041": false,
+    // Allow the same heading text (e.g. "Next steps") under different parent sections.
+    "MD024": {
+      "siblings_only": true
+    }
+  },
+  "globs": [
+    "docs/**/*.md",
+    "README.md",
+    "CHANGELOG.md",
+    "ATTRIBUTION.md"
+  ],
+  "ignores": [
+    "docs/upstream/**",
+    "docs/azure-local-sff/upstream/**",
+    "docs/plans/**"
+  ]
+}

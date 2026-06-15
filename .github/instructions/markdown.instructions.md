@@ -1,6 +1,6 @@
 ---
 description: "Markdown documentation standards for owned docs (docs/ and root *.md). Vendored mirrors are excluded."
-applyTo: "docs/*.md, docs/plans/**/*.md, docs/azure-local-sff/README.md, docs/upstream/README.md, README.md, CHANGELOG.md, ATTRIBUTION.md"
+applyTo: "docs/*.md, docs/localbox/**/*.md, docs/selfhosted/**/*.md, docs/sff/**/*.md, docs/plans/**/*.md, docs/azure-local-sff/README.md, docs/upstream/README.md, README.md, CHANGELOG.md, ATTRIBUTION.md"
 ---
 
 # Markdown Documentation Standards
@@ -48,5 +48,8 @@ draw.io / python-diagrams tooling is set up here.
 
 ## Validation
 
-No markdown linter runs in CI today ([validate.yml](../workflows/validate.yml) covers Bicep +
-shell + skills). Review manually; if a linter is added later, wire it here.
+The `docs` job in [validate.yml](../workflows/validate.yml) lints owned docs with
+**markdownlint-cli2** (config in [.markdownlint-cli2.jsonc](../../.markdownlint-cli2.jsonc)) and
+runs an offline **relative-link check**. Vendored mirrors (`docs/upstream/**`,
+`docs/azure-local-sff/upstream/**`) and internal plans (`docs/plans/**`) are excluded. The Bicep,
+shell, and skills jobs continue to cover their respective trees.

@@ -90,3 +90,41 @@ jobs:
 
       - name: Validate custom skills (frontmatter + docs/upstream references)
         run: ./scripts/validate-skills.sh
+
+  docs:
+    name: Docs lint + link check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: markdownlint (owned docs)
+        # Config + ignores live in .markdownlint-cli2.jsonc (vendored mirrors and
+        # internal plans excluded). Version-pinned for reproducibility.
+        run: npx --yes markdownlint-cli2@0.14.0 "docs/**/*.md" "README.md" "CHANGELOG.md" "ATTRIBUTION.md"
+
+      - name: Relative link check (owned docs)
+        # Validates every relative markdown link resolves to a real path. Offline by
+        # design: external URLs and in-page anchors are skipped. Vendored mirrors and
+        # internal planning docs are out of scope.
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            dir=$(dirname "$f")
+            while IFS= read -r link; do
+              case "$link" in http*|'#'*|mailto:*) continue ;; esac
+              target="${link%%#*}"
+              [ -z "$target" ] && continue
+              if [ ! -e "$(realpath -m "$dir/$target")" ]; then
+                echo "::error file=$f::broken relative link -> $link"
+                fail=1
+              fi
+            done < <(grep -oE '\]\([^)]+\)' "$f" | sed -E 's/^\]\(//; s/\)$//')
+          done < <(git ls-files 'docs/**/*.md' 'README.md' 'CHANGELOG.md' 'ATTRIBUTION.md' \
+            | grep -vE '^docs/upstream/|^docs/azure-local-sff/upstream/|^docs/plans/')
+          exit $fail

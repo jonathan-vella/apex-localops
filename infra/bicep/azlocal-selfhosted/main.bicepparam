@@ -5,7 +5,7 @@ using './main.bicep'
 // Public-safe by construction: NO tenant-specific GUIDs and NO secrets are
 // committed here. scripts/deploy-selfhosted.sh reads the Windows password from
 // LOCALSELF_ADMIN_PASSWORD and resolves the deployer + Azure Local RP object ids
-// at deploy time. See docs/selfhosted-quickstart.md.
+// at deploy time. See docs/selfhosted/quickstart.md.
 // =============================================================================
 
 // --- Windows credentials: password is NEVER stored in this file ---

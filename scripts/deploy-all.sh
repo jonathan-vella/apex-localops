@@ -6,7 +6,7 @@
 #   provisioning -> AKS on bare metal -> kubectl.
 #
 # It chains the per-stage scripts with tag/resource-gated waits so the only human
-# touchpoints are the irreducible ones (see docs/sff-zero-touch.md):
+# touchpoints are the irreducible ones (see docs/sff/zero-touch.md):
 #   * one-time-ever: stage the ROE ISO + Configurator App into the staging account
 #   * per-deploy: complete the portal "Add machine from voucher" step IF the SFF
 #     machine-provisioning CLI isn't available (provision-machine.sh detects this and
@@ -147,7 +147,7 @@ if should_run sff; then
   run "$SCRIPT_DIR/deploy-sff.sh" "${sff_args[@]}"
   if [[ "$DRY_RUN" != "true" ]]; then
     echo "ACTION REQUIRED (one-time-ever): stage roe.iso + configurator.msi into the staging"
-    echo "account from an Azure resource (jumpbox/Cloud Shell). See docs/sff-quickstart.md §4."
+    echo "account from an Azure resource (jumpbox/Cloud Shell). See docs/sff/quickstart.md §4."
     wait_for_tag "RoeSucceeded,VoucherStored" "$VOUCHER_WAIT_SECONDS"
   fi
 fi
@@ -158,7 +158,7 @@ if should_run voucher; then
   if [[ "$DRY_RUN" != "true" ]]; then
     # If the host already auto-extracted it, this returns immediately.
     if ! wait_for_tag "VoucherStored" 900; then
-      echo "Voucher not auto-stored. Use the guided path (docs/sff-runbook.md §1-2), then re-run --from provision." >&2
+      echo "Voucher not auto-stored. Use the guided path (docs/sff/runbook.md §1-2), then re-run --from provision." >&2
       exit 1
     fi
   fi

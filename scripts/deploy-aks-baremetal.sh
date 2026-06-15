@@ -4,7 +4,7 @@
 # provisioned Azure Local Small Form Factor (SFF) Arc-enabled machine.
 #
 # This is the DOWNSTREAM step after the SFF machine is provisioned from the Azure
-# portal (docs/sff-runbook.md). It needs values that only exist once the edge
+# portal (docs/sff/runbook.md). It needs values that only exist once the edge
 # machine is "Provisioned":
 #
 #   AKSBM_EDGE_MACHINE_NAME   name of the Provisioned SFF EdgeMachine (in the target RG)

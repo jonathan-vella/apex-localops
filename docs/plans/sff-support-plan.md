@@ -1,9 +1,13 @@
 # Plan: add Azure Local **Small Form Factor (SFF)** support to apex-localops
 
+> [!NOTE]
+> **Internal design document.** This is a retained engineering plan and milestone record, not a
+> user-facing guide. For deployment instructions, start at the [SFF overview](../sff/overview.md).
+
 > Status: **IMPLEMENTED**. All milestones (M1–M5) are built and validated; this document is
 > retained as the design rationale and milestone record. For usage, see the
-> [SFF quickstart](sff-quickstart.md), [runbook](sff-runbook.md), and
-> [zero-touch guide](sff-zero-touch.md). The zero-touch chain further automates the voucher
+> [SFF quickstart](../sff/quickstart.md), [runbook](../sff/runbook.md), and
+> [zero-touch guide](../sff/zero-touch.md). The zero-touch chain further automates the voucher
 > and machine-provisioning steps that this plan originally scoped as guided.
 >
 > Preview note: Azure Local SFF is in **PREVIEW** (`azloc-2605`). APIs, portal flows, and
@@ -72,10 +76,10 @@ from the Microsoft Learn "Review your VM setup" checklist:
 - **Redistributing Microsoft binaries.** The ROE Maintenance OS ISO and the Configurator
   App MSI are Microsoft-owned, multi-GB, and portal/subscription-gated. They are **not**
   vendored into this repo (same boundary already documented in
-  [ATTRIBUTION.md](../ATTRIBUTION.md)).
+  [ATTRIBUTION.md](../../ATTRIBUTION.md)).
 - **Replacing the LocalBox profile.** SFF is additive. The existing
-  [infra/bicep/azlocal-js](../infra/bicep/azlocal-js) tree and
-  [scripts/](../scripts) are untouched except for shared, backward-compatible refactors.
+  [infra/bicep/azlocal-js](../../infra/bicep/azlocal-js) tree and
+  [scripts/](../../scripts) are untouched except for shared, backward-compatible refactors.
 
 ---
 
@@ -116,32 +120,32 @@ flowchart LR
 
 Key mechanics, with the real files:
 
-- **Orchestrator Bicep** [infra/bicep/azlocal-js/main.bicep](../infra/bicep/azlocal-js/main.bicep)
+- **Orchestrator Bicep** [infra/bicep/azlocal-js/main.bicep](../../infra/bicep/azlocal-js/main.bicep)
   wires modules: network, staging storage, host, optional Win11 jumpbox, customer-usage
   attribution.
-- **Network** [network/network.bicep](../infra/bicep/azlocal-js/network/network.bicep):
+- **Network** [network/network.bicep](../../infra/bicep/azlocal-js/network/network.bicep):
   `172.16.0.0/16` VNet, workload subnet `172.16.1.0/24`, NSG, **NAT Gateway** (egress, no
   public IP on the VM when Bastion is on), **Azure Bastion** in `172.16.3.64/26`.
   `defaultOutboundAccess: false` forces all egress through the NAT Gateway.
-- **Host** [host/host.bicep](../infra/bicep/azlocal-js/host/host.bicep): big nested-virt VM,
+- **Host** [host/host.bicep](../../infra/bicep/azlocal-js/host/host.bicep): big nested-virt VM,
   pre-created P30 data disks, a **system-assigned managed identity** granted **Owner** +
   **Key Vault Administrator** + **Storage Account Contributor** on the RG, and a
   `Microsoft.Compute/virtualMachines/extensions` **CustomScriptExtension** named
-  `Bootstrap` that runs [artifacts/PowerShell/Bootstrap.ps1](../artifacts/PowerShell/Bootstrap.ps1).
-- **In-VM bootstrap** [Bootstrap.ps1](../artifacts/PowerShell/Bootstrap.ps1) sets machine
+  `Bootstrap` that runs [artifacts/PowerShell/Bootstrap.ps1](../../artifacts/PowerShell/Bootstrap.ps1).
+- **In-VM bootstrap** [Bootstrap.ps1](../../artifacts/PowerShell/Bootstrap.ps1) sets machine
   env vars, configures **autologon** (so the long build starts headless after the Hyper-V
   reboot), downloads the PS profile + config, and hands off to the logon script.
-- **Logon script** [LocalBoxLogonScript.ps1](../artifacts/PowerShell/LocalBoxLogonScript.ps1)
+- **Logon script** [LocalBoxLogonScript.ps1](../../artifacts/PowerShell/LocalBoxLogonScript.ps1)
   does `Connect-AzAccount -Identity`, removes the autologon keys, and performs the real
   build. The managed identity is how the in-VM script talks back to Azure with **no secrets
   on disk**.
-- **Tooling** [scripts/deploy.sh](../scripts/deploy.sh) (preflight → what-if → deploy →
-  hand off to monitor), [scripts/monitor.sh](../scripts/monitor.sh) (reads RG tags +
+- **Tooling** [scripts/deploy.sh](../../scripts/deploy.sh) (preflight → what-if → deploy →
+  hand off to monitor), [scripts/monitor.sh](../../scripts/monitor.sh) (reads RG tags +
   cluster resource + optional in-VM log tail via `az vm run-command`),
-  [scripts/check-providers.sh](../scripts/check-providers.sh) (idempotent provider
-  registration + resolves `spnProviderId`), [scripts/cleanup.sh](../scripts/cleanup.sh).
+  [scripts/check-providers.sh](../../scripts/check-providers.sh) (idempotent provider
+  registration + resolves `spnProviderId`), [scripts/cleanup.sh](../../scripts/cleanup.sh).
 - **Secret hygiene**: the Windows password is read from `LOCALBOX_ADMIN_PASSWORD` via
-  `readEnvironmentVariable()` in [main.bicepparam](../infra/bicep/azlocal-js/main.bicepparam);
+  `readEnvironmentVariable()` in [main.bicepparam](../../infra/bicep/azlocal-js/main.bicepparam);
   identity GUIDs are resolved at runtime by `deploy.sh`. **Nothing sensitive is committed.**
 
 SFF keeps every one of these mechanics. What changes is the *payload* the host builds: a
@@ -212,7 +216,7 @@ inherently Azure-portal in this preview:
   and portal provisioning are quarantined in `Stage-SffArtifacts.ps1` + the runbook + the
   vendored-doc pin, so a preview revision is a localized change.
 - **P6 — Observable without RDP.** Progress is legible from `az` alone (RG tags + optional
-  host log tail), exactly like [monitor.sh](../scripts/monitor.sh) today.
+  host log tail), exactly like [monitor.sh](../../scripts/monitor.sh) today.
 
 ---
 
@@ -263,11 +267,11 @@ flowchart TB
 | --- | --- | --- | --- |
 | Azure | `LocalSFF-Host` VM (`Standard_D8s_v5`, 8 vCPU / 32 GB) | Hyper-V host that nests the ROE test VM | **new** `azlocal-sff/host/host.bicep` |
 | Azure | 1 × 512 GB Premium SSD (drive `V:`) | Holds the nested VHDX + ROE ISO | new host module |
-| Azure | VNet / NSG / **NAT Gateway** / **Bastion** | Bastion-only access, NAT egress | **reuse** [network.bicep](../infra/bicep/azlocal-js/network/network.bicep) (parameterized prefix) |
-| Azure | **Staging Storage Account** (`sff-artifacts` container) | Holds the staged ROE ISO + Configurator MSI | adapt [storageAccount.bicep](../infra/bicep/azlocal-js/mgmt/storageAccount.bicep) |
+| Azure | VNet / NSG / **NAT Gateway** / **Bastion** | Bastion-only access, NAT egress | **reuse** [network.bicep](../../infra/bicep/azlocal-js/network/network.bicep) (parameterized prefix) |
+| Azure | **Staging Storage Account** (`sff-artifacts` container) | Holds the staged ROE ISO + Configurator MSI | adapt [storageAccount.bicep](../../infra/bicep/azlocal-js/mgmt/storageAccount.bicep) |
 | Azure | **Key Vault** | Stores the ownership voucher `.pem` | new (or reuse mgmt artifacts) |
-| Azure | **Log Analytics** | Host telemetry | **reuse** [mgmtArtifacts.bicep](../infra/bicep/azlocal-js/mgmt/mgmtArtifacts.bicep) |
-| Azure | `LocalSFF-Mgmt` Win11 jumpbox (optional) | Acquisition workstation + ops | **reuse** [managementVm.bicep](../infra/bicep/azlocal-js/mgmt/managementVm.bicep) |
+| Azure | **Log Analytics** | Host telemetry | **reuse** [mgmtArtifacts.bicep](../../infra/bicep/azlocal-js/mgmt/mgmtArtifacts.bicep) |
+| Azure | `LocalSFF-Mgmt` Win11 jumpbox (optional) | Acquisition workstation + ops | **reuse** [managementVm.bicep](../../infra/bicep/azlocal-js/mgmt/managementVm.bicep) |
 | Nested | **SFF test VM** (Gen2, ROE) | The actual SFF maintenance OS under test | built in-VM by `New-SffTestVm.ps1` |
 
 ---
@@ -337,7 +341,7 @@ sequenceDiagram
 
 Two network layers — Azure (reused) and the in-host Hyper-V switch (vendored).
 
-### Azure layer (reuse [network.bicep](../infra/bicep/azlocal-js/network/network.bicep))
+### Azure layer (reuse [network.bicep](../../infra/bicep/azlocal-js/network/network.bicep))
 
 - VNet `172.16.0.0/16`, workload subnet `172.16.1.0/24` (`LocalSFF-Subnet`), `LocalSFF-NSG`.
 - **NAT Gateway** `LocalSFF-NatGateway` + Standard public IP for **egress only**;
@@ -452,7 +456,7 @@ docs/
 
 ### 11.1 `azlocal-sff/main.bicep`
 
-Mirrors [azlocal-js/main.bicep](../infra/bicep/azlocal-js/main.bicep). Modules:
+Mirrors [azlocal-js/main.bicep](../../infra/bicep/azlocal-js/main.bicep). Modules:
 
 | Module | Reuse? | Notes |
 | --- | --- | --- |
@@ -462,7 +466,7 @@ Mirrors [azlocal-js/main.bicep](../infra/bicep/azlocal-js/main.bicep). Modules:
 | `keyVaultDeployment` | new/reuse | voucher store; RBAC-authorization mode |
 | `hostDeployment` | new | nested-virt host + CSE |
 | `managementVmDeployment` | reuse (shared) | optional Win11 acquisition jumpbox |
-| `customerUsageAttribution` | reuse | [customerUsageAttribution.bicep](../infra/bicep/azlocal-js/mgmt/customerUsageAttribution.bicep) |
+| `customerUsageAttribution` | reuse | [customerUsageAttribution.bicep](../../infra/bicep/azlocal-js/mgmt/customerUsageAttribution.bicep) |
 
 Parameters (public-safe; identity/secret via env, same as LocalBox):
 
@@ -499,7 +503,7 @@ param tags object = { Project: 'apex_localsff' }
 
 ### 11.2 `azlocal-sff/host/host.bicep`
 
-Based on [azlocal-js/host/host.bicep](../infra/bicep/azlocal-js/host/host.bicep) but trimmed:
+Based on [azlocal-js/host/host.bicep](../../infra/bicep/azlocal-js/host/host.bicep) but trimmed:
 
 - **VM size**: `Standard_D8s_v5` default (8 vCPU/32 GB, nested-virt). Allowed list:
   `Standard_D8s_v5`, `Standard_D16s_v5`, `Standard_E8s_v5`, `Standard_D8s_v6`,
@@ -519,7 +523,7 @@ Based on [azlocal-js/host/host.bicep](../infra/bicep/azlocal-js/host/host.bicep)
 
 ### 11.3 `azlocal-sff/mgmt/stagingStorage.bicep`
 
-From [storageAccount.bicep](../infra/bicep/azlocal-js/mgmt/storageAccount.bicep) plus:
+From [storageAccount.bicep](../../infra/bicep/azlocal-js/mgmt/storageAccount.bicep) plus:
 
 ```bicep
 resource container 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
@@ -551,15 +555,15 @@ All under `artifacts/sff/PowerShell/`, fetched by the host from this repo's raw 
 
 Single source of truth (paths, names, sizes, subnet, canonical blob names
 `roe.iso` / `configurator.msi`, log dir `C:\LocalSFF\Logs`, incoming dir
-`C:\LocalSFF\incoming`). Mirrors [LocalBox-Config.psd1](../artifacts/PowerShell/LocalBox-Config.psd1).
+`C:\LocalSFF\incoming`). Mirrors [LocalBox-Config.psd1](../../artifacts/PowerShell/LocalBox-Config.psd1).
 
 ### 12.2 `Bootstrap-Sff.ps1` (CSE entrypoint — Phase 1)
 
 1. Persist params as **machine env vars** (pattern from
-   [Bootstrap.ps1](../artifacts/PowerShell/Bootstrap.ps1)).
+   [Bootstrap.ps1](../../artifacts/PowerShell/Bootstrap.ps1)).
 2. Base64-decode the admin password.
 3. Configure **autologon** (so the watcher runs headless after the Hyper-V reboot) — reuse
-   the exact local-account autologon block from [Bootstrap.ps1](../artifacts/PowerShell/Bootstrap.ps1)
+   the exact local-account autologon block from [Bootstrap.ps1](../../artifacts/PowerShell/Bootstrap.ps1)
    (`DefaultDomainName = $env:COMPUTERNAME`; **not** a domain).
 4. Create `C:\LocalSFF\{Logs,incoming,vhd,iso}`.
 5. Install the **Hyper-V** role + management tools (`Install-WindowsFeature Hyper-V
@@ -609,7 +613,7 @@ Wraps the Configurator-App voucher download target: takes a `.pem` path, validat
 
 Copied verbatim from
 [`Azure-Samples/AzureLocal/small-form-factor`](https://github.com/Azure-Samples/AzureLocal/tree/main/small-form-factor),
-**pinned to a commit**, with provenance recorded in [ATTRIBUTION.md](../ATTRIBUTION.md). A
+**pinned to a commit**, with provenance recorded in [ATTRIBUTION.md](../../ATTRIBUTION.md). A
 header comment notes the upstream URL + commit. (Apply the repo's `eol=lf` `.gitattributes`
 rule if these arrive CRLF, per the repo-memory CRLF gotcha.)
 
@@ -617,7 +621,7 @@ rule if these arrive CRLF, per the repo-memory CRLF gotcha.)
 
 ## 13. Orchestration script specifications
 
-All bash, same shape and flags as the existing [scripts/](../scripts).
+All bash, same shape and flags as the existing [scripts/](../../scripts).
 
 ### 13.1 `check-providers-sff.sh`
 
@@ -632,7 +636,7 @@ All bash, same shape and flags as the existing [scripts/](../scripts).
 
 ### 13.2 `deploy-sff.sh`
 
-Mirrors [deploy.sh](../scripts/deploy.sh): secure password prompt (`LOCALSFF_ADMIN_PASSWORD`,
+Mirrors [deploy.sh](../../scripts/deploy.sh): secure password prompt (`LOCALSFF_ADMIN_PASSWORD`,
 never on disk), runtime `tenantId` resolution, what-if, confirm, deploy, hand off to
 `monitor-sff.sh`. **Preflight checks** (each mapping to a real, expensive-to-discover
 failure):
@@ -650,7 +654,7 @@ failure):
 
 ### 13.3 `monitor-sff.sh`
 
-Mirrors [monitor.sh](../scripts/monitor.sh). Authoritative signal = the **`SffProgress` RG
+Mirrors [monitor.sh](../../scripts/monitor.sh). Authoritative signal = the **`SffProgress` RG
 tag** (host-emitted; no Azure-visible cluster resource exists for SFF). Reads:
 
 - RG + host-VM tags `SffProgress` / `SffStatus`.
@@ -695,7 +699,7 @@ stateDiagram-v2
 
 ## 15. Guided handoff runbook (voucher + portal provisioning)
 
-Shipped as [docs/sff-runbook.md](sff-runbook.md). Steps (all Azure-side per P1):
+Shipped as [docs/sff/runbook.md](../sff/runbook.md). Steps (all Azure-side per P1):
 
 1. **Stage artifacts (Azure-initiated).** RDP `LocalSFF-Mgmt` over Bastion (or Cloud Shell)
    → portal **Download all** → `Publish-SffArtifacts.ps1` to the staging SA. Wait for
@@ -718,7 +722,7 @@ Shipped as [docs/sff-runbook.md](sff-runbook.md). Steps (all Azure-side per P1):
 ## 16. Phased milestones & acceptance criteria
 
 > Each milestone is independently shippable and leaves `main` green
-> ([validate.yml](../.github/workflows/validate.yml) must pass: Bicep build + lint).
+> ([validate.yml](../../.github/workflows/validate.yml) must pass: Bicep build + lint).
 
 ### M1 — Scaffold + shared-module refactor
 
@@ -786,7 +790,7 @@ Shipped as [docs/sff-runbook.md](sff-runbook.md). Steps (all Azure-side per P1):
 would dwarf this project.
 
 **Approach:** reuse the proven mirror pattern from
-[.github/workflows/sync-azure-skills.yml](../.github/workflows/sync-azure-skills.yml):
+[.github/workflows/sync-azure-skills.yml](../../.github/workflows/sync-azure-skills.yml):
 
 - New workflow `sync-azure-local-sff-docs.yml` (weekly cron + `workflow_dispatch`).
 - Steps: `actions/checkout@v5` (this repo) → `git clone --filter=blob:none --sparse` of
@@ -798,7 +802,7 @@ would dwarf this project.
   eol=lf` and a one-time `git add --renormalize` so the sync is a true no-op when upstream
   is unchanged (the exact lesson from repo memory).
 - **Attribution:** azure-stack-docs is **CC BY 4.0** — compatible with this repo's
-  [LICENSE](../LICENSE). Add a stanza to [ATTRIBUTION.md](../ATTRIBUTION.md) crediting
+  [LICENSE](../../LICENSE). Add a stanza to [ATTRIBUTION.md](../../ATTRIBUTION.md) crediting
   Microsoft, the source path, and the **pinned commit**.
 - A top-level `docs/azure-local-sff/README.md` states the content is vendored, read-only,
   and points to the canonical Learn URLs.
@@ -853,11 +857,11 @@ host between runs**; the watcher resumes on next start. Delete the RG to stop al
 
 | Layer | Test | When |
 | --- | --- | --- |
-| Bicep | `az bicep build` + `bicep lint` for `azlocal-sff/**` | CI ([validate.yml](../.github/workflows/validate.yml)), every PR |
+| Bicep | `az bicep build` + `bicep lint` for `azlocal-sff/**` | CI ([validate.yml](../../.github/workflows/validate.yml)), every PR |
 | Bicep | `what-if` against a scratch RG (no apply) | M1, M2 |
 | Bicep | LocalBox `what-if` diff-clean (refactor safety) | M1 |
 | Script | `shellcheck` on `*-sff.sh`; `--help` / `--what-if-only` smoke | M2, M4 |
-| In-VM | Pester-style assertions of the four-point checklist (extend the [tests/](../artifacts/PowerShell/tests) pattern) | M3 |
+| In-VM | Pester-style assertions of the four-point checklist (extend the [tests/](../../artifacts/PowerShell/tests) pattern) | M3 |
 | In-VM | ROE success-string poll returns within timeout | M3 |
 | Security | confirm nested-VM IMDS ACL present before boot; host MI scopes are least-priv | M3 |
 | E2E | full `deploy-sff.sh` → stage (Azure-initiated) → `RoeSucceeded` → voucher in KV | M4 |
@@ -1013,7 +1017,7 @@ RG, **Active + Permanent**; an **Entra security group** of machine operators.
   <https://github.com/Azure-Samples/AzureLocal/tree/main/small-form-factor>
 - Upstream docs to vendor —
   <https://github.com/MicrosoftDocs/azure-stack-docs> (`azure-local/small-form-factor/`)
-- This repo's mirrored profile to imitate — [README.md](../README.md),
-  [infra/bicep/azlocal-js](../infra/bicep/azlocal-js), [scripts/](../scripts),
-  [ATTRIBUTION.md](../ATTRIBUTION.md), [.github/workflows/sync-azure-skills.yml](../.github/workflows/sync-azure-skills.yml)
+- This repo's mirrored profile to imitate — [README.md](../../README.md),
+  [infra/bicep/azlocal-js](../../infra/bicep/azlocal-js), [scripts/](../../scripts),
+  [ATTRIBUTION.md](../../ATTRIBUTION.md), [.github/workflows/sync-azure-skills.yml](../../.github/workflows/sync-azure-skills.yml)
 ```

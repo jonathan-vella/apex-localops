@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/jonathan-vella/apex-localops/blob/main/docs/README.md
+    about: Start here — the documentation hub, profile guides, and glossary.
+  - name: Security vulnerability
+    url: https://github.com/jonathan-vella/apex-localops/security/policy
+    about: Do not file security issues in public. Report them privately — see the security policy.

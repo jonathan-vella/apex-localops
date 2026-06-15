@@ -55,7 +55,7 @@ For workload (Arc VM, SQL, AVD) failures rather than infrastructure failures, al
 
 - Canonical: <https://learn.microsoft.com/azure/azure-local/manage/collect-logs>
 - Related skills: `azlocal-deploy`, `azlocal-update-upgrade`, `azlocal-monitor`, `azlocal-vm-management`, `azlocal-workloads`
-- Repo-specific recovery automation: [docs/troubleshooting.md](../../../docs/troubleshooting.md)
+- Repo-specific recovery automation: [docs/localbox/troubleshooting.md](../../../docs/localbox/troubleshooting.md)
 
 ## Reference Index
 

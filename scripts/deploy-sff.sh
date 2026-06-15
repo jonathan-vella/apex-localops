@@ -335,7 +335,7 @@ Track the in-VM build (tags + optional host log tail):
     $MONITOR
 
 Success = the RG 'SffProgress' tag reaches 'RoeSucceeded'. Then follow
-docs/sff-runbook.md to download the ownership voucher and provision the
+docs/sff/runbook.md to download the ownership voucher and provision the
 machine from the Azure portal.
 
 Tear everything down (stops all billing):  $SCRIPT_DIR/cleanup-sff.sh

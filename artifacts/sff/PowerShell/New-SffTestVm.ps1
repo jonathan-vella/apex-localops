@@ -86,8 +86,8 @@ if ($StaticMac) {
     Import-Module DhcpServer -ErrorAction Stop
     $macHex = ($StaticMac -replace '[^0-9A-Fa-f]', '')
     Get-DhcpServerv4Reservation -ScopeId $scopeId -ErrorAction SilentlyContinue |
-      Where-Object { $_.IPAddress.IPAddressToString -eq $nestedIp -or ($_.ClientId -replace '[^0-9A-Fa-f]', '') -ieq $macHex } |
-      ForEach-Object { Remove-DhcpServerv4Reservation -ScopeId $scopeId -IPAddress $_.IPAddress -ErrorAction SilentlyContinue }
+    Where-Object { $_.IPAddress.IPAddressToString -eq $nestedIp -or ($_.ClientId -replace '[^0-9A-Fa-f]', '') -ieq $macHex } |
+    ForEach-Object { Remove-DhcpServerv4Reservation -ScopeId $scopeId -IPAddress $_.IPAddress -ErrorAction SilentlyContinue }
     Add-DhcpServerv4Reservation -ScopeId $scopeId -IPAddress $nestedIp -ClientId $macHex -Description "SFF nested VM $InstanceIndex" -ErrorAction Stop
     Write-SffLog "DHCP reservation: $macHex -> $nestedIp (instance $InstanceIndex)."
   }
@@ -246,7 +246,7 @@ was extracted automatically and stored in Key Vault (SffProgress=VoucherStored).
 Next: provision the machine in Azure from the voucher, then deploy AKS:
   scripts/provision-machine.sh   (auto if the preview CLI is present, else guided)
   scripts/resolve-aks-inputs.sh && scripts/deploy-aks-baremetal.sh
-See docs/sff-zero-touch.md for the fully chained scripts/deploy-all.sh path.
+See docs/sff/zero-touch.md for the fully chained scripts/deploy-all.sh path.
 "@
   }
   else {
@@ -257,7 +257,7 @@ Automatic voucher extraction was not possible; download it manually:
   2. Enter the nested VM IP$(if ($vmIp) { " ($vmIp)" } else { ' (see Hyper-V console)' }), user 'edgeuser', password 'Password1'.
   3. Select 'Download Ownership Voucher' and save the .pem.
   4. Run:  C:\LocalSFF\Save-OwnershipVoucher.ps1 -Path <voucher>.pem
-See docs/sff-runbook.md for portal machine provisioning.
+See docs/sff/runbook.md for portal machine provisioning.
 "@
   }
   Set-Content -Path (Join-Path $cfg.Paths.LogsDir 'NEXT-STEPS.txt') -Value $next

@@ -39,7 +39,7 @@ Activate this skill when the user wants to:
 ## References
 
 - Canonical: <https://learn.microsoft.com/azure/azure-local/small-form-factor/small-form-factor-overview>
-- This repo's SFF flow: [docs/sff-quickstart.md](../../../docs/sff-quickstart.md)
+- This repo's SFF flow: [docs/sff/quickstart.md](../../../docs/sff/quickstart.md)
 - Related skills: `azlocal-deploy`, `aksarc-on-azure-local`, `azlocal-workloads`
 
 ## Reference Index

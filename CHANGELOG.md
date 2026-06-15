@@ -1,5 +1,9 @@
 # Changelog
 
+> **Draft release (pre-1.0).** This project is still being built and validated; expect changes
+> between versions. See [Project status](README.md#project-status) and the
+> [roadmap](docs/roadmap.md).
+
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
@@ -44,6 +48,14 @@ in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
 ### Changed
 
+- **Documentation restructured into a Microsoft Learn-style hub-and-spoke set.** The owned
+  docs were rewritten for a technical audience and reorganized into per-profile subfolders
+  (`docs/localbox/`, `docs/selfhosted/`, `docs/sff/`), with a new documentation hub
+  (`docs/README.md`), a profile comparison and decision guide (`docs/choose-a-profile.md`),
+  and a glossary (`docs/glossary.md`). Every guide gains a table of contents, task-based
+  headings, consistent navigation, and a Next steps section. The SFF engineering plan moved to
+  `docs/plans/sff-support-plan.md` (internal design record). The root `README.md` is slimmed to
+  a landing page that routes into the hub. No code, scripts, or templates changed.
 - `validate` CI now also builds + lints the SFF and AKS-bare-metal Bicep templates.
 - README gains a profile selector, an SFF topology note, and an SFF + AKS + zero-touch
   documentation index; `ATTRIBUTION.md` credits the new vendored scripts and docs.

@@ -44,5 +44,5 @@ Set-AzKeyVaultSecret -VaultName $KeyVaultName -Name $SecretName -SecretValue $se
 if ($ResourceGroup) {
   Set-SffProgress -ResourceGroup $ResourceGroup -Progress 'VoucherStored' -Status "Voucher saved to $KeyVaultName" -Config $cfg
 }
-Write-SffLog "Ownership voucher stored. Continue with portal machine provisioning (docs/sff-runbook.md)."
+Write-SffLog "Ownership voucher stored. Continue with portal machine provisioning (docs/sff/runbook.md)."
 Write-Host "To retrieve later:  az keyvault secret show --vault-name $KeyVaultName --name $SecretName --query value -o tsv | base64 -d > voucher.pem"

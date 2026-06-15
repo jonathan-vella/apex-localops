@@ -4,7 +4,7 @@ using './main.bicep'
 // apex-localops — Azure Local Small Form Factor (SFF) parameters.
 // Public-safe by construction: NO tenant-specific GUIDs and NO secrets are
 // committed here. scripts/deploy-sff.sh reads the Windows password from the
-// LOCALSFF_ADMIN_PASSWORD environment variable at deploy time. See docs/sff-quickstart.md.
+// LOCALSFF_ADMIN_PASSWORD environment variable at deploy time. See docs/sff/quickstart.md.
 // =============================================================================
 
 // --- Windows credentials: password is NEVER stored in this file ---

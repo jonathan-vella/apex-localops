@@ -1,0 +1,74 @@
+name: Bug report
+description: Report something that does not work as documented.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve apex-localops. This is a **draft release** under active
+        development, so some rough edges are expected — but a clear report helps us fix the
+        right thing. Please do **not** include secrets (passwords, tokens, subscription IDs)
+        in logs or screenshots.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      description: Which deployment profile does this affect?
+      options:
+        - LocalBox
+        - Self-hosted (zero Jumpstart)
+        - Small Form Factor (SFF)
+        - AKS on bare metal
+        - Documentation only
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands or portal steps you ran, in order.
+      placeholder: |
+        1. ./scripts/check-providers.sh
+        2. ./scripts/deploy.sh -g rg-localbox -l swedencentral
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: >
+        Monitor output (`./scripts/monitor*.sh --once`), preflight messages, or in-VM log
+        excerpts. Redact secrets first. This is rendered as code, so no backticks needed.
+      render: shell
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Anything that helps us reproduce.
+      value: |
+        - apex-localops version / commit or tag:
+        - Azure CLI version (`az --version`):
+        - Infra region / Azure Local instance region:
+        - OS / shell:
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read the relevant guide and the [troubleshooting docs](https://github.com/jonathan-vella/apex-localops/blob/main/docs/localbox/troubleshooting.md).
+          required: true
+        - label: I searched existing issues for a duplicate.
+          required: true
+        - label: My report contains no secrets (passwords, tokens, subscription IDs).
+          required: true

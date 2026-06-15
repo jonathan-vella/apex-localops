@@ -13,7 +13,7 @@ using './main.bicep'
 //   AKSBM_KUBERNETES_VERSION        <- (optional) overrides the default K8s version
 //   AKSBM_LOG_ANALYTICS_WORKSPACE_ID<- (optional) workspace ARM id for container monitoring
 //
-// To deploy manually, export those vars first (see docs/aks-baremetal-quickstart.md).
+// To deploy manually, export those vars first (see docs/sff/aks-baremetal.md).
 // =============================================================================
 
 param clusterName = 'localsff-aks'

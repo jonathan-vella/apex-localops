@@ -108,7 +108,7 @@ while true; do
 
   if echo "$snapshot" | grep -q '^__TERMINAL__ SUCCESS'; then
     echo
-    echo "✅ SFF build reached a SUCCESS state. Next: download the ownership voucher (docs/sff-runbook.md)."
+    echo "✅ SFF build reached a SUCCESS state. Next: download the ownership voucher (docs/sff/runbook.md)."
     exit 0
   fi
   if echo "$snapshot" | grep -q '^__TERMINAL__ FAILED'; then
