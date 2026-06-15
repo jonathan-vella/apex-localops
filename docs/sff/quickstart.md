@@ -17,7 +17,7 @@ New to this profile? Read the [SFF overview](overview.md) first.
 | --- | --- |
 | **What** | One nested-virtualization host VM that builds a Gen2 ROE test VM (TPM on, Secure Boot off, ≥4 vCPU). |
 | **Deploy time** | ~10–15 min ARM, then the Hyper-V install and nested-VM build. |
-| **Default region** | `eastus` (keeps the SFF host, site, edge machine, and optional AKS in one region). |
+| **Default region** | Host in `swedencentral` (`rg-sff-host-swc01`); the Azure Local site, edge machine, and AKS in `eastus` (`rg-sff-azl-eus01`). |
 | **Est. cost** | ~$700–900/month at 24×7 — see [SFF sizing and cost](sizing.md). |
 | **Access** | Azure Bastion only (no public IP on the VMs). |
 
@@ -38,7 +38,9 @@ New to this profile? Read the [SFF overview](overview.md) first.
 - The **Owner** role (or **Contributor** plus **Role Based Access Control Administrator**) on
   the subscription, active and permanent. See [RBAC](../glossary.md#identity-and-access).
 - **Azure CLI** and Bicep (`az bicep upgrade`).
-- Host-VM vCPU quota in your region: **8** of `Standard_D8s_v5` (the default).
+- Host-VM vCPU quota in the host region (`swedencentral`): **16** of `Standard_D16s_v5` (the
+  shipped default, which builds two nested VMs). For a single nested VM, use `Standard_D8s_v5`
+  with `nestedVmCount=1` (8 vCPU); see [SFF sizing and cost](sizing.md).
 - A strong Windows admin password: 14–123 characters, with three of lowercase, uppercase,
   digit, and special. **Avoid `$`** — it can break the in-VM bootstrap.
 - A Microsoft **Entra ID security group** of machine operators (used later in portal machine
@@ -74,12 +76,18 @@ steps the preview also requires.
 nested-virtualization SKU assertion, the ZTP feature, provider, and vCPU-quota checks), previews
 the changes with what-if, deploys, then hands off to `monitor-sff.sh`.
 
+> [!NOTE]
+> The host deploys to **`swedencentral`** (`rg-sff-host-swc01`) — East US restricts the
+> nested-virtualization VM capacity SFF needs. Later, the Azure Local site, edge machine, and
+> AKS on bare metal are provisioned separately into **`eastus`** (`rg-sff-azl-eus01`), because
+> AKS on bare metal is East US only.
+
 Useful flags:
 
 ```bash
 ./scripts/deploy-sff.sh --what-if-only    # preview only
 ./scripts/deploy-sff.sh --no-monitor      # deploy but don't auto-launch the monitor
-./scripts/deploy-sff.sh -g rg-azlocal-sff-eus01 -l eastus
+./scripts/deploy-sff.sh -g rg-sff-host-swc01 -l swedencentral   # the defaults; override if needed
 ```
 
 > [!NOTE]
@@ -153,7 +161,7 @@ the host), store it in Key Vault, and provision the machine from the Azure porta
 ## Clean up
 
 ```bash
-./scripts/cleanup-sff.sh            # delete rg-azlocal-sff-eus01, stop all billing
+./scripts/cleanup-sff.sh            # delete the host RG (rg-sff-host-swc01), stop all billing
 ```
 
 > [!WARNING]

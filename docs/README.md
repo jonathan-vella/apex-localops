@@ -81,7 +81,7 @@ Bastion. Per-profile diagrams live in each profile's overview:
 
 Every profile bills for **disks, Bastion, and NAT Gateway even when the VMs are stopped**.
 Delete the resource group to stop all charges. Figures are retail pay-as-you-go in Sweden
-Central (LocalBox and self-hosted) or East US (SFF), with Azure Hybrid Benefit on.
+Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
 
 | Profile | Always-on (24×7) | Deallocated floor | Full breakdown |
 | --- | --- | --- | --- |

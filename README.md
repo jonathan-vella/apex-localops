@@ -66,7 +66,7 @@ Azure Bastion. The architecture diagrams live in the
 | --- | --- | --- |
 | LocalBox | `Standard_E64s_v6` + 12 × 256 GB P30 disks | 3-node cluster (`AzLHOST1/2/3`) + `AzLMGMT` (DC, router, WAC) |
 | Self-hosted | `Standard_E64s_v6` + 12 × 256 GB P30 disks, plus an ISO-staging jumpbox | Router VM + domain controller + 3-node cluster, built from ISOs |
-| SFF | `Standard_D8s_v5` | One Gen2 ROE test VM (TPM on, Secure Boot off, ≥4 vCPU) |
+| SFF | `Standard_D16s_v5` | One or two Gen2 ROE test VMs (two by default; TPM on, Secure Boot off, ≥4 vCPU) |
 
 ## Cost
 
@@ -78,7 +78,7 @@ estimates exclude the Windows licensing surcharge (eligible licenses required).
 | --- | --- | --- |
 | LocalBox | ~$7,850/mo (Sweden Central) | [LocalBox sizing and cost](docs/localbox/sizing.md) |
 | Self-hosted | ~$7,850/mo (Sweden Central) | [Self-hosted sizing and cost](docs/selfhosted/sizing.md) |
-| SFF | ~$700–900/mo (East US) | [SFF sizing and cost](docs/sff/sizing.md) |
+| SFF | ~$700–900/mo (Sweden Central) | [SFF sizing and cost](docs/sff/sizing.md) |
 
 ## Documentation
 

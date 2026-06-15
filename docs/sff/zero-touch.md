@@ -152,10 +152,10 @@ If you prefer manual control, run the stages individually:
 ## Clean up
 
 ```bash
-./scripts/cleanup-sff.sh                 # SFF host + nested VM + staging + Key Vault
-# The AKS cluster (if deployed) lives in the SAME resource group; remove its resources
-# individually rather than deleting the group:
-az resource delete -g rg-azlocal-sff-eus01 -n localsff-aks --resource-type Microsoft.Kubernetes/connectedClusters 2>/dev/null || true
+./scripts/cleanup-sff.sh                 # deletes the host RG (rg-sff-host-swc01): host + nested VM + staging + Key Vault
+# The provisioned machine and the AKS cluster live in the SEPARATE Azure Local RG
+# (rg-sff-azl-eus01), so cleanup-sff.sh does NOT remove them. Delete the AKS cluster there:
+az resource delete -g rg-sff-azl-eus01 -n localsff-aks --resource-type Microsoft.Kubernetes/connectedClusters 2>/dev/null || true
 ```
 
 ## Next steps

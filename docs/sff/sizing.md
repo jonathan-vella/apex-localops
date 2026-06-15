@@ -69,7 +69,7 @@ secret.
 
 ## Monthly cost
 
-Figures are for 24×7, East US, retail pay-as-you-go.
+Figures are for 24×7 in the host region (`swedencentral`), retail pay-as-you-go.
 
 | Scenario | Approx. /month |
 | --- | --- |
@@ -110,17 +110,17 @@ storage, and networking). It matches the LocalBox profile, which applies AHB the
 Already deployed? `licenseType` is updatable in place, with no redeploy:
 
 ```bash
-az vm update -g rg-azlocal-sff-eus01 -n LocalSFF-Host --set licenseType=Windows_Server   # or None
-az vm update -g rg-azlocal-sff-eus01 -n LocalSFF-Mgmt --set licenseType=Windows_Client   # or None
+az vm update -g rg-sff-host-swc01 -n LocalSFF-Host --set licenseType=Windows_Server   # or None
+az vm update -g rg-sff-host-swc01 -n LocalSFF-Mgmt --set licenseType=Windows_Client   # or None
 ```
 
-Verify with: `az vm show -g rg-azlocal-sff-eus01 -n LocalSFF-Host --query licenseType -o tsv`
+Verify with: `az vm show -g rg-sff-host-swc01 -n LocalSFF-Host --query licenseType -o tsv`
 → `Windows_Server`.
 
 ## Cost guidance
 
 - **SFF test runs are bursty.** Deallocate the host
-  (`az vm deallocate -g rg-azlocal-sff-eus01 -n LocalSFF-Host`) when idle; the scheduled-task
+  (`az vm deallocate -g rg-sff-host-swc01 -n LocalSFF-Host`) when idle; the scheduled-task
   watcher resumes on the next start. Compute stops billing while deallocated.
 - **Disks, Bastion, and NAT bill even when the VMs are stopped.** To stop *all* charges, delete
   the resource group (`./scripts/cleanup-sff.sh`).
@@ -131,10 +131,10 @@ Verify with: `az vm show -g rg-azlocal-sff-eus01 -n LocalSFF-Host --query licens
 
 | | LocalBox (3-node) | **SFF** |
 | --- | --- | --- |
-| Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D8s_v5` (8 / 32) |
-| Data disks | 12 × 256 GB P30 (3 TB) | 1 × 512 GB Premium |
+| Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D16s_v5` (16 / 64) |
+| Data disks | 12 × 256 GB P30 (3 TB) | 1 × 1024 GB Premium |
 | Est. 24×7 | ~$7,850/mo | ~$700–900/mo (~1/10th) |
-| Nested payload | 3-node Azure Local cluster + management host | 1 ROE SFF test VM |
+| Nested payload | 3-node Azure Local cluster + management host | One or two ROE SFF test VMs (two by default) |
 
 ## Next steps
 

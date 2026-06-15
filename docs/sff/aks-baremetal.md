@@ -101,7 +101,7 @@ Useful flags:
 ```bash
 ./scripts/deploy-aks-baremetal.sh --what-if-only          # preview only
 ./scripts/deploy-aks-baremetal.sh --ssh-key-file ~/.ssh/id_ed25519.pub
-./scripts/deploy-aks-baremetal.sh -g rg-azlocal-sff-eus01 -l eastus
+./scripts/deploy-aks-baremetal.sh -g rg-sff-azl-eus01 -l eastus
 ```
 
 ## Connect with kubectl
@@ -110,7 +110,7 @@ Run this from your **local machine or devcontainer** (not Cloud Shell — the pr
 token audience):
 
 ```bash
-./scripts/connect-aks-baremetal.sh --name localsff-aks --resource-group rg-azlocal-sff-eus01 --get-nodes
+./scripts/connect-aks-baremetal.sh --name localsff-aks --resource-group rg-sff-azl-eus01 --get-nodes
 ```
 
 That starts the Arc proxy, runs `kubectl get nodes`, and stops the proxy. Expected output:
@@ -128,7 +128,7 @@ For an interactive session, omit `--get-nodes` — it starts the proxy in the fo
 Once the cluster is up, deploy a sample nginx workload to verify it end to end:
 
 ```bash
-./scripts/deploy-aks-sample-app.sh --name localsff-aks -g rg-azlocal-sff-eus01 --host-ip 192.168.200.50
+./scripts/deploy-aks-sample-app.sh --name localsff-aks -g rg-sff-azl-eus01 --host-ip 192.168.200.50
 ```
 
 It starts the Arc proxy, applies
@@ -185,12 +185,13 @@ workspace ID).
 
 ## Clean up
 
-The cluster resources live in the **same resource group as the SFF machine**, so do **not**
-delete the whole resource group (that would also destroy the SFF host). Remove just the cluster
-resources:
+The cluster resources live in the **same resource group as the provisioned SFF machine**
+(`rg-sff-azl-eus01`), so do **not** delete the whole resource group — that would also destroy the
+provisioned machine. (The SFF host VM is in the separate `rg-sff-host-swc01` and is unaffected.)
+Remove just the cluster resources:
 
 ```bash
-RG=rg-azlocal-sff-eus01
+RG=rg-sff-azl-eus01
 CL=localsff-aks
 # Deleting the connected cluster removes its child provisioned-cluster instance too.
 az resource delete -g "$RG" -n "$CL" --resource-type Microsoft.Kubernetes/connectedClusters
@@ -198,8 +199,8 @@ az resource delete -g "$RG" -n "$CL-lnet" --resource-type Microsoft.AzureStackHC
 az resource delete -g "$RG" -n "<edge-machine-name>" --resource-type Microsoft.AzureStackHCI/devicePools
 ```
 
-Cluster resources are zero-rated in preview. The SFF resource group (`rg-azlocal-sff-eus01`) and
-its host VM remain untouched.
+Cluster resources are zero-rated in preview. The Azure Local resource group (`rg-sff-azl-eus01`)
+keeps the provisioned machine, and the SFF host VM in `rg-sff-host-swc01` is untouched.
 
 ## Preview-volatility note
 

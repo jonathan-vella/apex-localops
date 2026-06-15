@@ -41,8 +41,8 @@ matches your scenario.
 | **Build source** | Prebaked Arc Jumpstart VHDs and modules | Operator-staged OS ISOs (clean-room) | Microsoft-owned ROE ISO + Configurator App |
 | **Manual steps** | None — fully automated after deploy | One: download and upload two ISOs | One-time ISO staging, then one provisioning step |
 | **Azure VMs** | 1 host (+ optional jumpbox) | 2 (cluster host + jumpbox) | 1 host (+ optional jumpbox) |
-| **Default host SKU** | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_D8s_v5` or `Standard_D16s_v5` |
-| **Default region** | `swedencentral` (infra) + `westeurope` (instance) | `swedencentral` (infra) + `westeurope` (instance) | `eastus` |
+| **Default host SKU** | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_D16s_v5` (2 VMs, default) or `Standard_D8s_v5` (1 VM) |
+| **Default region** | `swedencentral` (infra) + `westeurope` (instance) | `swedencentral` (infra) + `westeurope` (instance) | `swedencentral` (host) + `eastus` (Azure Local + AKS) |
 | **Time to first result** | ~4–5 h in-VM build | Half-day (first run) | ~10–15 min deploy + nested build |
 | **Est. cost (24×7)** | ~$7,850/mo | ~$7,850/mo | ~$700–900/mo |
 | **AKS on bare metal** | Not applicable | Not applicable | Supported (preview) |

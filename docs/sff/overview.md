@@ -17,6 +17,15 @@ This page explains the topology and what gets deployed. To deploy, go to the
 > [validated hardware](https://learn.microsoft.com/azure/azure-local/small-form-factor/small-form-factor-overview#supported-devices).
 > SFF is in **preview**; flows and artifact names may change.
 
+## In this guide
+
+- [When to use this profile](#when-to-use-this-profile)
+- [Architecture](#architecture)
+- [What it deploys](#what-it-deploys)
+- [The end-to-end flow](#the-end-to-end-flow)
+- [Provenance](#provenance)
+- [Next steps](#next-steps)
+
 ## When to use this profile
 
 Choose SFF when you want to evaluate an edge or Small Form Factor device, or when you need a
@@ -33,13 +42,13 @@ host builds one or two Gen2 ROE test VMs inside itself, on an isolated internal 
 ```mermaid
 flowchart TB
     User(["Operator"])
-    subgraph RG["resource group rg-azlocal-sff-eus01"]
+    subgraph RG["host resource group rg-sff-host-swc01 · swedencentral"]
         Bastion["Azure Bastion"]
         NAT["NAT Gateway"]
         KV["Key Vault<br/>ownership voucher"]
         SA["Staging Storage<br/>roe.iso · configurator.msi"]
         Jump["LocalSFF-Mgmt<br/>Win11 jumpbox (optional)"]
-        subgraph Host["LocalSFF-Host · Standard_D8s_v5 · Hyper-V"]
+        subgraph Host["LocalSFF-Host · Standard_D16s_v5 · Hyper-V"]
             subgraph HVNet["HV-Internal-NAT · 192.168.200.0/24"]
                 Nested["SFF test VM (Gen2)<br/>TPM on · SBoot off · 4 vCPU · 16 GB · 256 GB<br/>boots Maintenance OS (ROE)"]
             end
@@ -60,13 +69,17 @@ which the host blocks for the nested VM.
 
 ## What it deploys
 
-- A `LocalSFF-Host` nested-virtualization VM (`Standard_D8s_v5` by default) that builds one or
-  two Gen2 ROE test VMs (TPM on, Secure Boot off, ≥4 vCPU, 16 GB, 256 GB).
+- A `LocalSFF-Host` nested-virtualization VM (`Standard_D16s_v5` by default, in
+  `rg-sff-host-swc01` / `swedencentral`) that builds the nested Gen2 ROE test VMs (TPM on,
+  Secure Boot off, ≥4 vCPU, 16 GB, 256 GB). The shipped default builds two; set
+  `nestedVmCount=1` for one.
 - Azure Bastion and a NAT Gateway (no public IP on the VMs).
 - A staging storage account for the Azure-staged ROE ISO and Configurator App.
 - A Key Vault for the ownership voucher.
 - A Log Analytics workspace, and an optional Windows 11 jumpbox for staging artifacts.
 
+The Azure Local site, edge machine, and AKS on bare metal are provisioned later into a separate
+`eastus` resource group (`rg-sff-azl-eus01`) — see [The end-to-end flow](#the-end-to-end-flow).
 For host SKU options, the nested VM count, and the full cost breakdown, see
 [SFF sizing and cost](sizing.md).
 
