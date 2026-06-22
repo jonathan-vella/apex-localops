@@ -8,14 +8,14 @@ appliesto:
 ms.topic: how-to
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 04/30/2026
+ms.date: 06/10/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer, I want to deploy Foundry Local as an Azure Arc extension so that I can run AI inference workloads on my Azure Arc–enabled Kubernetes cluster.
 ---
 
 # Deploy Foundry Local as an Azure Arc extension
 
-This article shows you how to set up Foundry Local as an extension on your Azure Kubernetes Service (AKS) cluster enabled by Azure Arc. Use the Azure CLI to deploy Foundry Local as an extension on your Azure Arc-enabled Kubernetes cluster. Helm is also a supported deployment option, and installation instructions are provided during preview access onboarding.
+This article shows you how to set up Foundry Local as an extension on your Azure Kubernetes Service (AKS) cluster enabled by Azure Arc. Use the Azure portal or the Azure CLI to deploy Foundry Local as an extension on your Azure Arc-enabled Kubernetes cluster. Helm is also a supported deployment option, and installation instructions are provided during preview access onboarding.
 
 If you plan to use models with [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview), Entra ID authentication must remain enabled (the default) during this extension installation.
 
@@ -25,14 +25,14 @@ If you plan to use models with [Agentic Retrieval in Foundry Local](/azure/azure
 
 Before you begin, make sure you have:
 
-- Access to Foundry Local preview: Foundry Local on Azure Local is available by request during preview. Submit an access request at [aka.ms/FoundryLocalAzure_PreviewRequest](https://aka.ms/FoundryLocalAzure_PreviewRequest). After approval, you'll receive guidance on next steps for deployment.
+- Access to Foundry Local preview: Foundry Local on Azure Local is available by request during preview. Submit an access request at [aka.ms/FoundryLocalAzure_PreviewRequest](https://aka.ms/FoundryLocalAzure_PreviewRequest).
 - A Kubernetes cluster (version 1.29 or later) connected to Azure Arc. For more information, see [Azure Arc–enabled Kubernetes](/azure/azure-arc/kubernetes/overview).
 - Your Azure Arc-enabled Kubernetes cluster is located in a supported region. For available regions, see [Supported regions](overview.md#supported-regions).
 - An app registration for enablement of authorization and authentication. See [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) installed and configured for your cluster.
 - [Helm](https://helm.sh/) installed.
 - For external endpoints: an NGINX ingress controller, such as [NGINX-Ingress](https://github.com/kubernetes/ingress-nginx).
-- (Optional) A namespace strategy if you plan to deploy models outside the default `foundry-local-operator` namespace. Namespace configuration must be set during installation. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments).
+- (Optional) A namespace strategy if you plan to deploy models outside the default `foundry-local-operator` namespace. You must set namespace configuration during installation. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments).
 
 > [!IMPORTANT]
 > [Ingress-NGINX](https://github.com/kubernetes/ingress-nginx) is deprecated since March 2026. Microsoft currently supports NGINX annotations. The solution is tested with AKS's managed NGINX ingress controller.
@@ -41,7 +41,7 @@ Before you begin, make sure you have:
 
 If you plan to run GPU workloads, also make sure:
 
-- NVIDIA GPU nodes are available in your cluster with CUDA drivers installed on the nodes.
+- Your cluster has NVIDIA GPU nodes with CUDA drivers installed on the nodes.
 - The Kubernetes device plugin for NVIDIA is configured so the cluster can schedule GPU workloads.
 
 For more information, see [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/overview.html).
@@ -52,7 +52,7 @@ Foundry Local on Azure Local requires cert-manager and trust-manager for automat
 
 Use the Azure CLI to create the cert-manager extension on your cluster. Choose the appropriate command for your shell environment:
 
-#### [Bash](#tab/install-bash)
+#### [Bash](#tab/bash)
 
 ```bash
 az k8s-extension create \
@@ -70,7 +70,7 @@ az k8s-extension create \
     --config trust-manager.secretTargets.authorizedSecretsAll=true
 ```
 
-#### [PowerShell](#tab/install-powershell)
+#### [PowerShell](#tab/powershell)
 
 ```powershell
 az k8s-extension create `
@@ -90,11 +90,15 @@ az k8s-extension create `
 
 ---
 
-## Step 2: Install the inference operator
+## Step 2: Install the Foundry Local extension
 
-Use the Azure CLI to deploy the inference operator extension. Choose the appropriate command for your shell environment:
+Install the Foundry Local extension by using the Azure portal or Azure CLI. Entra ID authentication is enabled by default. If you plan to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, keep this default during installation and include the Entra application ID. If you disable Entra ID authentication, you prevent Agentic Retrieval from connecting to your deployed models.
 
-#### [Bash](#tab/operator-bash)
+### Option 1: Command line
+
+Use the Azure CLI in Bash or PowerShell to install the extension.
+
+#### [Bash](#tab/bash)
 
 ```bash
 az k8s-extension create \
@@ -111,7 +115,7 @@ az k8s-extension create \
     --config entraAuth.clientId="<the_client_id_of_the_app_registration>"
 ```
 
-#### [PowerShell](#tab/operator-powershell)
+#### [PowerShell](#tab/powershell)
 
 ```powershell
 az k8s-extension create `
@@ -130,29 +134,63 @@ az k8s-extension create `
 
 ---
 
-### Additional installation parameters
-
-Entra ID authentication is enabled by default. If you intend to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, keep `entraAuth.enabled` set to `true` (the default) during installation. Disabling Entra ID authentication prevents agentic retrieval from connecting to your deployed models.
+**Additional installation parameters**
 
 You can configure the following optional parameters during inference operator installation:
 
 | Parameter | Description |
 |-----------|-------------|
-| `entraAuth.enabled` | Boolean. When enabled, the Entra Auth SDK sidecar and msi-adapter sidecar are injected into inference pods for JWT validation and ARM RBAC authorization. When disabled, `entraAuth.tenantId` and `entraAuth.clientId` parameters are optional. Default: `true`. For more information, see [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md). |
+| `entraAuth.enabled` | Boolean. When enabled, the Entra Auth SDK sidecar and msi-adapter sidecar are injected into inference pods for JWT validation and ARM RBAC authorization. When disabled, `entraAuth.tenantId` and `entraAuth.clientId` parameters are optional. Default: `true`. For more information, see [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md). If you intend to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, you must enable Entra ID authentication for the Foundry Local extension.|
 | `watch.namespaces` | Array of strings. Configure this parameter if you want the operator to manage resources across multiple namespaces. By default, the operator manages the `foundry-local-operator` namespace where models and inference workloads are deployed. Pass the installation command as: `--config watch.namespaces[0]="NS1" --config watch.namespaces[1]="NS2"`. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments). |
+
+### Option 2: Azure portal
+
+Use the Azure portal to install the Foundry Local extension and configure required settings for your Arc-enabled Kubernetes cluster.
+
+1. In the [Azure portal](https://portal.azure.com/), go to your Azure Arc–enabled Kubernetes cluster on Azure Local.
+1. Select **Settings** > **Extensions** > **+ Add**.
+1. From the list of available extensions, select **Foundry Local on Azure Local (Preview)**.
+1. Select **Create**.
+1. On the **Basics** tab, provide the following information:
+
+   | Field | Value |
+   |---|---|
+   | Subscription | Select the subscription that contains your Arc–enabled Kubernetes cluster. |
+   | Resource group | Select the resource group that contains your Azure Arc cluster. |
+   | Region | Select the region where you want to deploy the extension. |
+   | Connected K8S cluster | Select your Arc–enabled Kubernetes cluster. |
+   | Extension name | Provide a name for the extension (for example, `foundry`). |
+
+   :::image type="content" source="media/deploy-foundry-local-arc-extension/foundry-local-extension-basics.png" alt-text="Screenshot of the Basics tab where you select the subscription, resource group, region, connected cluster, and extension name.":::
+
+1. Select **Next**.
+1. On the **Configuration** tab, provide the following information:
+
+   | Field | Value |
+   |---|---|
+   | Microsoft Entra ID | Choose **Enabled** or **Disabled**. When enabled, you must provide the Entra application ID for authentication. |
+   | Entra application ID | Required only when Microsoft Entra ID is enabled. Enter the application ID from your enterprise application registration. |
+   | Kubernetes namespaces | Optional. Enter a comma-separated list of Kubernetes namespaces where you want to allow model deployments. If left empty, models deploy only to the `foundry-local-operator` namespace. |
+
+   :::image type="content" source="media/deploy-foundry-local-arc-extension/foundry-local-extension-configuration.png" alt-text="Screenshot of the Configuration tab where you enable Microsoft Entra ID and optionally specify Kubernetes namespaces for model deployments.":::
+
+1. Select **Review + Create**.
+1. Review and validate the parameters you provided.
+1. Select **Create** to deploy the Foundry Local extension.
+1. After the deployment completes, under **Extensions**, verify that the extension state is **Succeeded**.
 
 ## Step 3: Verify the operator
 
 Verify that the inference operator extension is installed and that all pods are running. Use the following commands to check the operator status:
 
-#### [Bash](#tab/verify-bash)
+#### [Bash](#tab/bash)
 
 ```bash
 kubectl get pods -n foundry-local-operator
 kubectl get crd | grep foundry
 ```
 
-#### [PowerShell](#tab/verify-powershell)
+#### [PowerShell](#tab/powershell)
 
 ```powershell
 kubectl get pods -n foundry-local-operator

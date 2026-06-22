@@ -35,7 +35,7 @@ On the **Basics** tab, configure the following settings:
 |---------|-------|
 | Site | Select your site. This selection automatically populates your subscription. |
 | Resource group | Select or create a resource group in **East US**. |
-| Cluster name | Enter a name for your cluster. Don't use spaces. |
+| Cluster name | Enter a name for your cluster. Name must be 1-27 characters long, start and end with a letter or number, and can only contain letters, numbers, hyphens, or underscores. |
 | Kubernetes version | Select **1.34.2** or **1.34.3**. |
 | Edge machine | Select **Add machines** to view available machines within your selected site, and then select the machine to deploy on. |
 
@@ -53,10 +53,10 @@ On the **Networking** tab, configure the following settings:
 
 | Setting | Value |
 |---------|-------|
-| Control plane IP | An IP address in the same subnet as your edge machine. This **cannot** be the same as the machine's IP address. |
+| Control plane IP | (Optional) If you leave this field blank, the control plane IP defaults to the host machine's IP address. Only specify a custom IP if you need the control plane to be reachable on a different address than the host machine. If provided, it must be in the same subnet as your edge machine. |
 
 > [!WARNING]
-> If your machine uses DHCP, you must reserve the control plane IP address so it remains permanently assigned to this machine. If the control plane IP changes, the Kubernetes cluster becomes unreachable and must be redeployed.
+> If you specify a custom control plane IP and your machine uses DHCP, you must reserve the control plane IP address so it remains permanently assigned to this machine. If the control plane IP changes, the Kubernetes cluster becomes unreachable and must be redeployed.
 
 ## Step 5: Configure integrations (optional)
 

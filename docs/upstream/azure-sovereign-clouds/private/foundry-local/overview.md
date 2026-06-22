@@ -26,7 +26,7 @@ Foundry Local on Azure Local is one of two options to run AI models locally. It 
 
 ## Request deployment access
 
-Foundry Local on Azure Local deployment is currently available by request during preview. To get started, submit the access request form: [Request preview deployment access](https://aka.ms/FoundryLocalAzure_PreviewRequest). After your request is reviewed, you'll receive guidance on next steps for deployment.
+Foundry Local on Azure Local deployment is currently available by request during preview. To get started, submit the access request form: [Request preview deployment access](https://aka.ms/FoundryLocalAzure_PreviewRequest).
 
 ## Key capabilities
 

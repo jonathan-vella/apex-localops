@@ -23,7 +23,7 @@ This article shows you how to use an existing Foundry Local environment to brows
 
 Before you begin, make sure you have:
 
-- Preview deployment access. Foundry Local on Azure Local is currently available by request during preview. Submit the access request form: [Request preview deployment access](https://aka.ms/FoundryLocalAzure_PreviewRequest). After your request is reviewed, you receive guidance on next steps for deployment.
+- Preview deployment access. Foundry Local on Azure Local is currently available by request during preview. Submit the access request form: [Request preview deployment access](https://aka.ms/FoundryLocalAzure_PreviewRequest).
 - An active Azure subscription. If you don't have one, [create one](https://azure.microsoft.com/free/) before you begin.
 - A Kubernetes cluster (version 1.29 or later) connected to Azure Arc, or a direct Kubernetes deployment.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) installed and configured for your cluster.
