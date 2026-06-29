@@ -143,6 +143,22 @@ You can configure the following optional parameters during inference operator in
 | `entraAuth.enabled` | Boolean. When enabled, the Entra Auth SDK sidecar and msi-adapter sidecar are injected into inference pods for JWT validation and ARM RBAC authorization. When disabled, `entraAuth.tenantId` and `entraAuth.clientId` parameters are optional. Default: `true`. For more information, see [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md). If you intend to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, you must enable Entra ID authentication for the Foundry Local extension.|
 | `watch.namespaces` | Array of strings. Configure this parameter if you want the operator to manage resources across multiple namespaces. By default, the operator manages the `foundry-local-operator` namespace where models and inference workloads are deployed. Pass the installation command as: `--config watch.namespaces[0]="NS1" --config watch.namespaces[1]="NS2"`. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments). |
 
+**Configure Inference API exposure**
+The `api.exposure` Helm value controls how the Foundry Local Inference API control-plane endpoint is exposed. This value
+is separate from `spec.endpoint.exposure`, which controls individual model data-plane endpoints.
+By default, `api.exposure` is set to `internal`, so the operator creates an HTTPRoute through the cluster-internal
+Gateway and the API is reachable inside the cluster at the `/inference-api` path.
+Set `api.exposure: external` when the Inference API must be reachable through the external LoadBalancer Gateway; this
+setting attaches the API route to the external Gateway and exposes it at `https://<external-gateway-address>/inference-api`.
+Set `api.exposure: none` to skip Gateway routing and keep the API reachable only through its ClusterIP service, for
+example by using `kubectl port-forward`.
+
+| Value | Behavior |
+|---|---|
+| `internal` | **Default.** Routes the Inference API through the internal Gateway only. |
+| `external` | Routes the Inference API through both the internal Gateway and external LoadBalancer Gateway. |
+| `none` | Creates no HTTPRoute; the API remains reachable only through the ClusterIP service. |
+
 ### Option 2: Azure portal
 
 Use the Azure portal to install the Foundry Local extension and configure required settings for your Arc-enabled Kubernetes cluster.
