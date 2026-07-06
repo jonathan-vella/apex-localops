@@ -2,6 +2,8 @@
 
 Hosted agents access Foundry-managed tools through a **Toolbox MCP endpoint**. Unlike prompt agents that wire tools directly, hosted agents connect to a single MCP-compatible endpoint that exposes all configured tools. The platform handles credential injection, token refresh, and policy enforcement.
 
+> 🚦 **Toolbox creation gate:** before creating a toolbox/connection, you MUST read the boundary rules in [create-hosted.md → Toolbox creation boundary](../create-hosted.md#toolbox-creation-boundary) and follow them, then continue with the rest of this file.
+
 > 📘 For endpoint format, MCP protocol details, auth, OAuth consent handling, testing, citation pattern, and troubleshooting, see [toolbox-reference.md](toolbox-reference.md).
 >
 > 📘 For wiring a remote tool (catalog tile or generic MCP server) into a project connection that a toolbox can attach to, see [foundry-tool-catalog.md](foundry-tool-catalog.md).
@@ -183,7 +185,7 @@ See [azd `params` reference](https://learn.microsoft.com/azure/developer/azure-d
 
 ## Operational helpers via `azd ai` CLI
 
-> The `azd ai` CLI also exposes `agent connection create`, `toolbox create`, `toolbox list`, and `toolbox delete`. Prefer **Foundry Toolkit (VS Code)** or the **Foundry Portal** for those — the UI gives you tool browsing, connection wizards, and validation. The two commands below are the ones the skill should still drive directly because they're *operational*, not setup.
+> The `azd ai` CLI also exposes `connection create`, `toolbox create`, `toolbox list`, and `toolbox delete`. Prefer **Foundry Toolkit (VS Code)** or the **Foundry Portal** for those — the UI gives you tool browsing, connection wizards, and validation. The two commands below are the ones the skill should still drive directly because they're *operational*, not setup.
 
 > All commands require `--project-endpoint <PROJECT_ENDPOINT>` (the value of `PROJECT_ENDPOINT`, e.g. `https://<account>.services.ai.azure.com/api/projects/<project>`). To avoid repeating it, export it once:
 >
