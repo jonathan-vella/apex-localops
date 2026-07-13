@@ -15,7 +15,7 @@ customer intent: As a platform engineer, I want to configure TLS encryption for 
 
 # Configure TLS for Foundry Local
 
-Foundry Local on Azure Local encrypts all internal service communication by using TLS. Each model service uses self-signed certificates that the cluster manages. This article explains how the TLS setup works and how to configure secure connections inside the cluster, across namespaces, and through external ingress.
+Foundry Local on Azure Local encrypts all internal service communication by using TLS. Each model service uses self-signed certificates that the cluster manages. This article explains how the TLS setup works and how to configure secure connections inside the cluster, across namespaces, and through the gateway API for external access.
 
 [!INCLUDE [foundry-local-preview](includes/foundry-local-preview.md)]
 
@@ -28,7 +28,7 @@ Automated certificate management requires cert-manager and trust-manager install
 
 How you install these components depends on your deployment method:
 
-- **Arc extension (recommended):** Install cert-manager for Arc-enabled Kubernetes (CME) by using `az k8s-extension create` with the `Microsoft.CertManagement` extension type. CME installs both cert-manager and trust-manager as a managed Arc extension. For installation steps, see [Install cert-manager and trust-manager](deploy-foundry-local-arc-extension.md#step-1-install-cert-manager-and-trust-manager).
+- **Arc extension (recommended):** Install cert-manager for Arc-enabled Kubernetes (CME) by using `az k8s-extension create` with the `Microsoft.CertManagement` extension type. CME installs both cert-manager and trust-manager as a managed Arc extension. For installation steps, see [Install cert-manager and trust-manager](deploy-foundry-local-arc-extension.md#step-2-install-cert-manager-and-trust-manager).
 - **Helm-based deployment:** The Foundry Local Helm chart doesn't automatically install cert-manager and trust-manager. Manually install the open-source [cert-manager](https://cert-manager.io/) and [trust-manager](https://cert-manager.io/docs/trust/trust-manager/) components before you deploy Foundry Local on Azure Local. Helm installation instructions are provided during preview access onboarding.
 
 > [!IMPORTANT]
@@ -109,70 +109,45 @@ To call a Foundry service from another namespace, use its internal DNS name, for
 
 When your application makes an HTTPS request, the Foundry service's NGINX sidecar presents a certificate signed by the internal CA. Because your client trusts that CA through the bundle, the TLS handshake succeeds. API key authentication for inference requests is covered in [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md).
 
-## Configure external access through ingress
+## Configure external access through gateway API
 
-For access outside the cluster, use a Kubernetes ingress controller (such as NGINX Ingress) in front of Foundry's services. Foundry Local automatically configures ingress resources with specific NGINX annotations to enable secure communication. Foundry Local doesn't deploy an ingress controller itself - you bring your own.
+Foundry Local no longer uses a Kubernetes ingress controller for external inference traffic. External access routes through the Kubernetes Gateway API. The inference operator creates `HTTPRoute` resources for model endpoints and attaches them to the internal gateway by default. When you set `spec.endpoint.exposure: external` on a model deployment, the operator also creates an external gateway backed by a load balancer and attaches the route to that gateway.
 
-> [!IMPORTANT]
-> Install the ingress controller before you deploy the inference operator.
-
-```bash
-# Install ingress-nginx (NodePort)
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace \
-  --set controller.service.type=NodePort \
-  --set controller.hostPort.enabled=true \
-  --wait
-```
-
-To configure external TLS with your own certificate:
-
-```bash
-# Step 1: Create a TLS secret from existing certificate files
-kubectl create secret tls my-custom-tls \
-  --namespace foundry-inference \
-  --cert=path/to/tls.crt \
-  --key=path/to/tls.key
-```
-
-Then reference the secret in your ModelDeployment:
+To expose a model endpoint externally, configure the ModelDeployment endpoint exposure:
 
 ```yaml
-# Step 2: Deploy with a custom certificate
 apiVersion: foundrylocal.azure.com/v1
-kind: InferenceService
+kind: ModelDeployment
 metadata:
   name: phi-3-mini
-  namespace: foundry-inference
+  namespace: foundry-local-operator
 spec:
-  name: phi-3-mini
-  inferenceType: generative
-  hardware: cpu
-  modelSource:
-    foundry:
-      modelName: Phi-3-mini-128k-instruct-generic-cpu:2
+  model:
+    catalog:
+      name: phi-3-mini
+  workloadType: generative
+  runtime: vllm
+  compute: gpu
   replicas: 1
-  port: 5000
-  resources:
-    requests:
-      cpu: "1"
-      memory: "4Gi"
-    limits:
-      cpu: "4"
-      memory: "8Gi"
-  tls:
-    enabled: true
-  ingress:
-    enabled: true
-    host: inference.customer-domain.com
-    path: /models/phi-3-mini(/|$)(.*)
-    rewritePath: /$2
-    tls:
-      enabled: true
-      secretName: my-custom-tls
+  endpoint:
+    exposure: external
+    path: /phi-3-mini
 ```
 
+When you enable external exposure, the external gateway terminates TLS. By default, if cluster TLS is enabled and you don't configure a customer certificate, the operator auto-generates a certificate signed by the internal cluster CA. Off-cluster clients must trust that CA to connect successfully. For production external access, provide a customer-managed TLS secret for the external gateway by setting `operatorConfig.networking.externalGateway.tls.secretName` during extension installation or Helm configuration. The secret must be a Kubernetes TLS secret in the external gateway namespace.
+
+The gateway forwards traffic to the model service over HTTPS. The operator creates a `BackendTLSPolicy` so the gateway validates the backend service certificate against the Foundry Local CA bundle.
+
+### Configuration reference
+
+The following settings control external gateway exposure and TLS for model deployments:
+
+| Setting | Purpose |
+|---|---|
+| `spec.endpoint.exposure: external` | Exposes an individual model data-plane endpoint through the external gateway. |
+| `spec.endpoint.path` | Sets the URL path for the model endpoint on the gateway. If omitted, the operator derives a path from the deployment name. |
+| `operatorConfig.networking.externalGateway.tls.secretName` | Optional customer-managed TLS secret used by the external gateway for TLS termination. |
+| `operatorConfig.networking.externalGateway.serviceAnnotations` | Optional cloud-provider annotations applied to the LoadBalancer service created for the external gateway. |
 
 
 ## Related content

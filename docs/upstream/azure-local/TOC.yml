@@ -926,12 +926,6 @@ items:
         href: manage/create-arc-virtual-machines.md
       - name: Run SQL Server
         href: deploy/sql-server-23h2.md
-
-  - name: Enable
-    items:
-    - name: Connect External Storage (SAN)
-      href: deploy/enable-external-storage.md
-
   - name: Update 
     items:
     - name: About Updates
@@ -1426,7 +1420,8 @@ items:
       items:
       - name: Manage NSGs
         href: ./multi-rack/multi-rack-manage-network-security-groups.md
-
+    - name: Run AKS on Azure Local 
+      href: /azure/aks/aksarc/multi-rack/resource-manager-quickstart
 
   - name: Monitor
     items:

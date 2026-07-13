@@ -191,7 +191,7 @@ POST /api/v1/models/sync
 
 ### Deployments
 
-The Deployments API manages ModelDeployment custom resource definitions (CRDs), which represent running inference workloads. Each deployment creates a Kubernetes Deployment, Service, and optionally an Ingress. The API injects an nginx transport layer security (TLS) sidecar for secure communication, and it enforces authentication at the application layer.
+The Deployments API manages ModelDeployment custom resource definitions (CRDs), which represent running inference workloads. Each deployment creates a Kubernetes Deployment, Service, and optionally a gateway API. The API injects an nginx transport layer security (TLS) sidecar for secure communication, and it enforces authentication at the application layer.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -220,7 +220,7 @@ Use the following fields to define a new deployment request.
 | **spec.resources** | object | No | CPU, memory, and GPU requests and limits |
 | **spec.nodeSelector** | object | No | K8s node selector key-value pairs |
 | **spec.tolerations** | Toleration[] | No | Pod scheduling tolerations |
-| **spec.endpoint** | EndpointConfig | No | Ingress configuration (host, path, TLS) |
+| **spec.endpoint** | EndpointConfig | No | Gateway API configuration (host, path, TLS) |
 | **spec.authentication** | AuthConfig | No | API key authentication configuration |
 
 #### Model reference types
@@ -294,7 +294,7 @@ These fields describe deployment state, readiness, and resolved endpoints.
 | **deploymentReady** | boolean or null | Whether all requested replicas are ready |
 | **serviceReady** | boolean or null | Whether the K8s Service is created |
 | **internalEndpoint** | string or null | Internal cluster URL for the deployment |
-| **externalEndpoint** | string or null | External URL (when Ingress is configured) |
+| **externalEndpoint** | string or null | External URL (when gateway API is configured) |
 | **resolvedModel** | object or null | Resolved model info: {name, variant, image} |
 | **authentication** | object or null | Auth status: {keysSecretName, key rotation timestamps} |
 | **conditions** | Condition[] | K8s-style conditions array with type/status/reason/message |
@@ -398,7 +398,7 @@ This table shows how InferenceServices fields map to ModelDeployment fields.
 | Workload type field | inferenceType | spec.workloadType |
 | Compute field | hardware | spec.compute |
 | Model source field | modelSource.foundry / modelSource.byo | spec.model.ref / catalog / custom |
-| Ingress field | ingress | spec.endpoint |
+| Gateway API field | gateway API | spec.endpoint |
 
 ## Data-plane API surfaces
 

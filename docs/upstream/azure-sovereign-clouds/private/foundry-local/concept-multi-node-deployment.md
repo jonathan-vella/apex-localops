@@ -24,6 +24,12 @@ Multi-node Foundry Local enables concurrent usage at scale, so multiple users, a
 
 Multi-node support also enables larger and more demanding models, including high-parameter generative AI workloads, by distributing inference across GPU-capable nodes. Combined with local model caching and cluster-aware orchestration, organizations can scale capacity horizontally by adding nodes, without changing application architecture.
 
+## Inference-aware routing for vLLM deployments
+
+For multireplica vLLM deployments, Foundry Local introduces inference-aware routing with an LLM-D-based Endpoint Picker (EPP). Instead of relying on basic round-robin load balancing, EPP evaluates live backend signals such as request queue depth, KV-cache utilization, and prefix-cache locality, then routes each request to the most suitable replica through the Gateway API Inference Extension. The operator enables EPP by default for vLLM Model Deployments with more than one replica, helping multinode deployments improve throughput, reduce latency, and preserve cache locality as workloads scale horizontally.
+
+For configuration details, see [Inference-aware routing with the Endpoint Picker (EPP)](concept-inference-runtimes.md).
+
 ## Mixed workload support
 
 On Foundry Local on Azure Local, you can run both generative and predictive inference under a unified operational model. The platform validates GPU-based models and schedules them to GPU-capable nodes, while it places CPU-based models on nodes with sufficient compute capacity. This consistency allows teams to run diverse workloads side by side from traditional ML to large language models within the same cluster.

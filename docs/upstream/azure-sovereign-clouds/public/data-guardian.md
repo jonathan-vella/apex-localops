@@ -45,7 +45,6 @@ The main features of Data Guardian include:
 The Data Guardian process involves the following steps:
 
 1. **Access request**: A Microsoft engineer requests just-in-time access to a production resource in a region.
-1. **Approval by regional personnel**: The request is routed to an authorized European-resident approver for validation.
 1. **Session monitoring**: Designated personnel monitor approved sessions in real time.
 1. **Immutable logging**: All actions during the session are logged in a tamper-evident ledger for transparency and compliance.
 

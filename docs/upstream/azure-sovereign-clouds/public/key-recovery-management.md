@@ -14,7 +14,7 @@ ms.collection:
 
 # Key recovery management with Managed HSM
 
-Azure Managed HSM is a cornerstone of **sovereign controls** within the Microsoft Sovereign Cloud architecture. It meets stringent regulatory and compliance requirements by ensuring that cryptographic operations and key material remain fully under your control. This sovereignty model provides unmatched assurance for data residency and compliance without impacting service SLAs, but it also shifts significant operational responsibilities to you.
+Azure Key Vault Managed HSM is a cornerstone of **sovereign controls** within the Microsoft Sovereign Cloud architecture. It meets stringent regulatory and compliance requirements by ensuring that cryptographic operations and key material remain fully under your control. This sovereignty model provides unmatched assurance for data residency and compliance without impacting service SLAs. It also shifts significant operational responsibilities to you.
 
 For more information about key management controls and sovereignty considerations, see [Key management controls](../key-controls.md).
 
@@ -25,7 +25,7 @@ Unlike Azure Key Vault (standard and premium), where Microsoft is responsible fo
 
 ## Customer responsibilities
 
-When you adopt Azure Managed HSM for sovereign workloads, you need to assume several operational duties. The following tasks ensure that your workloads are sovereign and remain recoverable in an emergency:
+When you adopt Managed HSM for sovereign workloads, you need to assume several operational duties. The following tasks ensure that your workloads are sovereign and remain recoverable in an emergency:
 
 ### Generate and manage RSA key pairs securely
 
@@ -77,7 +77,7 @@ For more information, see [Overview of Azure Key Vault Premium](/azure/key-vault
 
 ## Summary
 
-Azure Managed HSM offers unmatched security and sovereignty, but with that control comes responsibility. **Protect your Security Domain and associated keys as if your entire sovereign workloads and data depends on them—because it does.**
+Managed HSM offers unmatched security and sovereignty, but with that control comes responsibility. **Protect your Security Domain and associated keys as if your entire sovereign workloads and data depends on them—because it does.**
 
 ## Related content
 

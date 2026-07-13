@@ -8,7 +8,7 @@ appliesto:
 ms.topic: how-to
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/01/2026
+ms.date: 06/23/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer, I want to fulfill the prerequisites and download and import the required expansion pack to deploy Foundry Local as an Azure Arc extension in my disconnected environment.
 ---
@@ -21,7 +21,7 @@ This article outlines the prerequisites and steps to download and import the Fou
 
 ## Prerequisites
 
-Before you begin, ensure the following components are available:
+Before you begin, complete the following checks:
 
 * Azure Local Disconnected Operations is installed on-premises. The minimum supported version is `2604.3.0`.
 * An AKS Arc cluster on Azure Local, registered with Azure Arc as a `connectedClusters` resource.
@@ -33,28 +33,23 @@ Before you begin, ensure the following components are available:
     | Worker node count | 1 | 2+ (HA or GPU pool separation) |
     | Logical network | Reachable from edgeartifacts ACR | - |
 
-    The `az aksarc create` default `Standard_A4_v2` (8 GiB) isn't supported and can fail due to model-cache OOM followed by extension `--atomic` rollback.
+    If you plan to run multireplica `vLLM` deployments, reserve extra capacity for one EPP pod per ModelDeployment (about 512 MiB request and 2 GiB limit). For default behavior and tunables, see [ModelDeployment and operator configuration reference](../reference-model-deployment-operator.md).
+
+    Don't use the `az aksarc create` default worker size `Standard_A4_v2` (8 GiB). Use at least `Standard_D4s_v3`.
 
 * (Optional) GPU node pool (required only for GPU model variants such as `*-cuda-gpu` and `vLLM`):
     * NVIDIA DDA-passthrough SKU: `Standard_NC*_A2`, `Standard_NC*_L4_*`, `Standard_NC*_L40_*`, `Standard_NC*_L40S_*`, `Standard_NC*_RTX6000Pro_*`, or Tesla T4 `Standard_NK*`. AMD GPUs aren't supported.
     * NVIDIA mitigation INF is installed on the physical Azure Local node.
-    * `nvidia/k8s-device-plugin:v0.11.0` should be mirrored into `edgeartifacts` container registry at the path expected by the auto-deployed DaemonSet, because `microsoft.gpu.gpuoperator` isn't registered in Autonomous.
+    * `nvidia/k8s-device-plugin:v0.11.0` is mirrored into the `edgeartifacts` container registry at the path expected by the auto-deployed DaemonSet.
+
+For disconnected architecture and bundled dependency details, see [Foundry Local on Azure Local in disconnected environments overview](concept-overview.md).
 
 ## Download and import the Foundry Local expansion pack
 
 Download the Foundry Local extension expansion pack in a connected environment, transfer it to your disconnected environment, and then install it on the Azure Local Disconnected Operations machine.
 
-1. Download the Foundry Local extension expansion pack from [https://aka.ms/azurelocal-pxp-microsoft-foundrylocal-k8sextension](https://aka.ms/azurelocal-pxp-microsoft-foundrylocal-k8sextension).
-1. Validate the package name and version.
-
-    **Package naming convention**
-
-    `azurelocal.pxp.microsoft.foundrylocal.k8sextension.<BUILD_VERSION>.zip`
-
-    Example:
-
-    `azurelocal.pxp.microsoft.foundrylocal.k8sextension.0.260520.7.zip`
-
+1. Download the latest [Foundry Local extension expansion pack](https://aka.ms/azurelocal-pxp-microsoft-foundrylocal-k8sextension).
+   For additional versions and release notes, see the [Foundry Local Disconnected Catalog](https://aka.ms/azure-local-disconnected-operations-foundrylocal).
 1. Transfer the expansion pack to the disconnected Azure Local environment.
 1. Run the following commands on the `Azure Local Disconnected Operations` machine to install the expansion pack.
 

@@ -38,7 +38,7 @@ The following capabilities highlight what you can do with Foundry Local on Azure
 - Support CPU and GPU-backed deployments based on workload and hardware profile.
 - Scale inference across multi-node Kubernetes clusters for concurrent usage and high-parameter model support.
 - Operate in disconnected environments where internet connectivity isn't available, with a deployment model consistent with connected scenarios.
-- Secure endpoint access using API keys, Microsoft Entra ID authentication, and TLS-enabled ingress patterns.
+- Secure endpoint access using API keys, Microsoft Entra ID authentication, and TLS-enabled gateway API patterns.
 - Sync model catalog metadata so teams can discover and deploy supported models consistently.
 
 ## Architecture summary
@@ -49,9 +49,9 @@ Foundry Local on Azure Local runs on an Arc-enabled Kubernetes cluster and is de
 - A **Model** resource defines model metadata. Models can come from the Foundry catalog or from your own registry.
 - A **ModelDeployment** resource defines runtime intent, such as scaling profile and endpoint exposure.
 - The platform can synchronize model catalog metadata into the cluster for discoverability and version consistency.
-- Inference traffic is exposed through internal services or ingress, protected with API key, Entra ID token validation, and authentication and TLS.
+- Inference traffic is exposed through internal services or Kubernetes Gateway API, protected with API key, Entra ID token validation, and authentication and TLS.
 
-The following diagram shows how these components work together. An Arc-enabled Kubernetes cluster runs the Foundry Local extension and inference operator, which manage model and model deployment resources. Applications call secured inference endpoints through ingress by using API keys or Entra ID tokens.
+The following diagram shows how these components work together. An Arc-enabled Kubernetes cluster runs the Foundry Local extension and inference operator, which manage model and model deployment resources. Applications call secured inference endpoints through gateway API by using API keys or Entra ID tokens.
 
 <!-- Art Library Source# ConceptualArt-0-000-211 -->
 
@@ -70,7 +70,7 @@ Foundry Local on Azure Local is installed as an Azure Arc extension and includes
 - **Catalog sync**: Brings model catalog metadata into the cluster so you can select and deploy supported models consistently.
 - **API key authentication**: Protects inference endpoints by requiring bearer-token style API keys for requests.
 - **Entra ID authentication**: Validates Azure Active Directory JSON web tokens through the Microsoft identity sidecar engine for identity-based access control, as an alternative to API keys.
-- **TLS and ingress**: Secures traffic in transit and enables controlled external access through ingress.
+- **TLS and gateway API**: Secures traffic in transit and enables controlled external access through gateway API.
 
 For disconnected operations, see [Foundry Local on Azure Local in disconnected environments overview](disconnected-operations/concept-overview.md) for the components and behavior that differ from connected deployments.
 
@@ -84,7 +84,7 @@ To use Foundry Local on Azure Local, plan for these prerequisites at a high leve
 - Arc connection for Kubernetes management and extension-based lifecycle operations.
 - Appropriate compute profile (CPU-only or GPU-enabled nodes) and validated drivers and plugins for GPU scenarios.
 - Kubernetes operational access and cluster-level permissions for installing the Azure Arc extension and managing custom resources.
-- Network and security posture for ingress, certificate management, and API key handling.
+- Network and security posture for gateway API, certificate management, and API key handling.
 
 For disconnected environments, use the dedicated prerequisites and setup instructions in [Plan to deploy Foundry Local on Azure Local in disconnected environments](disconnected-operations/how-to-prepare.md) and [Deploy Foundry Local as an Azure Arc extension in a disconnected environment](disconnected-operations/deploy-platform.md).
 

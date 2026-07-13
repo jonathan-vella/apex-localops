@@ -8,7 +8,7 @@ appliesto:
 ms.topic: reference
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 04/20/2026
+ms.date: 06/23/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer, I want a complete reference for ModelDeployment fields and operator configuration so that I can deploy and configure AI inference workloads precisely.
 ---
@@ -46,42 +46,32 @@ This article is a reference for the `ModelDeployment` CRD spec and status fields
 | `skipGpuResource` | boolean | No | `false` | Skip the `nvidia.com/gpu` limit. Requires `nodeSelector` when set to `true`. |
 | `tolerations` | array | No | — | Pod tolerations. |
 | `env` | array | No | — | Environment variables for the model container. |
-| `endpoint.enabled` | boolean | No | `false` | Create an Ingress resource for this deployment. |
-| `endpoint.host` | string | Conditional | — | Ingress hostname. Required when `endpoint.enabled: true`. |
-| `endpoint.path` | string | No | Derived from deployment name | URL path for ingress routing. |
-| `endpoint.pathType` | string | No | `ImplementationSpecific` | Ingress path matching type. |
-| `endpoint.ingressClassName` | string | No | `nginx` | IngressClass name. |
-| `endpoint.annotations` | object | No | — | Custom Ingress annotations. |
-| `endpoint.tls.enabled` | boolean | No | `false` | Enable TLS on the Ingress resource. |
-| `endpoint.tls.secretName` | string | Conditional | — | Name of the TLS secret. Required when `endpoint.tls.enabled: true`. |
+| `endpoint.exposure` | string | No | `internal` | Exposure mode for the Gateway API HTTPRoute. One of `internal` (route through the cluster-internal Gateway — the default when `exposure` is unset or when `endpoint` is omitted entirely), `external` (also attach the route to the external LoadBalancer Gateway), or `none` (no HTTPRoute; ClusterIP Service only). The legacy `endpoint.enabled` field is honored only when `exposure` is not set. | 
+| `endpoint.enabled` | boolean | No | `false` | **Deprecated.** Retained for backward compatibility. When `true` and `exposure` is unset, the operator treats it as `exposure: internal`. New deployments should use `exposure` directly. | 
+| `endpoint.host` | string | No | — | Hostname used by the HTTPRoute for host-based routing. Optional — leave unset to match on path only. | 
+| `endpoint.path` | string | No | `/<deployment-name>` | URL path prefix served by the HTTPRoute. The operator matches with `PathPrefix` semantics. | 
+| `endpoint.rewritePath` | string | No | `/` | Target path the prefix is rewritten to before forwarding to the backend. Replaces the old nginx `rewrite-target` annotation. | 
+| `endpoint.gatewayAnnotations` | object | No | — | Implementation-specific annotations applied to the HTTPRoute (for example, Istio `networking.istio.io/*` overrides). | 
+| `endpoint.ingressClassName` | string | No | — | **Deprecated and ignored.** Was used to select the nginx IngressClass; no longer in the data path. | 
+| `endpoint.annotations` | object | No | — | **Deprecated and ignored.** Was used to pass nginx Ingress annotations; replaced by `endpoint.gatewayAnnotations`. | 
+| `endpoint.tls.enabled` | boolean | No | `false` | Enable TLS for the per-deployment route. When `false`, TLS is still terminated by the Gateway listener using its own certificate. | 
+| `endpoint.tls.secretName` | string | Conditional | — | Name of a `kubernetes.io/tls` secret in the same namespace. Required when `endpoint.tls.enabled: true`. | 
+| `vllm.epp.enabled` | boolean | No | *replica-based* | Enable Endpoint Picker (EPP) intelligent routing for this vLLM deployment. **If unset, defaults to `true` when `replicas > 1` and `false` when `replicas == 1`.** An explicit value (`true` or `false`) always wins. The default re-evaluates on scaling: a deployment created at one replica with the field unset brings up the EPP stack the moment it is scaled to two or more, and tears it down again on scale-back. Requires `runtime: vllm`, the Gateway API Inference Extension CRDs, and Istio configured with `pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true`. See [Inference-aware routing with the Endpoint Picker (EPP)](concept-inference-runtimes.md#inference-aware-routing-with-the-endpoint-picker-epp). | 
 
-### External endpoint examples
+### Annotation migration 
 
-**Minimal ingress configuration:**
+The nginx Ingress annotations that earlier releases honored on endpoint.annotations are no longer applied. Replace them with the Istio Gateway API equivalents on endpoint.gatewayAnnotations, the per-deployment HTTPRoute spec, or the cluster-wide external Gateway: 
+  
+| Old nginx annotation | New mechanism |
+|---|---|
+| `nginx.ingress.kubernetes.io/rewrite-target: /$2` | `spec.endpoint.rewritePath: "/"` (default already strips the prefix). |
+| `nginx.ingress.kubernetes.io/proxy-body-size` | Configured on the Gateway listener via Istio `EnvoyFilter`, or on the route via `gatewayAnnotations`. |
+| `nginx.ingress.kubernetes.io/proxy-read-timeout` / `proxy-send-timeout` |
+| `endpoint.gatewayAnnotations.networking.istio.io/timeout` (Istio HTTPRoute timeout extension), or `spec.timeouts.request` on the HTTPRoute when emitted. |
+| `nginx.ingress.kubernetes.io/configuration-snippet` | **Not portable.** Express the intent as Istio `VirtualService`, `EnvoyFilter`, or `BackendTLSPolicy`. |
+| `cert-manager.io/cluster-issuer` | **Not applicable** — the operator issues certificates via cert-manager `Certificate` resources owned by the Gateway, not the HTTPRoute. |
 
-```yaml
-spec:
-  endpoint:
-    enabled: true
-    ingressClassName: nginx
-    tls:
-      enabled: false
-```
-
-The operator automatically derives the path as `/{deployment-name}(/|$)(.*)` with URL rewriting.
-
-**With custom annotations:**
-
-```yaml
-spec:
-  endpoint:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-```
+### GPU configuration examples
 
 **GPU with skip GPU resource:**
 
@@ -122,8 +112,9 @@ spec:
 | `deploymentReady` | boolean | `true` when all replicas are ready. |
 | `serviceReady` | boolean | `true` when the Service resource is created. |
 | `internalEndpoint` | string | Internal cluster endpoint URL. |
-| `endpointReady` | boolean | `true` when the Ingress is ready (if enabled). |
-| `externalEndpoint` | string | External URL (populated if Ingress is enabled). |
+| `endpointReady` | boolean | 'true' when the HTTPRoute is created and the parent Gateway has marked it Accepted. |
+| `httpRouteReady` | boolean | `true` when the HTTPRoute resource exists and is bound to the internal Gateway. Mirrors `endpointReady` for clarity in Gateway API mode. | 
+| `externalEndpoint` | string | External URL when exposure: external is set (populated once the external Gateway has assigned a LoadBalancer address).  |
 | `resolvedModel.name` | string | Name of the resolved Model CR. |
 | `resolvedModel.variant` | string | Selected variant ID. |
 | `resolvedModel.image` | string | Container image used for this deployment. |
@@ -192,15 +183,47 @@ images:
   Vllm_gpu:
     repository: vllm-server
     tag: "latest"
-
-
-# Ingress defaults
-ingress:
-  pathTemplate: "/{name}(/|$)(.*)"
-  rewritePathTemplate: "/$2"
-  pathType: "ImplementationSpecific"
-  ingressClassName: "nginx"
-
+# Gateway API networking defaults 
+networking: 
+  internalGateway: 
+    gatewayName: inference-internal-gateway 
+    gatewayClassName: istio 
+    listenerName: https 
+  externalGateway: 
+    gatewayName: inference-external-gateway 
+    gatewayClassName: istio 
+    serviceType: LoadBalancer 
+    listenerName: https 
+    port: 443 
+    # Annotations forwarded to the auto-created LoadBalancer Service. 
+    # Default points the Azure LB health probe at Istio's /healthz/ready 
+    # on port 15021 so the gateway's "404 on GET /" does not mark 
+    # backends unhealthy. 
+    annotations: 
+      networking.istio.io/service-annotations: | 
+        { 
+          "service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path": "/healthz/ready", 
+          "service.beta.kubernetes.io/port_443_health-probe_port": "15021", 
+          "service.beta.kubernetes.io/port_443_health-probe_protocol": "http" 
+        } 
+    tls: 
+      # Customer-supplied TLS secret for external traffic termination. 
+      # Leave empty to auto-issue from the internal CA. 
+      secretName: "" 
+  # EPP (Endpoint Picker) — shared infrastructure config used by every 
+  # vLLM deployment that opts in via spec.vllm.epp.enabled. 
+  epp: 
+    image: 
+      repository: mcr.microsoft.com/oss/v2/gateway-api-inference-extension/epp 
+      tag: v1.3.1 
+    replicas: 1 
+    resources: 
+      requests: { cpu: 250m, memory: 512Mi } 
+      limits:   { cpu: "2",  memory: 2Gi } 
+    targetPort: 8443 
+    metricsDataSource: 
+      scheme: https 
+      insecureSkipVerify: true 
 # Catalog settings
 catalog:
   configmapName: "foundry-local-catalog"
@@ -214,10 +237,29 @@ catalog:
 | `registry` | string | `""` | Container registry prefix for inference images. |
 | `images.<type>.repository` | string | Varies by workload type | Image repository path. Types: `generative_cpu`, `generative_gpu`, `generative_cpu_oras`, `generative_gpu_oras`, `predictive_cpu_oras`, `predictive_gpu_oras`, `vllm_gpu`.|
 | `images.<type>.tag` | string | `latest` | Image tag. |
-| `ingress.pathTemplate` | string | `/{name}(/\|$)(.*)` | Ingress path template. `{name}` is replaced with the deployment name. |
-| `ingress.rewritePathTemplate` | string | `/$2` | Rewrite target path for NGINX. |
-| `ingress.pathType` | string | `ImplementationSpecific` | Ingress path matching type. |
-| `ingress.ingressClassName` | string | `nginx` | Default IngressClass name. |
+| `networking.internalGateway.gatewayName` | string | `inference-internal-gateway` | Name of the cluster-internal
+Gateway the operator attaches HTTPRoutes to. |
+| `networking.internalGateway.gatewayClassName` | string | `istio` | GatewayClass to use. Must match an installed
+  Gateway API provider. |
+| `networking.internalGateway.listenerName` | string | `https` | Listener (section) name on the internal Gateway. |
+| `networking.externalGateway.gatewayName` | string | `inference-external-gateway` | Name of the external Gateway
+created on demand when any deployment uses `exposure: external`. |
+| `networking.externalGateway.gatewayClassName` | string | `istio` | GatewayClass for the external Gateway. |
+| `networking.externalGateway.port` | integer | `443` | Port on the external LoadBalancer Service. |
+| `networking.externalGateway.annotations` | object | *(Azure LB health probe defaults)* | Annotations applied to the
+external Gateway, including `networking.istio.io/service-annotations` for cloud-provider Service settings. |
+| `networking.externalGateway.tls.secretName` | string | `""` | TLS secret for external listener termination. Empty
+means auto-issue from the internal CA when global TLS is enabled. |
+| `networking.epp.image.repository` / `.tag` | string | `mcr.microsoft.com/oss/v2/gateway-api-inference-extension/epp`
+/ `v1.3.1` | Container image used for every EPP instance. |
+| `networking.epp.replicas` | integer | `1` | Number of EPP pod replicas per deployment that opts in. |
+| `networking.epp.resources` | object | *(250m / 512Mi requests, 2 / 2Gi limits)* | Resource requests/limits for each
+EPP pod. |
+| `networking.epp.targetPort` | integer | `8443` | Pod port on the vLLM backend that EPP-selected traffic is forwarded
+to. |
+| `networking.epp.metricsDataSource.scheme` | string | `https` | Scheme used to scrape vLLM metrics for scoring. |
+| `networking.epp.metricsDataSource.insecureSkipVerify` | boolean | `true` | Skip TLS verification on metrics scrape.
+Keep `true` when the vLLM sidecar uses a self-signed cert from the internal CA. |
 | `catalog.configmapName` | string | `foundry-local-catalog` | Name of the catalog ConfigMap. |
 | `catalog.configmapNamespace` | string | `foundry-local-operator` | Namespace of the catalog ConfigMap. |
 | `catalog.lazyRegistrationEnabled` | boolean | `true` | Automatically create Model CRs from catalog on first deployment. |

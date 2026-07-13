@@ -8,7 +8,7 @@ appliesto:
 ms.topic: how-to
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 05/19/2026
+ms.date: 06/23/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer, I want to deploy a catalog model to my Foundry Local cluster so that I can serve AI inference workloads on-premises.
 ---
@@ -84,6 +84,8 @@ Choose the model you want from the catalog and create a deployment.
 A model is defined by its alias, runtime, and compute. Some models can run both through the onnx runtime and vLLM. Therefore, it's important to define the right runtime and compute, not only the alias.
 Adjust CPU, memory, and GPU resource values based on your model size, quantization level, and expected concurrency. For CPU-only deployments, set `compute` to `cpu`, `runtime` to `onnx-genai`, and remove the `gpu` limit.
 
+By default, you can reach the deployment from inside the cluster through the internal Gateway. To expose it outside the cluster (or to opt out of the Gateway route entirely), see Expose the deployment (#expose-the-deployment) below.*
+
 ### [kubectl](#tab/kubectl)
 
 1. Create a YAML file (for example, `model-deployment.yaml`) with a ModelDeployment resource. Replace the placeholder values with the model name from the catalog and your desired configuration:
@@ -131,6 +133,46 @@ curl -k -X POST https://localhost:8080/api/v1/namespaces/foundry-local-operator/
 ```
 
 ---
+
+## Expose the deployment 
+
+By default, when you omit `spec.endpoint` or don't set `spec.endpoint.exposure`, the operator creates an HTTPRoute attached to the cluster-internal Gateway. Any pod in the cluster can reach the deployment at `https://<internal-gateway>/<deployment-name>` without extra configuration. Set `spec.endpoint.exposure` only when you want to change that default:
+
+| Value | Behavior |
+|---|---|
+| `internal` *(default)* | The operator creates an HTTPRoute attached to the cluster-internal Gateway (`inference-internal-gateway`). Any pod in the cluster can reach the deployment at `https://<internal-gateway>/<deployment-name>`. This setting is the recommended default for service-to-service traffic and is what you get when `exposure` isn't set. |
+| `external` | The operator creates (or reuses) the external Gateway (`inference-external-gateway`, type LoadBalancer) and attaches the same HTTPRoute to it. The deployment is reachable from outside the cluster. The external Gateway is created on demand the first time any deployment requests `external`, and deleted when the last one is removed. |
+| `none` | No HTTPRoute is created. Only the ClusterIP Service exists. Use this value when you want the operator to manage the workload but route traffic yourself (for example through a custom HTTPRoute or service-mesh policy). |
+
+```yaml
+apiVersion: foundrylocal.azure.com/v1 
+kind: ModelDeployment 
+metadata: 
+  name: phi-4-mini 
+  namespace: foundry-local-operator 
+spec: 
+  model: 
+    catalog: 
+      name: Phi-4-mini-instruct 
+      version: "latest" 
+  workloadType: generative 
+  compute: gpu 
+  runtime: vllm 
+  replicas: 1 
+  endpoint: 
+    exposure: external          # internal | external | none 
+    # Optional: hostname for the route 
+    host: phi-4-mini.example.com 
+    # Optional: override the URL prefix (defaults to /<deployment-name>) 
+    path: /phi-4 
+    # Optional: pass implementation-specific annotations to the HTTPRoute 
+    gatewayAnnotations: 
+      networking.istio.io/timeout: "600s" 
+```
+
+Migrating from earlier releases. The operator still accepts `endpoint.enabled: true` (the previous toggle) for backward compatibility and maps it to `exposure: internal`. The operator accepts but ignores the legacy fields `endpoint.ingressClassName` and `endpoint.annotations` - these fields configured the nginx Ingress controller, which is no longer in the data path. If your deployment used `nginx.ingress.kubernetes.io/*` annotations, see [Annotation migration](reference-model-deployment-operator.md#annotation-migration) for the Gateway API equivalents.
+
+TLS for external exposure. When you set `exposure: external`, the external Gateway terminates TLS by using either a customer-provided secret (`networking.externalGateway.tls.secretName` in the operator values) or, when that secret is empty and the cluster-wide TLS toggle is on, a certificate auto-issued from the internal CA. In-cluster traffic always uses the internal CA bundle. 
 
 ## Verify the deployment status
 

@@ -30,7 +30,7 @@ Not all organizational data requires the same controls. Classification enables t
 Define clear, predefined criteria for classification. Formal classifications aren't mandated by standards such as NIST, so adopt a risk-based framework appropriate for your organization.
 
 > [!TIP]
-> You can find information on defining your organization's data classification model in the [Well-Architected Framework: Architecture strategies for data classification](/azure/well-architected/security/data-classification).
+> For more information about defining your organization's data classification model, see [Well-Architected Framework: Architecture strategies for data classification](/azure/well-architected/security/data-classification).
 
 Risk criteria can include data type, sensitivity, regulatory obligations, and business value. Use tools that analyze attributes, patterns, and metadata to assign classifications consistently and efficiently. After labeling data, apply appropriate security controls, encryption, and policy actions for each classification.
 
@@ -43,7 +43,7 @@ Azure offers hundreds of services, each with unique configuration and data-handl
 **Key considerations:**
 
 - **Data storage:** Does the service store customer data? If not, some controls (like encryption at rest) don't apply.
-- **CMK support:** Does the service support customer-managed keys, and can it use Azure Managed HSM?
+- **CMK support:** Does the service support customer-managed keys, and can it use Azure Key Vault Managed HSM?
 - **Confidential computing:** Is confidential computing relevant (for example, if TLS traffic is inspected)?
 - **Data residency:** Where is the data stored and processed?
 - **Service role:** What type of data does the service handle (for example, sensitive data vs. metadata)?
@@ -61,7 +61,7 @@ For each service, assess its capabilities, architectural role, and the type of d
 
 | Service residency | Data residency | Data transit encryption | Data at-rest encryption | ACC |
 |-------------------|----------------|-------------------------|-------------------------|-----|
-| The service instance runs in the chosen region. | Data stored by the service is located in the chosen region. (N/A indicates the service doesn't actively store customer data.) | Connectivity to and from the service is encrypted (for example, HTTPS/TLS). | If data is stored, use Customer Managed Keys (CMK) via Key Vault (Standard/Premium) or Managed HSM. "Platform" indicates default Azure encryption. | Indicates if the service can use Azure Confidential Computing (ACC) to protect in-memory data. |
+| The service instance runs in the chosen region. | Data stored by the service is located in the chosen region. (N/A indicates the service doesn't actively store customer data.) | Connectivity to and from the service is encrypted (for example, HTTPS/TLS). | If data is stored, use Customer Managed Keys (CMK) through Key Vault (Standard/Premium) or Managed HSM. "Platform" indicates default Azure encryption. | Indicates if the service can use Azure Confidential Computing (ACC) to protect in-memory data. |
 
 ## Establish governance policies for consistent compliance
 

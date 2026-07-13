@@ -35,7 +35,7 @@ $appId = $app.AppId
 $token = az account get-access-token --resource "$appId" --query accessToken -o tsv
 $headers = @{ "Authorization" = "Bearer $token" }
 
-# If using ingress:
+# If using gateway api:
 $baseUrl = "https://<FOUNDRY_API_BASE_PATH>/inference-api"
 
 # If not using ingress, use the direct API endpoint instead:
@@ -49,6 +49,9 @@ Run this request to create a phi-4-mini CPU deployment from the model catalog in
 ```powershell
 $namespace = "foundry-local-operator"
 $deploymentName = "phi4-cpu-demo"
+
+# Use 'external' to expose model API outside the Kubernetes cluster. 'internal' is the default value.
+$exposure = "external"
 
 $body = @{
   name = $deploymentName
@@ -68,7 +71,7 @@ $body = @{
       enabled = $true
     }
     endpoint = @{
-      enabled = $true
+      exposure = $exposure
       path = "/phi4-cpu-demo(/|$)(.*)"
       pathType = "ImplementationSpecific"
     }

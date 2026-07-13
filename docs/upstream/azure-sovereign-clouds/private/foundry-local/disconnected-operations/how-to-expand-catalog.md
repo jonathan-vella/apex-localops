@@ -35,15 +35,8 @@ Before you begin, make sure you complete the following prerequisites:
 
 Install each model expansion pack on the Azure Local disconnected operations machine.
 
+1. Download model expansion packs from the following [Model Catalog](https://aka.ms/azure-local-disconnected-operations-foundrylocal-models).
 1. Transfer each model expansion pack zip file to the disconnected Azure Local environment.
-1. Validate each package name before installation to confirm the expected model and publish version.
-
-   `azurelocal.pxp.foundrylocal.<MODEL_NAME>.model.<PUBLISH_VERSION>.zip`
- 
-   Example:
- 
-   `azurelocal.pxp.foundrylocal.phi-3.5-mini.gpu.model.1.2605.12.zip`
-
 1. Replace `<PATH_TO_MODEL_EXPANSION_PACK_ZIP>` and `<PATH_TO_ALDO_MODULES>` in the following script, and then run the commands.
 
    ```powershell
@@ -78,7 +71,7 @@ After the expansion packs are installed successfully, trigger a model synchroniz
 Use the following PowerShell command to initiate the synchronization. Replace `<FOUNDRY_API_BASE_PATH>` with the appropriate value for your environment.
 
 ```powershell
-$baseUrl = "https://<FOUNDRY_API_BASE_PATH>"
+$baseUrl = "https://<FOUNDRY_API_BASE_PATH>/inference-api"
 
 Invoke-RestMethod `
   -Uri "$baseUrl/api/v1/models/sync" `

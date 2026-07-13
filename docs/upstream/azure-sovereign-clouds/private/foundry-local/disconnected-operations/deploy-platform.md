@@ -84,53 +84,98 @@ Expected result:
 * Pods in `cert-manager` namespace are `Running`.
 * `certificates.cert-manager.io` CRD exists.
 
-## Install an Ingress Controller (Optional)
+## Install gateway API and Istio (Optional)
 
-To expose Foundry Local services outside the Kubernetes cluster, deploy an ingress controller such as NGINX Ingress Controller.
+To expose Foundry Local services outside the Kubernetes cluster, deploy the required gateway API components and Istio.
 
-Foundry Local automatically creates ingress resources and applies the required NGINX annotations to enable secure communication. However, Foundry Local doesn't install an ingress controller as part of the extension deployment. You must deploy and manage the ingress controller separately.
+Foundry Local automatically creates the gateway API resources required for routing and configures them during extension deployment. However, Foundry Local doesn't install the gateway API CRDs or Istio. You must deploy and manage these components separately.
 
 The `edgeartifacts` container registry includes the required container images and Helm charts.
 
-The current release uses NGINX Ingress Controller for ingress management. NGINX support is planned to be deprecated in a future release and replaced with an alternative ingress solution. Review future release notes for updated guidance and migration instructions.
+### Install gateway API CRDs
 
-The following script installs NGINX Ingress Controller from the local `edgeartifacts` container registry.
+Install the gateway API Custom Resource Definitions (CRDs). Install these resources before Istio so that the control plane recognizes the gateway API resource types during startup.
 
 ```powershell
 # Define the edgeartifacts container registry endpoint.
 $edgeartifactsAcrPath = "edgeartifacts.edgeacr.autonomous.cloud.private"
 
-# Install or upgrade the NGINX Ingress Controller Helm release.
-helm upgrade --install ingress-nginx `
-  "oci://$edgeartifactsAcrPath/ingress-nginx/charts/ingress-nginx" `
-  --version 4.15.1 `
-  --namespace ingress-nginx `
+helm upgrade --install gateway-api-crds `
+  "oci://$edgeartifactsAcrPath/gateway-api/charts/gateway-api-crds" `
+  --version 1.4.0 `
+  --namespace gateway-system `
   --create-namespace `
-  --set global.image.registry=$edgeartifactsAcrPath `
-  --set controller.image.image=ingress-nginx/controller `
-  --set controller.image.tag=v1.15.1 `
-  --set controller.image.digest="" `
-  --set controller.admissionWebhooks.patch.image.image=ingress-nginx/kube-webhook-certgen `
-  --set controller.admissionWebhooks.patch.image.tag=v1.6.9 `
-  --set controller.admissionWebhooks.patch.image.digest="" `
+  --wait
+```
+
+### Install gateway API Inference Extension CRDs
+
+Install the gateway API Inference Extension CRDs required by Foundry Local for inference routing.
+
+These resources extend the gateway API with inference-specific resource types, such as InferencePool, and must be installed before Istio.
+
+```powershell
+# Define the edgeartifacts container registry endpoint.
+$edgeartifactsAcrPath = "edgeartifacts.edgeacr.autonomous.cloud.private"
+
+helm upgrade --install inference-pool-crd `
+  "oci://$edgeartifactsAcrPath/gateway-api-inference-extension/charts/inference-pool-crd" `
+  --version v1.3.1 `
+  --namespace gateway-system `
+  --create-namespace `
+  --wait
+```
+
+### Install Istio
+
+Install the Istio base components and control plane.
+
+Foundry Local uses Istio together with gateway API to expose services and route inference traffic. No separate ingress controller is required.
+
+The following script installs the required Istio components from the local `edgeartifacts` container registry.
+
+```powershell
+# Define the edgeartifacts container registry endpoint.
+$edgeartifactsAcrPath = "edgeartifacts.edgeacr.autonomous.cloud.private"
+
+# Install Istio base CRDs.
+helm upgrade --install istio-base `
+  "oci://$edgeartifactsAcrPath/istio/charts/base" `
+  --version 1.29.2 `
+  --namespace istio-system `
+  --create-namespace `
+  --wait
+
+# Install the Istio control plane.
+helm upgrade --install istiod `
+  "oci://$edgeartifactsAcrPath/istio/charts/istiod" `
+  --version 1.29.2 `
+  --namespace istio-system `
+  --set global.hub=$edgeartifactsAcrPath/istio `
+  --set global.tag=1.29.2 `
+  --set pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true `
   --wait
 ```
 
 ### Verify installation
 
-Run the following commands to confirm the installation completed successfully and the required resources are healthy.
+Run the following commands to confirm that the installation completed successfully and all required components are healthy.
 
 ```powershell
-helm list -n ingress-nginx
-kubectl get pods -n ingress-nginx
-kubectl get svc -n ingress-nginx
+helm list -n gateway-system
+helm list -n istio-system
+
+kubectl get pods -n istio-system
+
+kubectl get crd gateways.gateway.networking.k8s.io
+kubectl get crd inferencepools.inference.networking.x-k8s.io
 ```
 
 Expected result:
 
-* `ingress-nginx` release shows `deployed`.
-* Controller pod is `Running`.
-* Ingress controller service is present in the namespace.
+* `gateway-api-crds`, `inference-pool-crd`, `istio-base`, and `istiod` Helm releases show deployed.
+* The `istiod` pod is `Running`.
+* The gateway API and gateway API Inference Extension CRDs are installed in the cluster.
 
 ## Install the Foundry Local Azure Arc Extension
 
@@ -144,6 +189,9 @@ $RESOURCE_GROUP = "developer"
 $AZURE_LOCAL_DISCONNECTED_TENANT_ID = ""
 $ENTRA_APP_ID = ""
 
+# Optional. Required only when exposing Foundry Local services outside the Kubernetes cluster. Use "internal" to disable this feature.
+$API_EXPOSURE = "external" 
+
 az k8s-extension create `
   --name foundry `
   --cluster-name $CLUSTER_NAME `
@@ -152,6 +200,7 @@ az k8s-extension create `
   --extension-type microsoft.foundry `
   --config entraAuth.tenantId=$AZURE_LOCAL_DISCONNECTED_TENANT_ID `
   --config entraAuth.clientId=$ENTRA_APP_ID
+  --config api.exposure=$API_EXPOSURE
 ```
 
 ### Verify installation

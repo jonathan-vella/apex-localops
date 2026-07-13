@@ -8,7 +8,7 @@ appliesto:
 ms.topic: concept-article
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/12/2026
+ms.date: 06/23/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to understand disconnected operations in Foundry Local on Azure Local so that I can run and manage AI inference workloads disconnected on-premises.
 ---
@@ -29,6 +29,10 @@ In disconnected environments, extension availability, certificate management, mo
 
 * **Model catalog source**: Foundry Local pulls model artifacts from the local `edgeartifacts` container registry. Model expansion packs populate this registry.
 
+* **Bundled networking dependencies**: In disconnected deployments, the Foundry Local expansion pack provides the networking dependencies that connected deployments pull from online sources. During expansion pack installation, these assets are imported into `edgeartifacts`, including Istio control plane components (`istio-base`, `istiod`), Kubernetes Gateway API custom resource definitions (CRDs), Gateway API Inference Extension CRDs (including `InferencePool`), and the Endpoint Picker (EPP) container image.
+
+* **Deployment-time internet dependency**: Because these dependencies are imported locally through the expansion pack, deployment doesn't require outbound internet connectivity to install those networking components.
+
 * **Certificate management**: The `azure-cert-manager` extension isn't available in disconnected environments. Instead, you must install:
   
   `cert-manager`
@@ -47,6 +51,19 @@ In disconnected environments, extension availability, certificate management, mo
 
    This authorization model differs from connected deployments, which typically use roles such as Cognitive Services OpenAI User to grant access to inference endpoints.
 
+* **GPU dependency packaging**: In disconnected Autonomous environments, mirror `nvidia/k8s-device-plugin:v0.11.0` into `edgeartifacts` at the path expected by the auto-deployed DaemonSet.
+
+## Capacity considerations for disconnected clusters
+
+When you size a disconnected cluster, include baseline capacity for both model serving and supporting components.
+
+- For multireplica `vLLM` deployments, plan for one extra EPP pod per `ModelDeployment`.
+- The default EPP resources are about 512 MiB memory request and 2 GiB memory limit per deployment.
+- The default `az aksarc create` worker size (`Standard_A4_v2`) is usually too small for Foundry Local model caching and serving workflows.
+
+For configuration details, see [ModelDeployment and operator configuration reference](../reference-model-deployment-operator.md).
+For failure symptoms and remediation guidance, see [Troubleshoot Foundry Local on Azure Local in disconnected environments](how-to-troubleshoot.md).
+
 ## Architecture summary
 
 Foundry Local on Azure Local in disconnected environments uses the same Arc-enabled Kubernetes cluster and operator-based control plane as connected deployments. The key difference is that catalog model artifacts and extension components are imported into the disconnected environment through locally installed expansion packs, rather than pulled from internet-connected registries.
@@ -57,14 +74,14 @@ At a high level:
 - You define **Model** and **ModelDeployment** resources as the declarative units for model metadata and runtime intent.
 - For catalog models, a **cache job** pulls model artifacts from the local **EdgeArtifacts container registry** instead of fetching from the Foundry cloud catalog. You populate this registry by importing Foundry model expansion packs before installation.
 - You can pull **BYO models** from a customer-managed OCI-compatible container registry within the disconnected environment.
-- Applications call inference endpoints through internal services or ingress. Authentication integrates with your local Active Directory infrastructure instead of relying on public Microsoft Entra ID endpoints.
+- Applications call inference endpoints through internal services or gateway API routes. Authentication integrates with your local Active Directory infrastructure instead of relying on public Microsoft Entra ID endpoints.
 
 The following diagram shows how these components work together in a disconnected environment.
 
 <!-- Art Library Source# ConceptualArt-0-000-223 -->
 
 :::image type="complex" source="../media/disconnected-operations/concept-overview/disconnected-operations-architecture.svg" alt-text="Diagram that shows disconnected Foundry Local architecture with EdgeArtifacts-fed catalog models, BYO registry pulls, and endpoint access." lightbox="../media/disconnected-operations/concept-overview/disconnected-operations-architecture.svg" border="false":::
-Diagram that shows Foundry Local on Azure Local in a disconnected environment. On the left, a customer or developer reaches the cluster through an ingress controller for control-plane and inference traffic. Inside the Arc-enabled Kubernetes cluster, the Foundry Local extension contains control-plane APIs, custom resources, an inference operator, and serving pods for ONNX, vLLM, predictive, and chat proxy workloads. At the top right, expansion packs are imported into Azure Local disconnected operations and populate the local EdgeArtifacts container registry. For catalog models, the inference operator triggers a local cache job that pulls model artifacts from EdgeArtifacts and stores them in the local model cache registry before pods load models. A separate BYO path pulls model artifacts from a customer-managed OCI-compatible registry into the same local cache and serving flow. Applications then access inference endpoints through internal services or ingress, and a MaaS appliance can call the generative chat service path.
+Diagram that shows Foundry Local on Azure Local in a disconnected environment. On the left, a customer or developer reaches the cluster through an ingress controller for control-plane and inference traffic. Inside the Arc-enabled Kubernetes cluster, the Foundry Local extension contains control-plane APIs, custom resources, an inference operator, and serving pods for ONNX, vLLM, predictive, and chat proxy workloads. At the top right, expansion packs are imported into Azure Local disconnected operations and populate the local EdgeArtifacts container registry. For catalog models, the inference operator triggers a local cache job that pulls model artifacts from EdgeArtifacts and stores them in the local model cache registry before pods load models. A separate BYO path pulls model artifacts from a customer-managed OCI-compatible registry into the same local cache and serving flow. Applications then access inference endpoints through internal services or gateway API routes, and a MaaS appliance can call the generative chat service path.
 :::image-end:::
 
 For connected architecture context, see [What is Foundry Local on Azure Local?](../overview.md#architecture-summary)

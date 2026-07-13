@@ -8,7 +8,7 @@ appliesto:
 ms.topic: whats-new
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 05/30/2026
+ms.date: 07/07/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to know what's new in Foundry Local on Azure Local so that I can plan upgrades and take advantage of new capabilities.
 ---
@@ -18,6 +18,40 @@ customer intent: As a platform engineer or developer, I want to know what's new 
 This article summarizes new features, improvements, and important updates for Foundry Local on Azure Local. Use this information to stay current with the latest capabilities and plan your deployments.
 
 [!INCLUDE [foundry-local-preview](includes/foundry-local-preview.md)]
+
+## July 2026
+
+This release modernizes inference networking for Foundry Local on Azure Local by replacing the NGINX ingress data path with the Kubernetes Gateway API and adding intelligent, inference-aware request routing.
+
+### Kubernetes Gateway API for inference traffic
+
+Foundry Local now routes all model traffic through the Kubernetes Gateway API (with Istio as the provider) instead of an NGINX ingress controller. A new `spec.endpoint.exposure` setting controls how each deployment is reached: `internal` (default) attaches an HTTPRoute to the cluster-internal gateway, `external` provisions an on-demand LoadBalancer gateway for outside access, and `none` leaves only the ClusterIP service. The legacy `endpoint.enabled` toggle and NGINX annotations remain accepted for backward compatibility but are mapped or ignored.
+
+For more information, see [Deploy a model](how-to-deploy-model.md#expose-the-deployment).
+
+### Inference-aware routing with the Endpoint Picker (EPP)
+
+Multireplica vLLM deployments now use an LLM-D-based Endpoint Picker (EPP) instead of basic round-robin load balancing. EPP scores each replica on live signals—queue depth, KV-cache utilization, and prefix-cache locality and routes every request to the best-suited replica through the Gateway API Inference Extension. EPP is enabled by default when a deployment runs more than one replica, delivering measurable gains such as lower time-to-first-token and higher multi-turn throughput.
+
+For more information, see [Inference-aware routing with the Endpoint Picker (EPP)](concept-inference-runtimes.md#inference-aware-routing-with-the-endpoint-picker-epp).
+
+### External endpoints with gateway TLS termination
+
+You can now expose model endpoints outside the cluster through an external gateway that terminates TLS. Provide a customer-managed TLS secret for production, or let the operator auto-issue a certificate from the internal cluster CA. In-cluster traffic continues to use the internal CA bundle, and the operator adds a `BackendTLSPolicy` so the gateway validates backend service certificates.
+
+For more information, see [Configure TLS and authentication](how-to-configure-tls-authentication.md#configure-external-access-through-gateway-api).
+
+### Gateway API support in disconnected environments
+
+The Foundry Local expansion pack now bundles the new networking stack, Istio, Gateway API CRDs, Gateway API Inference Extension CRDs, and the EPP container image, and imports them into the local `edgeartifacts` registry. Disconnected clusters get inference-aware routing without outbound internet access. When you size a cluster, plan for one extra EPP pod per multireplica vLLM deployment.
+
+For more information, see [Disconnected environments overview](disconnected-operations/concept-overview.md).
+
+### Configurable model cache job memory
+
+The StoreModel cache job now ships with higher default memory (16 Gi request, 32 Gi limit) to reliably download and cache large models. You can lower these values at install time for smaller models or resource-constrained clusters.
+
+For more information, see [Deploy Foundry Local as an Azure Arc extension](deploy-foundry-local-arc-extension.md#step-3-install-the-foundry-local-extension).
 
 ## June 2026
 

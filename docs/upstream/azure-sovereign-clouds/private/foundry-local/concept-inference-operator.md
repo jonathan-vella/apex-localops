@@ -23,7 +23,7 @@ This article explains how the inference operator works, how it manages the model
 
 The inference operator is a Kubernetes operator that simplifies deploying AI models for inference. It manages the complete lifecycle of model deployments by:
 
-- Creating Kubernetes Deployments, Services, and Ingress resources.
+- Creating Kubernetes deployments, services, and gateway API resources.
 - Configuring CPU and GPU workloads.
 - Managing API key authentication and Entra ID token validation.
 - Handling TLS certificates for secure communication.
@@ -58,7 +58,7 @@ When you create or update a `Model` or `ModelDeployment` resource, the operator:
 1. Ensures the model is cached locally by creating a StoreModel CR and waiting for the cache job to complete.
 1. Selects the container image based on workload type, compute type, runtime, and model source.
 1. Generates API key secrets for authentication.
-1. Builds and creates child resources: Deployment, Service, nginx ConfigMap, Certificate (when TLS is enabled), and optionally Ingress.
+1. Builds and creates child resources: Deployment, Service, nginx ConfigMap, Certificate (when TLS is enabled), and optionally gateway API.
 1. Sets owner references on all child resources so they're garbage-collected when the ModelDeployment is deleted.
 1. Updates the resource status with endpoint information.
 
@@ -73,7 +73,7 @@ Use this table to see which Kubernetes resources the operator creates for each d
 | Secret | Yes | Stores generated API keys. |
 | ConfigMap | Yes | nginx sidecar configuration for auth and routing. |
 | Certificate | When TLS is enabled | cert-manager Certificate for TLS termination. |
-| Ingress | When `endpoint.enabled: true` | External path-based routing. |
+| Gateway API | When `endpoint.enabled: true` | External path-based routing. |
 | StoreModel | Yes | Triggers and tracks model caching in the local OCI registry. |
 
 ### ModelDeployment lifecycle states
@@ -292,7 +292,7 @@ curl -X POST https://<your-domain>/phi-3.5-gpu/v1/chat/completions \
 
 Keep these details in mind when you send a generative inference request:
 
-- **URL**: With an ingress controller, use the ingress IP or DNS. Without ingress, use `kubectl port-forward` and set the URL to 127.0.0.1.
+- **URL**: With a gateway API, use the ingress IP or DNS. Without gateway API, use `kubectl port-forward` and set the URL to 127.0.0.1.
 - **Authorization header**: The inference operator generates API keys stored in a Kubernetes Secret. Pass the key as a Bearer token.
 - **Response**: Standard OpenAI Chat Completions JSON response. The generated text is in `choices[0].message.content`.
 
@@ -358,7 +358,7 @@ Key configuration areas:
 |------|-----------------|
 | images | Container image references for each workload/compute/source combination. |
 | tls | TLS toggle, certificate durations, ports, and sidecar settings. |
-| ingress | Default ingress class, path template, and rewrite settings. |
+| gateway API | Default gateway API class, path template, and rewrite settings. |
 | catalog | Catalog ConfigMap name, namespace, and lazy registration toggle. |
 | storeModel | Local registry URL, cache job timeout, and poll interval. |
 | authentication | App-level authentication toggle. |

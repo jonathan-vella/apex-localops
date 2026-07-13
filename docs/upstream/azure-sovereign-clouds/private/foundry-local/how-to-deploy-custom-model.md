@@ -135,6 +135,9 @@ Use this option when you want to define the model source directly in the `ModelD
    kubectl apply -f modeldeployment-byo-inline.yaml
    ```
 
+If you scale this deployment beyond a single replica, the operator automatically enables inference-aware routing across the replicas. The operator deploys an Endpoint Picker (EPP) that scores replicas on queue depth, KV-cache utilization, and prefix-cache locality before each request is forwarded. The HTTPRoute targets the InferencePool instead of the Service. On a single-replica deployment, EPP is off by default (nothing to balance). You only need to set `spec.vllm.epp.enabled` if you want to override this default - for example, set `false` on a multi-replica deployment to keep plain Gateway round-robin, or set `true` on a single-replica deployment that you intend to scale up. See Inference-aware routing with the Endpoint Picker (EPP) (concept-inference-runtimes#inference-aware-routing-with-the-endpoint-picker-epp) for prerequisites and trade-offs.
+
+ 
 ## Deploy the model by using a named model resource
 
 Use this option when you want to reuse the same model definition across multiple deployments.
@@ -208,6 +211,8 @@ Use this option when you want to reuse the same model definition across multiple
    ```bash
    kubectl apply -f modeldeployment-byo-ref.yaml
    ```
+
+If you scale this deployment beyond a single replica, inference-aware routing across the replicas is enabled automatically. The operator deploys an Endpoint Picker (EPP) that scores replicas on queue depth, KV-cache utilization, and prefix-cache locality before each request is forwarded, and the HTTPRoute targets the InferencePool instead of the Service. On a single-replica deployment EPP is off by default (nothing to balance). You only need to set spec.vllm.epp.enabled if you want to override this - for example, set false on a multi-replica deployment to keep plain Gateway round-robin, or set true on a single-replica deployment that you intend to scale up. See Inference-aware routing with the Endpoint Picker (EPP) (concept-inference-runtimes#inference-aware-routing-with-the-endpoint-picker-epp) for prerequisites and trade-offs.
 
 ## Verify the deployment
 

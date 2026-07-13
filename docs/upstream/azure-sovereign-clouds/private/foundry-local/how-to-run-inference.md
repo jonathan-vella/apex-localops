@@ -24,7 +24,7 @@ This article shows you how to retrieve API keys and send inference requests to m
 Before you begin, you must have the following resources:
 
 - A running model deployment. For deployment steps, see [Deploy Foundry Local as an Azure Arc extension](deploy-foundry-local-arc-extension.md). Helm is also a supported deployment option, and installation instructions are provided during preview access onboarding.
-- The endpoint URL for your deployment, with or without an ingress controller.
+- The endpoint URL for your deployment, with or without a gateway API.
 - kubectl installed and configured for your cluster.
 
 ## Run inference on a catalog model
@@ -105,11 +105,11 @@ Entra ID authentication requires the [Cognitive Services OpenAI User role](/azur
 
 In this step, you send a chat completions request to your deployed model endpoint and confirm that it returns a response.
 
-#### [CPU — With ingress — Bash](#tab/bash)
+#### [CPU — With gateway API — Bash](#tab/bash)
 
 ```bash
 # URI uses the model's metadata.name value
-curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/phi-4-cpu/v1/chat/completions" \
+curl -k -X POST "https://<YOUR_GATEWAY_ADDRESS>/phi-4-cpu/v1/chat/completions" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -122,7 +122,7 @@ curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/phi-4-cpu/v1/chat/completions" \
   }'
 ```
 
-#### [CPU — With ingress — PowerShell](#tab/powershell)
+#### [CPU — With gateway API — PowerShell](#tab/powershell)
 
 ```powershell
 $body = @{
@@ -134,18 +134,18 @@ $body = @{
   max_tokens = 50
 } | ConvertTo-Json -Depth 3
 
-Invoke-RestMethod -Uri "https://<YOUR_INGRESS_ADDRESS>/phi-4-cpu/v1/chat/completions" `
+Invoke-RestMethod -Uri "https://<YOUR_GATEWAY_ADDRESS>/phi-4-cpu/v1/chat/completions" `
   -Method POST -ContentType "application/json" -Body $body `
   -Headers @{ "Authorization" = "Bearer $API_KEY" } -SkipCertificateCheck
 ```
 
 ---
 
-#### [GPU — With ingress — Bash](#tab/bash)
+#### [GPU — With gateway API — Bash](#tab/bash)
 
 ```bash
 # URI uses the model's metadata.name value
-curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/phi-4-gpu/v1/chat/completions" \
+curl -k -X POST "https://<YOUR_GATEWAY_ADDRESS>/phi-4-gpu/v1/chat/completions" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -158,7 +158,7 @@ curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/phi-4-gpu/v1/chat/completions" \
   }'
 ```
 
-#### [GPU — With ingress — PowerShell](#tab/powershell)
+#### [GPU — With gateway API — PowerShell](#tab/powershell)
 
 ```powershell
 $body = @{
@@ -170,7 +170,7 @@ $body = @{
   max_tokens = 50
 } | ConvertTo-Json -Depth 3
 
-Invoke-RestMethod -Uri "https://<YOUR_INGRESS_ADDRESS>/phi-4-gpu/v1/chat/completions" `
+Invoke-RestMethod -Uri "https://<YOUR_GATEWAY_ADDRESS>/phi-4-gpu/v1/chat/completions" `
   -Method POST -ContentType "application/json" -Body $body `
   -Headers @{ "Authorization" = "Bearer $API_KEY" } -SkipCertificateCheck
 ```
@@ -178,9 +178,9 @@ Invoke-RestMethod -Uri "https://<YOUR_INGRESS_ADDRESS>/phi-4-gpu/v1/chat/complet
 ---
 
 > [!NOTE]
-> When you use an ingress controller, the `-k` flag (curl) and `-SkipCertificateCheck` (PowerShell) skip certificate validation because these examples use self-signed certificates. In production, configure proper TLS certificates.
+> When you use a gateway API, the `-k` flag (curl) and `-SkipCertificateCheck` (PowerShell) skip certificate validation because these examples use self-signed certificates. In production, configure proper TLS certificates.
 
-#### [CPU — Without ingress](#tab/no-ingress)
+#### [CPU — Without gateway API](#tab/no-gateway)
 
 ```bash
 kubectl run curl-run --rm -it --restart=Never --image=curlimages/curl \
@@ -192,7 +192,7 @@ kubectl run curl-run --rm -it --restart=Never --image=curlimages/curl \
   -d '{"model": "Phi-4-generic-cpu:1", "messages": [{"role": "system", "content": "You are a helpful assistant."},{"role": "user", "content": "What is the capital/major city of France? Reply in one sentence."}], "max_tokens": 50}'
 ```
 
-#### [GPU — Without ingress](#tab/gpu-no-ingress)
+#### [GPU — Without gateway API](#tab/gpu-no-gateway)
 
 ```bash
 kubectl run curl-run --rm -it --restart=Never --image=curlimages/curl \
@@ -277,10 +277,10 @@ spec:
     limits:
       cpu: "8"
       memory: "32Gi"
-  # Required only if you use an ingress controller
+  # Required only if you use a gateway API
   endpoint:
     enabled: true
-    host: <YOUR_INGRESS_ADDRESS>
+    host: <YOUR_GATEWAY_ADDRESS>
 ```
 
 Apply the manifest:
@@ -294,8 +294,8 @@ Verify the deployment:
 ```bash
 kubectl get modeldeployments -A
 
-# If you use an ingress controller
-kubectl get ingress -A
+# If you use a gateway API for internal or external traffic
+kubectl get gateway -A
 ```
 
 Wait for **State** to show `Running` and **Ready** to show `true`. The model downloads from the internet during this step, so it might take some time depending on your connection.
@@ -352,10 +352,10 @@ $JWT_TOKEN = az account get-access-token `
 
 Choose the endpoint that matches your deployment compute type. Then, send a chat completions request with your API key or JWT token to confirm the model responds.
 
-#### [With ingress — Bash](#tab/bash)
+#### [With gateway API — Bash](#tab/bash)
 
 ```bash
-curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/<your-model>-cpu/v1/chat/completions" \
+curl -k -X POST "https://<YOUR_GATEWAY_ADDRESS>/<your-model>-cpu/v1/chat/completions" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -368,7 +368,7 @@ curl -k -X POST "https://<YOUR_INGRESS_ADDRESS>/<your-model>-cpu/v1/chat/complet
   }'
 ```
 
-#### [With ingress — PowerShell](#tab/powershell)
+#### [With gateway API — PowerShell](#tab/powershell)
 
 ```powershell
 $body = @{
@@ -380,14 +380,14 @@ $body = @{
   max_tokens = 50
 } | ConvertTo-Json -Depth 3
 
-Invoke-RestMethod -Uri "https://<YOUR_INGRESS_ADDRESS>/<your-model>-cpu/v1/chat/completions" `
+Invoke-RestMethod -Uri "https://<YOUR_GATEWAY_ADDRESS>/<your-model>-cpu/v1/chat/completions" `
   -Method POST -ContentType "application/json" -Body $body `
   -Headers @{ "Authorization" = "Bearer $API_KEY" } -SkipCertificateCheck
 ```
 
 ---
 
-#### Without ingress
+#### Without gateway API
 
 ```bash
 kubectl run curl-run --rm -it --restart=Never --image=curlimages/curl \

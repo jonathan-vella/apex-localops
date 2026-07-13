@@ -8,7 +8,7 @@ appliesto:
 ms.topic: article
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/11/2026
+ms.date: 06/23/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to understand which inference runtime is used for my model and when to choose each runtime so that I can deploy workloads with the right performance profile.
 ---
@@ -79,6 +79,61 @@ The following characteristics highlight how vLLM is optimized for GPU-based gene
 - Supports streaming responses and tool calling (depending on the model).
 - Includes a GPU-aware planner that automatically tunes memory utilization, context length, and batch sizes.
 - Tunable through the `spec.vllm.preferences` field on the ModelDeployment.
+
+### Inference-aware routing with the Endpoint Picker (EPP) 
+
+For multireplica vLLM deployments, Foundry Local routes requests by using the Gateway API Inference Extension instead of the Gateway's default round-robin. The operator deploys an Endpoint Picker (EPP) alongside the model and binds it to an InferencePool that selects across the replicas. On every request, EPP scores each replica on three signals scraped from vLLM:
+
+- Queue depth — how many requests are waiting in the vLLM scheduler. 
+- KV-cache utilization — how much of the paged KV cache is already pinned by in-flight requests. 
+- Prefix-cache locality — whether the request's prompt prefix is already cached on a given replica. 
+EPP picks the highest-scoring pod and instructs Envoy to forward there. The selection happens out-of-band via ExtProc gRPC — there's no extra hop on the data path. 
+
+#### Default behavior 
+Configure EPP per vLLM deployment via `spec.vllm.epp.enabled`. When you don't set the field, the operator chooses a default based on the deployment's replica count: 
+
+| `replicas` | `spec.vllm.epp.enabled` | Effective EPP |
+|---|---|---|
+| `1` | unset | **off** — nothing to balance, so the operator skips the EPP stack and the `HTTPRoute` targets the service directly. |
+| `> 1` | unset | **on** — the operator builds the EPP stack and the HTTPRoute targets the InferencePool. |
+| any | explicitly `true` | **on** — explicit value always wins. |
+| any | explicitly `false` | **off** — explicit value always wins. |
+
+A typical multireplica vLLM deployment therefore needs no `vllm.epp` block at all: 
+```yaml
+spec: 
+  runtime: vllm 
+  compute: gpu 
+  replicas: 2          # >1 → EPP is on by default 
+  # vllm.epp.enabled is left unset → operator chooses based on replicas 
+```
+
+Set the field only when you want to override the default - for example, to force EPP off on a multireplica deployment, or to force it on for a single-replica deployment you intend to scale up: 
+
+```yaml
+spec: 
+  runtime: vllm 
+  compute: gpu 
+  replicas: 3 
+  vllm: 
+    epp: 
+      enabled: false   # opt out of the multireplica default 
+```
+
+#### Performance benefits 
+
+EPP's value comes from two routing decisions: steering new requests away from the most-loaded replica when concurrency rises, and steering follow-up turns of a conversation back to the replica that already has the chat history in its KV cache. Measured on a 3-replica vLLM deployment with output length capped at 256 tokens (so the comparison isn't skewed by generation-length variance): 
+
+| Scenario | Bottom-line result vs Gateway round-robin |
+|---|---|
+| Single-turn requests, 20 concurrent users | Average **TTFT is 14% lower** (646 ms vs 753 ms), inter-token latency is 5% lower, and per-user throughput is 6% higher. The gain comes from queue-depth and KV-cache-utilization scoring picking the least-loaded replica per request. |
+| Multi-turn chat (3-turn conversations) | Per-user **throughput is 16% higher** at one concurrent user and **10% higher at five**; inter-token latency is **14% lower**; aggregate throughput is **14% higher** at five concurrent users. The gain comes from prefix-cache-aware routing - follow-up turns hit warm KV cache on the same replica instead of cold-prefilling the conversation history on a random one. |
+  
+When to override the default:
+
+- Leave the default in place for the common cases - single-replica deployments get plain Service routing (no overhead) and multireplica vLLM deployments get inference-aware routing automatically.
+- Force `enabled: false` for throughput-maximizing batch workloads that generate very long, unbounded outputs at high concurrency, where the per-token ExtProc overhead can outweigh the routing benefit.
+- Force `enabled: true` when you want the EPP stack pre-provisioned on a deployment you currently run at one replica but intend to scale up shortly (avoids a brief reconciliation window during the first scale-up). 
 
 ## Comparison
 

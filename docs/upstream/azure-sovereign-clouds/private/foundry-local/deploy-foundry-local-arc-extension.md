@@ -31,11 +31,11 @@ Before you begin, make sure you have:
 - An app registration for enablement of authorization and authentication. See [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) installed and configured for your cluster.
 - [Helm](https://helm.sh/) installed.
-- For external endpoints: an NGINX ingress controller, such as [NGINX-Ingress](https://github.com/kubernetes/ingress-nginx).
+- A Gateway API provider on the cluster. Foundry Local routes model traffic through the Kubernetes Gateway API instead of an Ingress controller. The supported provider is Istio (istio-base + istiod, version 1.29 or later) running as a Gateway API controller — sidecar injection and ambient mode are optional and not required by the inference operator.
+- Gateway API CRDs (v1.4.0 or later).
+- Gateway API Inference Extension CRDs (v1.5.0 or later) 
 - (Optional) A namespace strategy if you plan to deploy models outside the default `foundry-local-operator` namespace. You must set namespace configuration during installation. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments).
 
-> [!IMPORTANT]
-> [Ingress-NGINX](https://github.com/kubernetes/ingress-nginx) is deprecated since March 2026. Microsoft currently supports NGINX annotations. The solution is tested with AKS's managed NGINX ingress controller.
 
 ### GPU prerequisites
 
@@ -46,7 +46,70 @@ If you plan to run GPU workloads, also make sure:
 
 For more information, see [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/overview.html).
 
-## Step 1: Install cert-manager and trust-manager
+## Step 1: Install Istio and the Gateway API CRDs 
+
+Foundry Local on Azure Local uses the Kubernetes Gateway API for in-cluster and external traffic routing. Install the Gateway API CRDs first, then install Istio as the Gateway API provider. Istio's istiod discovers the CRDs at startup and registers the istio GatewayClass once it sees them. Installing the CRDs and Istio in the reverse order forces an istiod restart and is reported as flaky on some clusters. 
+
+#### [Bash](#tab/bash)
+
+```bash
+# 1. Install the Gateway API CRDs (standard channel). 
+kubectl apply --server-side -f \ 
+    https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml 
+# 2. Install the Gateway API Inference Extension CRDs 
+#    before istiod so istiod picks up InferencePool support at startup. 
+kubectl apply --server-side -f \ 
+    https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.5.0/manifests.yaml 
+# 3. Add the Istio Helm repository 
+helm repo add istio https://istio-release.storage.googleapis.com/charts 
+helm repo update 
+# 4. Install Istio base (cluster-scoped CRDs) 
+helm install istio-base istio/base \ 
+    -n istio-system --create-namespace --wait 
+# 5. Install the istiod control plane. 
+#    Set ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true so istiod recognizes 
+#    the InferencePool CRD. EPP routing is enabled by default for multi-replica 
+#    vLLM ModelDeployments (and on demand for any deployment that explicitly 
+#    sets spec.vllm.epp.enabled: true), so this flag is the recommended default. 
+helm install istiod istio/istiod \ 
+    -n istio-system \ 
+    --set pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \ 
+    --wait
+```
+
+#### [PowerShell](#tab/powershell)
+
+```powershell
+kubectl apply --server-side -f ` 
+    https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml 
+kubectl apply --server-side -f ` 
+    https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.5.0/manifests.yaml 
+helm repo add istio https://istio-release.storage.googleapis.com/charts 
+helm repo update 
+helm install istio-base istio/base ` 
+    -n istio-system --create-namespace --wait 
+helm install istiod istio/istiod ` 
+    -n istio-system ` 
+    --set pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true ` 
+    --wait
+```
+
+Verify that the Istio GatewayClass is Accepted before you continue:
+
+```bash
+kubectl get gatewayclass istio
+
+# NAME    CONTROLLER                    ACCEPTED   AGE
+# istio   istio.io/gateway-controller   True       1m
+```
+
+In this architecture, Istio acts only as a Gateway API provider. Mesh features such as sidecar injection, ambient mode, and mesh mTLS are optional and aren't required by the inference operator.
+
+Disconnected (ALDO) environments. The Foundry Local expansion pack includes Istio, the Gateway API CRDs, and the Inference Extension CRDs. The edgeartifacts registry automatically imports these components. You don't need outbound internet access. For more information, see [Prepare to deploy Foundry Local in a disconnected environment](disconnected-operations/how-to-prepare.md). 
+
+---
+
+## Step 2: Install cert-manager and trust-manager
 
 Foundry Local on Azure Local requires cert-manager and trust-manager for automated certificate management.
 
@@ -90,7 +153,7 @@ az k8s-extension create `
 
 ---
 
-## Step 2: Install the Foundry Local extension
+## Step 3: Install the Foundry Local extension
 
 Install the Foundry Local extension by using the Azure portal or Azure CLI. Entra ID authentication is enabled by default. If you plan to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, keep this default during installation and include the Entra application ID. If you disable Entra ID authentication, you prevent Agentic Retrieval from connecting to your deployed models.
 
@@ -142,6 +205,7 @@ You can configure the following optional parameters during inference operator in
 |-----------|-------------|
 | `entraAuth.enabled` | Boolean. When enabled, the Entra Auth SDK sidecar and msi-adapter sidecar are injected into inference pods for JWT validation and ARM RBAC authorization. When disabled, `entraAuth.tenantId` and `entraAuth.clientId` parameters are optional. Default: `true`. For more information, see [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md). If you intend to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, you must enable Entra ID authentication for the Foundry Local extension.|
 | `watch.namespaces` | Array of strings. Configure this parameter if you want the operator to manage resources across multiple namespaces. By default, the operator manages the `foundry-local-operator` namespace where models and inference workloads are deployed. Pass the installation command as: `--config watch.namespaces[0]="NS1" --config watch.namespaces[1]="NS2"`. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments). |
+| `storeModel.cacheJob.resources` | The StoreModel cache job is configured with default memory values of 16Gi for requests and 32Gi for limits. These settings are established due to the typically large size of models, as downloading and caching them requires substantial memory to prevent out-of-memory (OOM) issues. In environments with limited hardware resources, or when working exclusively with smaller models, you can install the Foundry Local extension with reduced memory allocations for the model cache job: `--config storeModel.cacheJob.resources.requests.memory="<value lower than 16Gi>"  --config storeModel.cacheJob.resources.limits.memory="<value lower than 32Gi>"`. **Ensure that the requests value doesn't exceed the limits value.** For more information on StoreModel, see [Model caching](concept-model-caching.md). |
 
 **Configure Inference API exposure**
 The `api.exposure` Helm value controls how the Foundry Local Inference API control-plane endpoint is exposed. This value
@@ -195,7 +259,7 @@ Use the Azure portal to install the Foundry Local extension and configure requir
 1. Select **Create** to deploy the Foundry Local extension.
 1. After the deployment completes, under **Extensions**, verify that the extension state is **Succeeded**.
 
-## Step 3: Verify the operator
+## Step 4: Verify the operator
 
 Verify that the inference operator extension is installed and that all pods are running. Use the following commands to check the operator status:
 
