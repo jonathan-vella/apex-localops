@@ -89,36 +89,42 @@ To preview only, with no deploy:
 
 ## 3. Stage the two ISOs
 
-This is the one manual step. All downloads stay inside Azure. The jumpbox is pre-provisioned
-with Azure CLI, Az PowerShell, AzCopy, and `Upload-Isos.ps1` (see `STAGE-ISOS-README.txt` on its
-desktop).
+After accepting the Azure Local and Windows Server Evaluation terms, start unattended staging
+from the repository workstation:
 
-1. **RDP to the jumpbox over Azure Bastion** (`ApexLocal-Mgmt`, no public IP).
-2. Download the **Azure Local OS ISO** (portal) and the **Windows Server 2025 ISO** onto the
-   jumpbox, for example to `C:\isos\`.
-  After accepting the Azure Local terms in the portal, the pinned Azure Local 2607 download can
-  run non-interactively from Microsoft's official release alias:
+```bash
+./scripts/stage-selfhosted-isos.sh \
+  --artifact-ref <candidate-commit-sha> \
+  --accept-azure-local-license-terms \
+  --accept-windows-server-evaluation-terms
+```
 
-  ```powershell
-  C:\ApexLocal\Get-ApexAzureLocalIso.ps1 -AcceptLicenseTerms
-  ```
+Azure Managed Run Command executes on `ApexLocal-Mgmt` as SYSTEM. It downloads the pinned Azure
+Local 2607 and Windows Server 2025 Evaluation ISOs from their official Microsoft aliases,
+validates final hosts, response lengths, ISO signatures, and SHA-256 hashes, then uploads both
+with the jumpbox managed identity. `iso-manifest.json` is published last. No VM password,
+storage key, Bastion session, or third-party script is used.
 
-  This writes `C:\ISOs\AzureLocal-2607.iso` transactionally and validates the final Microsoft
-  host, response length, ISO signature, and SHA-256. It does not execute third-party code or
-  select a moving "latest" release.
-3. Upload both (this uses the jumpbox managed identity — no keys):
+Track staging and build progress:
 
-   ```powershell
-   Connect-AzAccount -Identity
-   C:\ApexLocal\Upload-Isos.ps1 -StorageAccountName <staging-sa> `
-      -AzureLocalIsoPath    C:\isos\AzureLocal-2607.iso `
-       -WindowsServerIsoPath C:\isos\WindowsServer2025.iso
-   ```
+```bash
+az vm run-command show -g rg-apexlocal --vm-name ApexLocal-Mgmt \
+  --run-command-name ApexLocalIsoStaging -o table
+./scripts/monitor-selfhosted.sh --resource-group rg-apexlocal
+```
 
-  `<staging-sa>` is printed by `deploy-selfhosted.sh` and shown in the desktop README. Both ISOs
-  are mandatory in one invocation. The helper verifies their lengths, records SHA-256 and image
-  metadata, and publishes `iso-manifest.json` last. Raw `az storage blob upload` commands are
-  unsupported because they do not create this manifest.
+For manual fallback, connect to `ApexLocal-Mgmt` over Bastion and run:
+
+```powershell
+C:\ApexLocal\Get-ApexAzureLocalIso.ps1 -AcceptLicenseTerms
+C:\ApexLocal\Get-ApexWindowsServerIso.ps1 -AcceptEvaluationTerms
+Connect-AzAccount -Identity
+C:\ApexLocal\Upload-Isos.ps1 -StorageAccountName <staging-sa> `
+  -AzureLocalIsoPath C:\ISOs\AzureLocal-2607.iso `
+  -WindowsServerIsoPath C:\ISOs\WindowsServer2025.iso
+```
+
+Raw `az storage blob upload` commands are unsupported because they omit the integrity manifest.
 
 ## 4. Watch the build
 

@@ -88,7 +88,12 @@ catch {
 
 # --- Stage the ISO acquisition and upload tools from the immutable artifact set ---
 try {
-  foreach ($toolName in @('Get-ApexAzureLocalIso.ps1', 'Upload-Isos.ps1')) {
+  foreach ($toolName in @(
+      'Get-ApexAzureLocalIso.ps1',
+      'Get-ApexWindowsServerIso.ps1',
+      'Stage-ApexIsos.ps1',
+      'Upload-Isos.ps1'
+    )) {
     $dest = Join-Path $rootDir $toolName
     $url = ($templateBaseUrl.TrimEnd('/') + "/artifacts/selfhosted/PowerShell/$toolName")
     Write-Output "  downloading $url"
@@ -119,9 +124,12 @@ Container       : $isoContainerName
   The downloader writes C:\ISOs\AzureLocal-2607.iso, validates the Microsoft
   redirect host, response length, ISO signature, and reports its SHA-256.
 
-2) Download the Windows Server 2025 ISO (evaluation is fine for a lab):
-   - https://www.microsoft.com/evalcenter/  (Windows Server 2025)
-   - Save it on this jumpbox, e.g. C:\isos\WindowsServer2025.iso
+2) After accepting the Windows Server Evaluation terms, download its pinned ISO:
+
+  C:\ApexLocal\Get-ApexWindowsServerIso.ps1 -AcceptEvaluationTerms
+
+  Or run both downloads and the upload without signing into this VM:
+  scripts/stage-selfhosted-isos.sh (from the repository workstation).
 
 3) Sign in and upload BOTH (PowerShell, as administrator):
 

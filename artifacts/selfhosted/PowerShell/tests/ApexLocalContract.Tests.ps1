@@ -15,12 +15,15 @@ BeforeAll {
   $orchestratorPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1'
   $isoPublisherPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Upload-Isos.ps1'
   $isoDownloaderPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Get-ApexAzureLocalIso.ps1'
+  $windowsIsoDownloaderPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Get-ApexWindowsServerIso.ps1'
+  $isoStagerPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Stage-ApexIsos.ps1'
   $bootstrapPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Bootstrap.ps1'
   $jumpboxSetupPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1'
   $recoveryPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1'
   $recoveryWrapperPath = Join-Path $repoRoot 'scripts/recover-selfhosted.sh'
   $deployWrapperPath = Join-Path $repoRoot 'scripts/deploy-selfhosted.sh'
   $providerCheckPath = Join-Path $repoRoot 'scripts/check-providers-selfhosted.sh'
+  $isoStagingWrapperPath = Join-Path $repoRoot 'scripts/stage-selfhosted-isos.sh'
 
   $config = Import-PowerShellDataFile -Path $configPath
   $moduleSource = Get-Content -Path $modulePath -Raw
@@ -34,12 +37,15 @@ BeforeAll {
   $orchestratorSource = Get-Content -Path $orchestratorPath -Raw
   $isoPublisherSource = Get-Content -Path $isoPublisherPath -Raw
   $isoDownloaderSource = Get-Content -Path $isoDownloaderPath -Raw
+  $windowsIsoDownloaderSource = Get-Content -Path $windowsIsoDownloaderPath -Raw
+  $isoStagerSource = Get-Content -Path $isoStagerPath -Raw
   $bootstrapSource = Get-Content -Path $bootstrapPath -Raw
   $jumpboxSetupSource = Get-Content -Path $jumpboxSetupPath -Raw
   $recoverySource = Get-Content -Path $recoveryPath -Raw
   $recoveryWrapperSource = Get-Content -Path $recoveryWrapperPath -Raw
   $deployWrapperSource = Get-Content -Path $deployWrapperPath -Raw
   $providerCheckSource = Get-Content -Path $providerCheckPath -Raw
+  $isoStagingWrapperSource = Get-Content -Path $isoStagingWrapperPath -Raw
 
   $tokens = $null
   $parseErrors = $null
@@ -186,8 +192,34 @@ Describe 'Self-hosted ISO integrity contract' {
     $isoDownloaderSource | Should -Match 'ContentRange'
     $isoDownloaderSource | Should -Match 'CD001'
     $isoDownloaderSource | Should -Match 'Get-FileHash[^\r\n]+SHA256'
-    $jumpboxSetupSource | Should -Match "Get-ApexAzureLocalIso\.ps1', 'Upload-Isos\.ps1"
+    $jumpboxSetupSource | Should -Match "'Get-ApexAzureLocalIso\.ps1'"
+    $jumpboxSetupSource | Should -Match "'Get-ApexWindowsServerIso\.ps1'"
+    $jumpboxSetupSource | Should -Match "'Stage-ApexIsos\.ps1'"
+    $jumpboxSetupSource | Should -Match "'Upload-Isos\.ps1'"
     $deployWrapperSource | Should -Match 'Get-ApexAzureLocalIso\.ps1'
+  }
+
+  It 'downloads the pinned Windows Server ISO only from the official release host' {
+    $windowsIsoDownloaderSource | Should -Match 'linkid=2293312'
+    $windowsIsoDownloaderSource | Should -Match "allowedDownloadHost = 'software-static\.download\.prss\.microsoft\.com'"
+    $windowsIsoDownloaderSource | Should -Match '\[Parameter\(Mandatory\)\] \[switch\]\$AcceptEvaluationTerms'
+    $windowsIsoDownloaderSource | Should -Match '\$partialPath = "\$destination\.partial"'
+    $windowsIsoDownloaderSource | Should -Match 'ContentRange'
+    $windowsIsoDownloaderSource | Should -Match 'CD001'
+    $windowsIsoDownloaderSource | Should -Match 'Get-FileHash[^\r\n]+SHA256'
+  }
+
+  It 'supports unattended download and publication through managed run command' {
+    $isoStagerSource | Should -Match 'Get-ApexAzureLocalIso\.ps1'
+    $isoStagerSource | Should -Match 'Get-ApexWindowsServerIso\.ps1'
+    $isoStagerSource | Should -Match 'Upload-Isos\.ps1'
+    $isoStagerSource | Should -Match "ValidateSet\('Accepted'\)"
+    $isoStagingWrapperSource | Should -Match '--async-execution true'
+    $isoStagingWrapperSource | Should -Match '--accept-azure-local-license-terms'
+    $isoStagingWrapperSource | Should -Match '--accept-windows-server-evaluation-terms'
+    $isoStagingWrapperSource | Should -Not -Match 'read -r|read -s|password'
+    $deployWrapperSource | Should -Match 'Get-ApexWindowsServerIso\.ps1'
+    $deployWrapperSource | Should -Match 'Stage-ApexIsos\.ps1'
   }
 
   It 'treats the manifest-producing jumpbox tool as required' {
