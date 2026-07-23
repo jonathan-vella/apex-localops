@@ -177,6 +177,7 @@ Describe 'Self-hosted ISO integrity contract' {
 
   It 'downloads the pinned Azure Local ISO only from the official release host' {
     $isoDownloaderSource | Should -Match "ReleaseCode = '2607'"
+    $isoDownloaderSource | Should -Match 'Add-Type -AssemblyName System\.Net\.Http'
     $isoDownloaderSource | Should -Match 'https://aka\.ms/hcireleaseimage/\$ReleaseCode'
     $isoDownloaderSource | Should -Match "allowedDownloadHost = 'azurestackreleases\.download\.prss\.microsoft\.com'"
     $isoDownloaderSource | Should -Match '\[Parameter\(Mandatory\)\] \[switch\]\$AcceptLicenseTerms'

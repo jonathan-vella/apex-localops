@@ -26,6 +26,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Net.Http -ErrorAction Stop
 $releaseAlias = "https://aka.ms/hcireleaseimage/$ReleaseCode"
 $allowedDownloadHost = 'azurestackreleases.download.prss.microsoft.com'
 $minimumIsoBytes = 500MB
