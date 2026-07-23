@@ -31,6 +31,7 @@ REQUIRED_PROVIDERS=(
   Microsoft.HybridContainerService
   Microsoft.EdgeMarketplace
   Microsoft.Attestation
+  Microsoft.Network
   Microsoft.Storage
   Microsoft.Insights
   Microsoft.KeyVault
@@ -38,6 +39,7 @@ REQUIRED_PROVIDERS=(
 
 # Stable application id of the Azure Local (Azure Stack HCI) Resource Provider.
 HCI_RP_APP_ID="1412d89f-b8a8-4111-b4fd-e82905cbd85d"
+NETWORK_FEATURE="AllowBringYourOwnPublicIpAddress"
 
 CHECK_ONLY=false
 SUBSCRIPTION=""
@@ -119,7 +121,36 @@ else
 fi
 echo
 
-# 2) Resolve and print the Azure Local RP object id (hciResourceProviderObjectId).
+# 2) Register the Network feature required by this subscription for Standard PIPs.
+feature_state=$(az feature show --namespace Microsoft.Network --name "$NETWORK_FEATURE" \
+  --query properties.state -o tsv 2>/dev/null || echo "NotRegistered")
+printf '%-42s %s\n' "Microsoft.Network/$NETWORK_FEATURE" "$feature_state"
+if [[ "$feature_state" != "Registered" ]]; then
+  if [[ "$CHECK_ONLY" == "true" ]]; then
+    echo "(--check-only) Network feature is not registered."
+  else
+    echo "Registering Microsoft.Network/$NETWORK_FEATURE ..."
+    az feature register --namespace Microsoft.Network --name "$NETWORK_FEATURE" --output none
+    deadline=$(( $(date +%s) + POLL_TIMEOUT_SECONDS ))
+    while true; do
+      feature_state=$(az feature show --namespace Microsoft.Network --name "$NETWORK_FEATURE" \
+        --query properties.state -o tsv 2>/dev/null || echo "NotRegistered")
+      if [[ "$feature_state" == "Registered" ]]; then
+        az provider register --namespace Microsoft.Network --output none
+        echo "Network feature registered and provider propagation requested."
+        break
+      fi
+      if [[ $(date +%s) -ge $deadline ]]; then
+        echo "ERROR: Timed out waiting for Microsoft.Network/$NETWORK_FEATURE." >&2
+        exit 1
+      fi
+      sleep "$POLL_INTERVAL_SECONDS"
+    done
+  fi
+fi
+echo
+
+# 3) Resolve and print the Azure Local RP object id (hciResourceProviderObjectId).
 #    Prefer the stable application id; fall back to the display name.
 echo "Resolving the Azure Local Resource Provider object id (hciResourceProviderObjectId)..."
 hci_oid=$(az ad sp show --id "$HCI_RP_APP_ID" --query id -o tsv 2>/dev/null || true)

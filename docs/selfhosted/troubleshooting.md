@@ -24,6 +24,7 @@ answer files, or unredacted customer identifiers in an issue or release note.
 | Failure point | Evidence | Supported action |
 | --- | --- | --- |
 | Artifact fetch | CSE log reports an unreachable immutable URL | Push a corrected candidate, clean up, and redeploy with its SHA. |
+| Public IP creation reports `AllowBringYourOwnPublicIpAddress` not registered | ARM fails in `networkDeployment` before either VM exists | Run `check-providers-selfhosted.sh`; it registers the required Network feature and re-registers `Microsoft.Network`. Then clean up and redeploy. |
 | ISO staging or integrity | `AwaitingIsos`, missing manifest, byte-length mismatch, or SHA-256 mismatch | Re-run `Upload-Isos.ps1` with both ISOs. Do not use raw blob upload. |
 | `V:` or host disk geometry | Bootstrap fails before nested VMs exist | Confirm 12 host P30 disks, then clean up and redeploy. |
 | VHDX conversion | Partial VHDX removed or boot validation fails | Correct the ISO/build issue, then clean up and redeploy from a new candidate if code changed. |

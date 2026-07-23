@@ -26,8 +26,9 @@ REQUIRED_PROVIDERS=(
   Microsoft.HybridCompute Microsoft.GuestConfiguration Microsoft.HybridConnectivity
   Microsoft.AzureStackHCI Microsoft.Kubernetes Microsoft.KubernetesConfiguration
   Microsoft.ExtendedLocation Microsoft.ResourceConnector Microsoft.HybridContainerService
-  Microsoft.EdgeMarketplace Microsoft.Attestation Microsoft.Storage Microsoft.Insights Microsoft.KeyVault
+  Microsoft.EdgeMarketplace Microsoft.Attestation Microsoft.Network Microsoft.Storage Microsoft.Insights Microsoft.KeyVault
 )
+NETWORK_FEATURE="AllowBringYourOwnPublicIpAddress"
 RUNTIME_ARTIFACTS=(
   artifacts/selfhosted/PowerShell/Bootstrap.ps1
   artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1
@@ -107,6 +108,15 @@ preflight() {
     echo "  [ok]   required resource providers registered"
   else
     echo "  [FAIL] providers not registered: ${unregistered[*]}" >&2
+    failures=$((failures + 1))
+  fi
+
+  state=$(az feature show --namespace Microsoft.Network --name "$NETWORK_FEATURE" \
+    --query properties.state -o tsv 2>/dev/null || echo NotRegistered)
+  if [[ "$state" == "Registered" ]]; then
+    echo "  [ok]   Microsoft.Network/$NETWORK_FEATURE registered"
+  else
+    echo "  [FAIL] Microsoft.Network/$NETWORK_FEATURE is '$state'. Run scripts/check-providers-selfhosted.sh." >&2
     failures=$((failures + 1))
   fi
 

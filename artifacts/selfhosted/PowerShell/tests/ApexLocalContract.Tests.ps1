@@ -17,6 +17,8 @@ BeforeAll {
   $jumpboxSetupPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1'
   $recoveryPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1'
   $recoveryWrapperPath = Join-Path $repoRoot 'scripts/recover-selfhosted.sh'
+  $deployWrapperPath = Join-Path $repoRoot 'scripts/deploy-selfhosted.sh'
+  $providerCheckPath = Join-Path $repoRoot 'scripts/check-providers-selfhosted.sh'
 
   $config = Import-PowerShellDataFile -Path $configPath
   $moduleSource = Get-Content -Path $modulePath -Raw
@@ -32,6 +34,8 @@ BeforeAll {
   $jumpboxSetupSource = Get-Content -Path $jumpboxSetupPath -Raw
   $recoverySource = Get-Content -Path $recoveryPath -Raw
   $recoveryWrapperSource = Get-Content -Path $recoveryWrapperPath -Raw
+  $deployWrapperSource = Get-Content -Path $deployWrapperPath -Raw
+  $providerCheckSource = Get-Content -Path $providerCheckPath -Raw
 
   $tokens = $null
   $parseErrors = $null
@@ -120,6 +124,9 @@ Describe 'Self-hosted infrastructure ordering and access' {
     $networkBicepSource | Should -Match 'Microsoft\.Network/publicIPAddresses@2024-10-01'
     $networkBicepSource | Should -Not -Match 'Microsoft\.Network/publicIPAddresses@2025-07-01'
     $hostBicepSource | Should -Not -Match 'Microsoft\.Network/publicIPAddresses@2025-07-01'
+    $providerCheckSource | Should -Match 'AllowBringYourOwnPublicIpAddress'
+    $providerCheckSource | Should -Match 'az feature register'
+    $deployWrapperSource | Should -Match 'Microsoft\.Network/\$NETWORK_FEATURE registered'
   }
 
   It 'deploys CSE modules only from main after managed identity roles' {
