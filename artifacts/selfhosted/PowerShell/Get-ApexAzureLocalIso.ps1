@@ -90,7 +90,7 @@ function Save-ApexHttpContent {
         $Uri,
         [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead
       ).GetAwaiter().GetResult()
-      $response.EnsureSuccessStatusCode()
+      $null = $response.EnsureSuccessStatusCode()
       if ($response.RequestMessage.RequestUri.Host -ne $allowedDownloadHost) {
         throw "Download redirected to an unapproved host '$($response.RequestMessage.RequestUri.Host)'."
       }
@@ -130,7 +130,7 @@ try {
     $request,
     [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead
   ).GetAwaiter().GetResult()
-  $response.EnsureSuccessStatusCode()
+  $null = $response.EnsureSuccessStatusCode()
 
   $resolvedUri = $response.RequestMessage.RequestUri
   if ($resolvedUri.Scheme -ne 'https' -or $resolvedUri.Host -ne $allowedDownloadHost) {
