@@ -151,6 +151,10 @@ Describe 'Self-hosted infrastructure ordering and access' {
 
   It 'uses OAuth-only staging and no redundant or deployer data roles' {
     $storageBicepSource | Should -Match 'allowSharedKeyAccess:\s*false'
+    $storageBicepSource | Should -Match "publicNetworkAccess:\s*'Disabled'"
+    $storageBicepSource | Should -Match 'Microsoft\.Network/privateEndpoints@'
+    $storageBicepSource | Should -Match "privatelink\.blob\.\$\{environment\(\)\.suffixes\.storage\}"
+    $storageBicepSource | Should -Match "groupIds:\s*\[\s*'blob'"
     $mainBicepSource | Should -Not -Match 'hostTagContributor|hostReader|deployerStorageOwner'
   }
 

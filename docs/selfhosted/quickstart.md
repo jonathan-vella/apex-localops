@@ -180,7 +180,7 @@ See [Self-hosted troubleshooting](troubleshooting.md) for the evidence and recov
 | Symptom | Check |
 | --- | --- |
 | Build stuck at `AwaitingIsos` | Confirm `AzureLocalOS.iso`, `WindowsServer.iso`, and `iso-manifest.json` are present. Re-run `Upload-Isos.ps1` if the manifest is missing or invalid. |
-| Upload fails with "not authorized" | The deployer or jumpbox needs **Storage Blob Data** roles (a control-plane Owner role is not enough). Re-run the deploy so RBAC is reapplied; allow a few minutes for propagation. |
+| Upload fails with "not authorized" | Confirm the jumpbox has **Storage Blob Data Contributor**, resolves `<account>.blob.core.windows.net` to the Blob private endpoint, and can reach TCP 443. Re-run the deploy to restore RBAC/private DNS. |
 | `Failed` during cluster deploy | The in-VM identity needs **User Access Administrator** on the resource group (assigned by the template); confirm the role assignments exist. Pull logs from the `logs/` container. |
 | No public internet on nested nodes | Egress is via the host NAT (`192.168.1.0/24`) → host NIC → Azure NAT Gateway. Check `Get-NetNat` on the host. |
 | `az stack-hci cluster list` empty | Use this command (not `az resource list`); allow time after `ClusterDeploying`. The deploy itself takes ~2.5–3 hours. |

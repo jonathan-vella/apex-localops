@@ -156,6 +156,8 @@ module stagingStorageDeployment 'mgmt/stagingStorage.bicep' = {
     storageAccountName: stagingStorageAccountName
     isoContainerName: isoContainerName
     logsContainerName: logsContainerName
+    subnetId: networkDeployment.outputs.subnetId
+    virtualNetworkId: networkDeployment.outputs.vnetId
     resourceTags: resourceTags
   }
 }

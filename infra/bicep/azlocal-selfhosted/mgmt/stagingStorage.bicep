@@ -40,6 +40,12 @@ param isoContainerName string = 'iso-images'
 @description('Name of the blob container the cluster host uploads its build logs into.')
 param logsContainerName string = 'logs'
 
+@description('Resource ID of the workload subnet used by the host and jumpbox.')
+param subnetId string
+
+@description('Resource ID of the virtual network linked to the Blob private DNS zone.')
+param virtualNetworkId string
+
 param resourceTags object
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
@@ -54,6 +60,13 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
+    publicNetworkAccess: 'Disabled'
+    networkAcls: {
+      bypass: 'None'
+      defaultAction: 'Deny'
+      ipRules: []
+      virtualNetworkRules: []
+    }
   }
   tags: resourceTags
 }
@@ -79,7 +92,67 @@ resource logsContainer 'Microsoft.Storage/storageAccounts/blobServices/container
   }
 }
 
+resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = {
+  name: '${storageAccountName}-blob-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: subnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'blob'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: [
+            'blob'
+          ]
+        }
+      }
+    ]
+  }
+  tags: resourceTags
+}
+
+resource blobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+  name: 'privatelink.blob.${environment().suffixes.storage}'
+  location: 'global'
+  tags: resourceTags
+}
+
+resource blobPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: blobPrivateDnsZone
+  name: '${storageAccountName}-vnet-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetworkId
+    }
+  }
+  tags: resourceTags
+}
+
+resource blobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-10-01' = {
+  parent: blobPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'blob'
+        properties: {
+          privateDnsZoneId: blobPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    blobPrivateDnsVnetLink
+  ]
+}
+
 output storageAccountName string = storageAccount.name
 output storageAccountId string = storageAccount.id
 output isoContainerName string = isoContainer.name
 output logsContainerName string = logsContainer.name
+output blobPrivateEndpointId string = blobPrivateEndpoint.id

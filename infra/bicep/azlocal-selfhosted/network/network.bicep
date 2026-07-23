@@ -58,7 +58,7 @@ resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-10-01' = {
             name: subnetName
             properties: {
               addressPrefix: subnetAddressPrefix
-              privateEndpointNetworkPolicies: 'Enabled'
+              privateEndpointNetworkPolicies: 'Disabled'
               privateLinkServiceNetworkPolicies: 'Enabled'
               networkSecurityGroup: {
                 id: networkSecurityGroup.id
@@ -86,7 +86,7 @@ resource arcVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-10-01' = {
             name: subnetName
             properties: {
               addressPrefix: subnetAddressPrefix
-              privateEndpointNetworkPolicies: 'Enabled'
+              privateEndpointNetworkPolicies: 'Disabled'
               privateLinkServiceNetworkPolicies: 'Enabled'
               networkSecurityGroup: {
                 id: networkSecurityGroup.id

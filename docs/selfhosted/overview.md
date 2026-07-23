@@ -45,7 +45,7 @@ flowchart TB
             end
         end
         NAT["NAT Gateway + static PIP<br/>(all egress)"]
-        SA["Storage account (hardened)<br/>iso-images/ + logs/"]
+        SA["Storage account (OAuth-only)<br/>Blob private endpoint<br/>iso-images/ + logs/"]
         LA["Log Analytics workspace"]
     end
     OP["Operator"] -->|RDP over Bastion| BASTION --> MGMT
