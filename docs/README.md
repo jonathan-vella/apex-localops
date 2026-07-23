@@ -106,7 +106,8 @@ Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
 | --- | --- |
 | [Overview](selfhosted/overview.md) | The clean-room topology, the RBAC model, and the end-to-end build flow. |
 | [Quickstart](selfhosted/quickstart.md) | Register providers, deploy, stage the two ISOs from the jumpbox, monitor the build, and confirm success. |
-| [Sizing and cost](selfhosted/sizing.md) | Host SKU allow-list, the 2-node alternative, cost control, and the build time budget. |
+| [Sizing and cost](selfhosted/sizing.md) | Fixed release topology, regional quota, cost control, and the build time budget. |
+| [Troubleshooting](selfhosted/troubleshooting.md) | Evidence collection, supported cluster-only recovery, secret cleanup, and full redeployment boundaries. |
 
 ### Small Form Factor profile
 

@@ -109,9 +109,9 @@ else
         break
       fi
       if [[ $(date +%s) -ge $deadline ]]; then
-        echo "WARNING: Timed out waiting for: ${pending[*]}" >&2
+        echo "ERROR: Timed out waiting for: ${pending[*]}" >&2
         echo "Re-run this script to continue polling." >&2
-        break
+        exit 1
       fi
       sleep "$POLL_INTERVAL_SECONDS"
     done

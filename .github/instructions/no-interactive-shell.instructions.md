@@ -1,6 +1,6 @@
 ---
-description: "Prevents interactive shell prompts and long-output terminal replays from being injected into chat. Forbids -i flags on mv/rm/cp, read -p, and confirm prompts; pipe long output to files."
-applyTo: ".github/skills/**/SKILL.md, .github/instructions/**/*.instructions.md, scripts/**/*.sh, README.md, docs/**/*.md"
+description: "Prevents interactive shell prompts and long-output terminal replays from being injected into chat. Forbids -i flags on mv/rm/cp, read -p, Read-Host automation, and confirm prompts; pipe long output to files."
+applyTo: ".github/skills/**/SKILL.md, .github/instructions/**/*.instructions.md, scripts/**/*.sh, artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, README.md, docs/**/*.md"
 ---
 
 # MANDATORY: No Interactive Shell, No Long-Output Replay
@@ -18,6 +18,9 @@ applyTo: ".github/skills/**/SKILL.md, .github/instructions/**/*.instructions.md,
 
 Never use `mv -i`, `rm -i`, `cp -i`, `read -p`, or any prompt-driven builtin (including inside
 `bash -c '...'`).
+
+Self-hosted PowerShell automation must accept values through parameters or environment variables;
+never add `Read-Host`, `Get-Credential`, or a confirmation prompt to an unattended path.
 
 | Forbidden | Use instead |
 | --- | --- |

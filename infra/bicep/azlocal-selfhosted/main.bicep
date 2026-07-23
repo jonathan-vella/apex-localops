@@ -21,9 +21,7 @@
 // LOCALSELF_ADMIN_PASSWORD via readEnvironmentVariable().
 //
 // RBAC (assigned here so all principals resolve at the orchestration layer):
-//   • deployer (human/SP)  -> Storage Blob Data Owner on the ISO storage
 //   • host VM identity      -> Storage Blob Data Contributor on the ISO storage
-//                              + Tag Contributor + Reader on the resource group
 //                              + Contributor + User Access Administrator on the RG
 //                                (the in-VM Azure Local cluster deploy performs
 //                                 role assignments, so it needs UAA — Storage
@@ -40,33 +38,18 @@ param windowsAdminUsername string = 'arcdemo'
 @secure()
 param windowsAdminPassword string
 
-@description('Location to deploy all infrastructure resources.')
-param location string = resourceGroup().location
+@description('Location to deploy all infrastructure resources. Sweden Central is primary; Germany West Central is the explicit fallback.')
+@allowed([
+  'swedencentral'
+  'germanywestcentral'
+])
+param location string = 'swedencentral'
 
 @description('Resource-name prefix for the self-hosted resources.')
 param namePrefix string = 'ApexLocal'
 
 @description('Name for the Log Analytics workspace.')
 param logAnalyticsWorkspaceName string = 'ApexLocal-Workspace'
-
-@description('Size of the nested-virtualization cluster-host VM.')
-@allowed([
-  'Standard_E32s_v5'
-  'Standard_E48s_v5'
-  'Standard_E64s_v5'
-  'Standard_E32s_v6'
-  'Standard_E48s_v6'
-  'Standard_E64s_v6'
-])
-param hostVmSize string = 'Standard_E64s_v6'
-
-@description('Number of Premium data disks pooled into the host V: drive.')
-@minValue(4)
-@maxValue(32)
-param hostDataDiskCount int = 12
-
-@description('Size (GB) of each host Premium data disk.')
-param hostDataDiskSizeGB int = 256
 
 @description('Apply Azure Hybrid Benefit (Windows_Server) across both VMs. Set false for license-included (PAYG).')
 param enableAzureHybridBenefit bool = true
@@ -80,30 +63,10 @@ param deployManagementVm bool = true
 @description('Size of the management jumpbox.')
 param managementVmSize string = 'Standard_D4s_v5'
 
-@description('Enable automatic logon so the in-VM build resumes headless after the Hyper-V reboot.')
-param vmAutologon bool = true
-
-// --- Azure Local cluster shape ---
-@description('Number of nested Azure Local cluster nodes (3 = odd quorum, no witness).')
-@allowed([
-  2
-  3
-])
-param clusterNodeCount int = 3
-
-@description('Startup memory (MB) per nested Azure Local node.')
-param nodeMemoryMB int = 98304
-
-@description('Virtual processor count per nested Azure Local node.')
-param nodeCpuCount int = 16
-
-@description('Name of the Azure Local instance (cluster) resource created in Azure. 3-24 chars.')
+@description('Name of the Azure Local instance (cluster) resource created in Azure. 3-15 chars for the pinned create-cluster contract.')
 @minLength(3)
-@maxLength(24)
-param clusterName string = 'apexlocal-cluster'
-
-@description('Azure region the Azure Local INSTANCE is registered in (not every region supports the instance; keep separate from infra location).')
-param azureLocalInstanceLocation string = 'westeurope'
+@maxLength(15)
+param clusterName string = 'apexlocal'
 
 // --- Artifact source (self-hosted in this repo) ---
 @description('GitHub account that hosts this repository and its artifacts/ tree.')
@@ -112,26 +75,14 @@ param githubAccount string = 'jonathan-vella'
 @description('GitHub repository name that hosts the vendored artifacts/ tree.')
 param githubRepo string = 'apex-localops'
 
-@description('GitHub branch or tag. Use a release tag for reproducible deploys; "main" tracks latest.')
-param githubBranch string = 'main'
+@description('Immutable Git commit SHA or release tag used for runtime artifacts.')
+param artifactRef string = 'v1.3.0-rc.1'
 
 @description('Name of the ISO blob container.')
 param isoContainerName string = 'iso-images'
 
 @description('Name of the build-logs blob container.')
 param logsContainerName string = 'logs'
-
-// --- Identity inputs (resolved at deploy time; never committed) ---
-@description('Object id of the principal RUNNING the deployment. Granted Storage Blob Data Owner so it (and the operator on the jumpbox) can upload the two ISOs. scripts/deploy-selfhosted.sh resolves the signed-in user automatically. Leave empty to skip.')
-param deployerPrincipalId string = ''
-
-@description('Principal type for deployerPrincipalId. "User" for an individual, "ServicePrincipal" for CI.')
-@allowed([
-  'User'
-  'ServicePrincipal'
-  'Group'
-])
-param deployerPrincipalType string = 'User'
 
 @description('Object id of the Azure Local Resource Provider service principal (app 1412d89f-b8a8-4111-b4fd-e82905cbd85d) in this tenant. Required by the in-VM cluster deploy; resolved at deploy time by scripts/deploy-selfhosted.sh.')
 param hciResourceProviderObjectId string = ''
@@ -151,32 +102,24 @@ var resourceTags = governResourceTags
     })
   : tags
 
-var templateBaseUrl = 'https://raw.githubusercontent.com/${githubAccount}/${githubRepo}/${githubBranch}/'
+var templateBaseUrl = 'https://raw.githubusercontent.com/${githubAccount}/${githubRepo}/${artifactRef}/'
+var hostVmSize = 'Standard_E64s_v6'
+var hostDataDiskCount = 12
+var hostDataDiskSizeGB = 256
 
 // Deterministic resource names (calculable at the start of the deployment) so that
 // resource-scoped role-assignment names/scopes don't depend on runtime module outputs.
 var stagingStorageAccountName = 'apexloc${uniqueString(resourceGroup().id)}'
+var clusterResourceSuffix = take(uniqueString(resourceGroup().id, clusterName), 6)
 var hostVmNameVar = '${namePrefix}-Host'
 var managementVmNameVar = '${namePrefix}-Mgmt'
 var hostVmResourceId = resourceId('Microsoft.Compute/virtualMachines', hostVmNameVar)
 var managementVmResourceId = resourceId('Microsoft.Compute/virtualMachines', managementVmNameVar)
 
 // Built-in role definition IDs.
-var roleStorageBlobDataOwner = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
-)
 var roleStorageBlobDataContributor = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-)
-var roleTagContributor = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
-)
-var roleReader = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 )
 var roleContributor = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -231,18 +174,6 @@ module hostDeployment 'host/host.bicep' = {
     dataDiskSizeGB: hostDataDiskSizeGB
     enableAzureHybridBenefit: enableAzureHybridBenefit
     resourceTags: resourceTags
-    stagingStorageAccountName: stagingStorageDeployment.outputs.storageAccountName
-    isoContainerName: isoContainerName
-    logsContainerName: logsContainerName
-    workspaceName: logAnalyticsWorkspaceName
-    templateBaseUrl: templateBaseUrl
-    vmAutologon: vmAutologon
-    clusterNodeCount: clusterNodeCount
-    nodeMemoryMB: nodeMemoryMB
-    nodeCpuCount: nodeCpuCount
-    clusterName: clusterName
-    azureLocalInstanceLocation: azureLocalInstanceLocation
-    hciResourceProviderObjectId: hciResourceProviderObjectId
     dataCollectionRuleId: mgmtArtifactsDeployment.outputs.dcrId
   }
 }
@@ -256,9 +187,6 @@ module managementVmDeployment 'mgmt/mgmtVm.bicep' = if (deployManagementVm) {
     adminUsername: windowsAdminUsername
     adminPassword: windowsAdminPassword
     subnetId: networkDeployment.outputs.subnetId
-    templateBaseUrl: templateBaseUrl
-    stagingStorageAccountName: stagingStorageAccountName
-    isoContainerName: isoContainerName
     resourceTags: resourceTags
     enableAzureHybridBenefit: enableAzureHybridBenefit
   }
@@ -282,28 +210,6 @@ resource hostStorageContributor 'Microsoft.Authorization/roleAssignments@2022-04
   // No explicit dependsOn needed: principalId reads hostDeployment's output, and
   // hostDeployment consumes stagingStorageDeployment's output — so this assignment
   // already orders after the storage account exists.
-}
-
-// Host identity: write ApexProgress/ApexStatus tags on the resource group.
-resource hostTagContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, hostVmResourceId, roleTagContributor)
-  scope: resourceGroup()
-  properties: {
-    principalId: hostDeployment.outputs.hostPrincipalId
-    roleDefinitionId: roleTagContributor
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Host identity: read resource-group metadata.
-resource hostReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, hostVmResourceId, roleReader)
-  scope: resourceGroup()
-  properties: {
-    principalId: hostDeployment.outputs.hostPrincipalId
-    roleDefinitionId: roleReader
-    principalType: 'ServicePrincipal'
-  }
 }
 
 // Host identity: Contributor on the RG so the in-VM Azure Local cluster deploy can
@@ -345,19 +251,42 @@ resource jumpboxStorageContributor 'Microsoft.Authorization/roleAssignments@2022
   ]
 }
 
-// Deployer (human / SP / group): Storage Blob Data OWNER on the staging account so it can
-// upload the ISOs (from Cloud Shell or their workstation). Control-plane roles (Owner/Contributor)
-// do NOT grant blob data access, so this is required for the upload path to work.
-resource deployerStorageOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(stagingStorageAccount.id, deployerPrincipalId, roleStorageBlobDataOwner)
-  scope: stagingStorageAccount
-  properties: {
-    principalId: deployerPrincipalId
-    roleDefinitionId: roleStorageBlobDataOwner
-    principalType: deployerPrincipalType
+module hostBootstrapDeployment 'host/bootstrapExtension.bicep' = {
+  name: 'hostBootstrapDeployment'
+  params: {
+    vmName: hostVmNameVar
+    location: location
+    windowsAdminUsername: windowsAdminUsername
+    windowsAdminPassword: windowsAdminPassword
+    stagingStorageAccountName: stagingStorageDeployment.outputs.storageAccountName
+    isoContainerName: isoContainerName
+    logsContainerName: logsContainerName
+    workspaceName: logAnalyticsWorkspaceName
+    templateBaseUrl: templateBaseUrl
+    artifactRef: artifactRef
+    clusterName: clusterName
+    clusterResourceSuffix: clusterResourceSuffix
+    hciResourceProviderObjectId: hciResourceProviderObjectId
   }
   dependsOn: [
-    stagingStorageDeployment
+    hostStorageContributor
+    hostContributor
+    hostUserAccessAdmin
+  ]
+}
+
+module jumpboxSetupDeployment 'mgmt/jumpboxSetup.bicep' = if (deployManagementVm) {
+  name: 'jumpboxSetupDeployment'
+  params: {
+    vmName: managementVmNameVar
+    location: location
+    templateBaseUrl: templateBaseUrl
+    artifactRef: artifactRef
+    stagingStorageAccountName: stagingStorageDeployment.outputs.storageAccountName
+    isoContainerName: isoContainerName
+  }
+  dependsOn: [
+    jumpboxStorageContributor
   ]
 }
 
@@ -367,3 +296,4 @@ output isoContainerName string = isoContainerName
 output logsContainerName string = logsContainerName
 output workspaceName string = mgmtArtifactsDeployment.outputs.workspaceName
 output managementVmName string = deployManagementVm ? managementVmDeployment!.outputs.managementVmName : ''
+output clusterResourceSuffix string = clusterResourceSuffix

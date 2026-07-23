@@ -24,11 +24,6 @@ param vmName string = 'ApexLocal-Host'
 
 @description('The size of the host VM. Must be a nested-virtualization-capable, high-memory SKU.')
 @allowed([
-  'Standard_E32s_v5'
-  'Standard_E48s_v5'
-  'Standard_E64s_v5'
-  'Standard_E32s_v6'
-  'Standard_E48s_v6'
   'Standard_E64s_v6'
 ])
 param vmSize string = 'Standard_E64s_v6'
@@ -45,6 +40,9 @@ param windowsAdminPassword string
 @description('The Windows Server version (a fully patched image of this version is selected).')
 param windowsOSVersion string = '2025-datacenter-g2'
 
+@description('Pinned Windows Server image version verified in Sweden Central and Germany West Central.')
+param windowsImageVersion string = '26100.33158.260711'
+
 @description('Location for all resources.')
 param location string = resourceGroup().location
 
@@ -55,11 +53,15 @@ param subnetId string
 param deployBastion bool = true
 
 @description('Number of Premium data disks to pool into drive V: for nested storage.')
-@minValue(4)
-@maxValue(32)
+@allowed([
+  12
+])
 param dataDiskCount int = 12
 
 @description('Size (GB) of each Premium data disk.')
+@allowed([
+  256
+])
 param dataDiskSizeGB int = 256
 
 @description('Performance tier for each data disk (P30 = 5000 IOPS / 200 MBps even at 256 GB).')
@@ -70,57 +72,8 @@ param enableAzureHybridBenefit bool = true
 
 param resourceTags object
 
-// --- Artifact + telemetry wiring (passed through to the in-VM bootstrap) ---
-@description('Name of the storage account that holds the staged ISOs + receives build logs.')
-param stagingStorageAccountName string
-
-@description('Name of the ISO blob container.')
-param isoContainerName string = 'iso-images'
-
-@description('Name of the logs blob container.')
-param logsContainerName string = 'logs'
-
-@description('Name of the Log Analytics workspace.')
-param workspaceName string
-
 @description('Resource id of the Data Collection Rule the Azure Monitor Agent associates with. Empty disables host monitoring.')
 param dataCollectionRuleId string = ''
-
-@description('Base URL used to fetch the vendored artifacts/ tree from this repo.')
-param templateBaseUrl string
-
-@description('Enable automatic logon so the in-VM build resumes headless after the Hyper-V reboot.')
-param vmAutologon bool = true
-
-// --- Azure Local cluster shape (passed through to the in-VM scripts) ---
-@description('Number of nested Azure Local cluster nodes (3 = odd quorum, no witness).')
-@allowed([
-  2
-  3
-])
-param clusterNodeCount int = 3
-
-@description('Startup memory (MB) per nested Azure Local node.')
-param nodeMemoryMB int = 98304
-
-@description('Virtual processor count per nested Azure Local node.')
-param nodeCpuCount int = 16
-
-@description('Name of the Azure Local instance (cluster) resource created in Azure. 3-24 chars.')
-@minLength(3)
-@maxLength(24)
-param clusterName string = 'apexlocal-cluster'
-
-@description('Azure region the Azure Local INSTANCE is registered in (may differ from infra location; not every region supports the instance).')
-param azureLocalInstanceLocation string = 'westeurope'
-
-@description('Object id of the Azure Local Resource Provider service principal (app 1412d89f-b8a8-4111-b4fd-e82905cbd85d) in this tenant. Resolved at deploy time by scripts/deploy-selfhosted.sh; required for the cluster deploy.')
-param hciResourceProviderObjectId string = ''
-
-@description('Forces the bootstrap Custom Script Extension to re-run on each deployment. The bootstrap is idempotent so re-running is safe and lets a redeploy pick up a fixed script.')
-param bootstrapForceUpdateTag string = utcNow()
-
-var encodedPassword = base64(windowsAdminPassword)
 var publicIpAddressName = '${vmName}-PIP'
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
@@ -210,7 +163,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
         publisher: 'MicrosoftWindowsServer'
         offer: 'WindowsServer'
         sku: windowsOSVersion
-        version: 'latest'
+        version: windowsImageVersion
       }
       dataDisks: [
         for i in range(0, dataDiskCount): {
@@ -239,25 +192,6 @@ resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
         provisionVMAgent: true
         enableAutomaticUpdates: false
       }
-    }
-  }
-}
-
-resource vmBootstrap 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = {
-  parent: vm
-  name: 'BootstrapApexLocal'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Compute'
-    type: 'CustomScriptExtension'
-    typeHandlerVersion: '1.10'
-    autoUpgradeMinorVersion: true
-    forceUpdateTag: bootstrapForceUpdateTag
-    protectedSettings: {
-      fileUris: [
-        uri(templateBaseUrl, 'artifacts/selfhosted/PowerShell/Bootstrap.ps1')
-      ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -isoContainerName ${isoContainerName} -logsContainerName ${logsContainerName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon ${vmAutologon} -clusterNodeCount ${clusterNodeCount} -nodeMemoryMB ${nodeMemoryMB} -nodeCpuCount ${nodeCpuCount} -clusterName ${clusterName} -azureLocalInstanceLocation ${azureLocalInstanceLocation} -hciResourceProviderObjectId ${hciResourceProviderObjectId}'
     }
   }
 }

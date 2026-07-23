@@ -29,14 +29,23 @@ Start-Transcript -Path (Join-Path $logsDir 'Setup-Jumpbox.log') -Append
 
 Write-Output 'apex-localops self-hosted jumpbox setup starting...'
 
+# Pin jumpbox modules to the same release manifest used by the host build.
+$moduleVersionsPath = Join-Path $rootDir 'ModuleVersions.psd1'
+$moduleVersionsUrl = ($templateBaseUrl.TrimEnd('/') + '/artifacts/selfhosted/PowerShell/ModuleVersions.psd1')
+Invoke-WebRequest -UseBasicParsing -Uri $moduleVersionsUrl -OutFile $moduleVersionsPath
+$moduleVersions = Import-PowerShellDataFile -Path $moduleVersionsPath
+
 # --- Trust PSGallery + install Az modules used by Upload-Isos.ps1 ---
 try {
   Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
   Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
-  foreach ($m in @('Az.Accounts', 'Az.Storage')) {
-    if (-not (Get-Module -ListAvailable -Name $m)) {
-      Write-Output "  installing module $m"
-      Install-Module -Name $m -Scope AllUsers -Force -AllowClobber
+  @{
+    'Az.Accounts' = $moduleVersions.AzAccounts
+    'Az.Storage'  = $moduleVersions.AzStorage
+  }.GetEnumerator() | ForEach-Object {
+    if (-not (Get-Module -ListAvailable -Name $_.Key | Where-Object Version -eq ([version]$_.Value))) {
+      Write-Output "  installing module $($_.Key) $($_.Value)"
+      Install-Module -Name $_.Key -RequiredVersion $_.Value -Scope AllUsers -Force -AllowClobber
     }
   }
 }
@@ -85,7 +94,7 @@ try {
   Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
 }
 catch {
-  Write-Output "WARN: could not stage Upload-Isos.ps1 (continuing): $($_.Exception.Message)"
+  throw "Could not stage the required Upload-Isos.ps1 tool: $($_.Exception.Message)"
 }
 
 # --- Desktop README with this deployment's exact commands ---

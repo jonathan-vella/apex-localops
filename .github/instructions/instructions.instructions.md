@@ -28,7 +28,8 @@ applyTo: "scripts/**/*.sh"
 ## applyTo scoping rules (this repo)
 
 - **Scope to owned source roots**, not `**`. Owned: `scripts/`, `infra/bicep/`,
-  `artifacts/PowerShell/workloads/`, `.github/workflows/`, `docs/` (owned subset), `.github/skills/`.
+  `artifacts/PowerShell/workloads/`, `artifacts/selfhosted/PowerShell/`,
+  `.github/workflows/`, `docs/` (owned subset), `.github/skills/`.
 - **Never** target vendored trees: `artifacts/PowerShell/` (except `workloads/`),
   `artifacts/sff/vendor/`, `docs/upstream/**`, `docs/azure-local-sff/upstream/**`.
 - `applyTo` globs **cannot negate** reliably — enumerate the owned globs explicitly instead of

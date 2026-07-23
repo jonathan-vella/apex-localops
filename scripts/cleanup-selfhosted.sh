@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 #
 # cleanup-selfhosted.sh - Tear down the SELF-HOSTED Azure Local lab (stops all billing).
 #
@@ -13,8 +15,6 @@
 #   ./cleanup-selfhosted.sh --no-wait             # return immediately (async delete)
 #   ./cleanup-selfhosted.sh --resource-group <n>  # default: rg-apexlocal
 #   ./cleanup-selfhosted.sh --help
-
-set -euo pipefail
 
 RESOURCE_GROUP="rg-apexlocal"
 ASSUME_YES=false

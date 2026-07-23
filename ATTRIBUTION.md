@@ -53,6 +53,23 @@ part of this repository; they remain subject to their own license terms:
 - The Azure Local SFF **Maintenance OS (ROE) ISO** and **Configurator App**, which are
   portal/subscription-gated Microsoft artifacts staged at deploy time (never vendored here).
 
+## Azure Local cluster deployment template
+
+The self-hosted profile's [cluster ARM template](artifacts/selfhosted/azlocal.json) is derived
+from the Microsoft `Azure/azure-quickstart-templates` template at
+`quickstarts/microsoft.azurestackhci/create-cluster/azuredeploy.json`, pinned to commit
+`b56eb9051390299afe2d913bf2d10861fef279fd`.
+
+- **Upstream SHA-256:** `a95bf9a734cc7433f171a31685193ea053941b24f33111bddc9552ce20195f58`
+- **Repository artifact SHA-256:** `08bb7ab44ac3d7109f7accc5f71e3c94f26f2ed2ccb33b9cee486fd8cb44a987`
+- **Modifications:** removed the cloud-witness storage/key path for the fixed three-node
+  witnessless topology and aligned the current LCM password and API contract used by the
+  self-hosted orchestration.
+
+The upstream template is provided by Microsoft under the license terms in the
+[`Azure/azure-quickstart-templates`](https://github.com/Azure/azure-quickstart-templates)
+repository.
+
 ## Small Form Factor (SFF) profile — additional vendored work
 
 The SFF profile ([infra/bicep/azlocal-sff](infra/bicep/azlocal-sff), `artifacts/sff/`,

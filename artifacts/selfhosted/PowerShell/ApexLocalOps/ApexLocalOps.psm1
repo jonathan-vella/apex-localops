@@ -159,8 +159,10 @@ function Send-ApexLogsToStorage {
     Import-Module Az.Storage -ErrorAction Stop
     $ctx = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
     $prefix = "$($env:COMPUTERNAME)/$((Get-Date).ToString('yyyyMMdd-HHmmss'))"
-    Get-ChildItem -Path $LogDir -Filter *.log -ErrorAction SilentlyContinue | ForEach-Object {
-      Set-AzStorageBlobContent -File $_.FullName -Container $Container -Blob "$prefix/$($_.Name)" -Context $ctx -Force | Out-Null
+    Get-ChildItem -Path $LogDir -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+      $relativePath = $_.FullName.Substring($LogDir.TrimEnd('\').Length).TrimStart('\') -replace '\\', '/'
+      Set-AzStorageBlobContent -File $_.FullName -Container $Container `
+        -Blob "$prefix/$relativePath" -Context $ctx -Force | Out-Null
     }
     Write-ApexLog "Uploaded build logs to $StorageAccountName/$Container/$prefix."
   }
@@ -169,9 +171,115 @@ function Send-ApexLogsToStorage {
   }
 }
 
+function Clear-ApexBootstrapSecrets {
+  <#
+  .SYNOPSIS Remove transient lab credentials and unattended-build artifacts from the host.
+  .DESCRIPTION
+    The headless Hyper-V reboot requires a temporary Winlogon password and a
+    machine-scoped base64 value. Remove both on every success or failure path,
+    along with generated answer files that contain the same lab credential.
+  #>
+  [CmdletBinding()]
+  param(
+    [hashtable]$Config
+  )
+
+  $winlogonPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+  foreach ($propertyName in @('AutoAdminLogon', 'DefaultPassword', 'DefaultUserName', 'DefaultDomainName')) {
+    Remove-ItemProperty -Path $winlogonPath -Name $propertyName -ErrorAction SilentlyContinue
+  }
+
+  [Environment]::SetEnvironmentVariable(
+    'APEX_AdminPasswordB64',
+    $null,
+    [EnvironmentVariableTarget]::Machine
+  )
+
+  $answerDirectories = @('C:\ApexLocal')
+  if ($Config -and $Config.Paths -and $Config.Paths.AnswerDir) {
+    $answerDirectories += $Config.Paths.AnswerDir
+  }
+  foreach ($answerDirectory in $answerDirectories | Select-Object -Unique) {
+    Get-ChildItem -Path $answerDirectory -Filter '*unattend*.xml' -File -ErrorAction SilentlyContinue |
+      Remove-Item -Force -ErrorAction SilentlyContinue
+  }
+
+  Write-ApexLog 'Cleared host bootstrap credentials and generated answer files.'
+}
+
 #endregion
 
 #region ------------------------------------------------------------ Image pipeline
+
+function Get-ApexIsoManifest {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [object]$Context,
+    [Parameter(Mandatory)] [string]$Container,
+    [string]$ManifestBlob = 'iso-manifest.json',
+    [string[]]$RequiredBlobs = @()
+  )
+
+  $manifestPath = Join-Path ([System.IO.Path]::GetTempPath()) ("apex-iso-manifest-{0}.json" -f [guid]::NewGuid())
+  try {
+    Get-AzStorageBlobContent -Container $Container -Blob $ManifestBlob -Destination $manifestPath `
+      -Context $Context -Force -ErrorAction Stop | Out-Null
+    try {
+      $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+      throw "ISO manifest '$ManifestBlob' is not valid JSON: $($_.Exception.Message)"
+    }
+  }
+  finally {
+    Remove-Item -LiteralPath $manifestPath -Force -ErrorAction SilentlyContinue
+  }
+
+  if ($manifest.schemaVersion -ne 1) {
+    throw "ISO manifest '$ManifestBlob' has unsupported schemaVersion '$($manifest.schemaVersion)'."
+  }
+
+  $entries = @($manifest.files)
+  if ($entries.Count -eq 0) {
+    throw "ISO manifest '$ManifestBlob' contains no files."
+  }
+
+  $seenBlobs = @{}
+  foreach ($entry in $entries) {
+    if ([string]::IsNullOrWhiteSpace($entry.blob)) {
+      throw "ISO manifest '$ManifestBlob' contains an entry without a blob name."
+    }
+    if ($seenBlobs.ContainsKey($entry.blob)) {
+      throw "ISO manifest '$ManifestBlob' contains duplicate blob '$($entry.blob)'."
+    }
+    $seenBlobs[$entry.blob] = $true
+
+    if ($null -eq $entry.bytes -or [long]$entry.bytes -le 0) {
+      throw "ISO manifest entry '$($entry.blob)' has an invalid byte length."
+    }
+    if ($entry.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+      throw "ISO manifest entry '$($entry.blob)' has an invalid SHA-256 digest."
+    }
+
+    $images = @($entry.images)
+    if ($images.Count -eq 0) {
+      throw "ISO manifest entry '$($entry.blob)' contains no image metadata."
+    }
+    foreach ($image in $images) {
+      if ($null -eq $image.imageIndex -or [string]::IsNullOrWhiteSpace($image.imageName)) {
+        throw "ISO manifest entry '$($entry.blob)' contains incomplete image metadata."
+      }
+    }
+  }
+
+  foreach ($requiredBlob in $RequiredBlobs) {
+    if (-not $seenBlobs.ContainsKey($requiredBlob)) {
+      throw "ISO manifest '$ManifestBlob' does not contain required blob '$requiredBlob'."
+    }
+  }
+
+  return $manifest
+}
 
 function Wait-ApexStagedIso {
   <#
@@ -188,6 +296,7 @@ function Wait-ApexStagedIso {
     [Parameter(Mandatory)] [string]$Container,
     [Parameter(Mandatory)] [string]$AzureLocalIsoBlob,
     [Parameter(Mandatory)] [string]$WindowsServerIsoBlob,
+    [string]$ManifestBlob = 'iso-manifest.json',
     [int]$TimeoutMinutes = 720,
     [int]$PollSeconds = 60,
     [string]$ResourceGroup,
@@ -201,13 +310,17 @@ function Wait-ApexStagedIso {
       $ctx = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
       $azl = Get-AzStorageBlob -Container $Container -Blob $AzureLocalIsoBlob -Context $ctx -ErrorAction SilentlyContinue
       $ws = Get-AzStorageBlob -Container $Container -Blob $WindowsServerIsoBlob -Context $ctx -ErrorAction SilentlyContinue
-      if ($azl -and $ws) {
-        Write-ApexLog "Both ISOs present: $AzureLocalIsoBlob ($([math]::Round($azl.Length/1GB,2)) GB), $WindowsServerIsoBlob ($([math]::Round($ws.Length/1GB,2)) GB)."
+      $manifest = Get-AzStorageBlob -Container $Container -Blob $ManifestBlob -Context $ctx -ErrorAction SilentlyContinue
+      if ($azl -and $ws -and $manifest) {
+        Get-ApexIsoManifest -Context $ctx -Container $Container -ManifestBlob $ManifestBlob `
+          -RequiredBlobs @($AzureLocalIsoBlob, $WindowsServerIsoBlob) | Out-Null
+        Write-ApexLog "Both ISOs and a valid manifest are present: $AzureLocalIsoBlob ($([math]::Round($azl.Length/1GB,2)) GB), $WindowsServerIsoBlob ($([math]::Round($ws.Length/1GB,2)) GB)."
         return $true
       }
       $missing = @()
       if (-not $azl) { $missing += $AzureLocalIsoBlob }
       if (-not $ws) { $missing += $WindowsServerIsoBlob }
+      if (-not $manifest) { $missing += $ManifestBlob }
       if (-not $announced -and $ResourceGroup) {
         Set-ApexProgress -ResourceGroup $ResourceGroup -Progress 'AwaitingIsos' -Status "Waiting for: $($missing -join ', ')" -Config $Config
         $announced = $true
@@ -219,7 +332,7 @@ function Wait-ApexStagedIso {
     }
     Start-Sleep -Seconds $PollSeconds
   }
-  throw "Timed out after $TimeoutMinutes min waiting for both ISOs in $StorageAccountName/$Container."
+  throw "Timed out after $TimeoutMinutes min waiting for both ISOs and a valid manifest in $StorageAccountName/$Container."
 }
 
 function Get-ApexStagedIso {
@@ -231,26 +344,55 @@ function Get-ApexStagedIso {
     [Parameter(Mandatory)] [string]$StorageAccountName,
     [Parameter(Mandatory)] [string]$Container,
     [Parameter(Mandatory)] [string]$Blob,
-    [Parameter(Mandatory)] [string]$Destination
+    [Parameter(Mandatory)] [string]$Destination,
+    [string]$ManifestBlob = 'iso-manifest.json'
   )
   Import-Module Az.Storage -ErrorAction Stop
   $dir = Split-Path -Parent $Destination
   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
   $ctx = New-AzStorageContext -StorageAccountName $StorageAccountName -UseConnectedAccount
 
+  $manifest = Get-ApexIsoManifest -Context $ctx -Container $Container -ManifestBlob $ManifestBlob -RequiredBlobs @($Blob)
+  $manifestEntry = @($manifest.files | Where-Object { $_.blob -eq $Blob })[0]
+  $expectedLength = [long]$manifestEntry.bytes
+  $expectedHash = $manifestEntry.sha256.ToLowerInvariant()
   $remote = Get-AzStorageBlob -Container $Container -Blob $Blob -Context $ctx -ErrorAction Stop
-  if ((Test-Path $Destination) -and ((Get-Item $Destination).Length -eq $remote.Length)) {
-    Write-ApexLog "ISO already present and correct size: $Destination (skipping download)."
-    return $Destination
+  if ($remote.Length -ne $expectedLength) {
+    throw "Staged blob size does not match the manifest for ${Blob}: blob=$($remote.Length) manifest=$expectedLength."
   }
-  Write-ApexLog "Downloading $Container/$Blob ($([math]::Round($remote.Length/1GB,2)) GB) -> $Destination"
-  Get-AzStorageBlobContent -Container $Container -Blob $Blob -Destination $Destination -Context $ctx -Force | Out-Null
 
-  $local = (Get-Item $Destination).Length
-  if ($local -ne $remote.Length) {
-    throw "Downloaded size mismatch for ${Blob}: local=$local remote=$($remote.Length)."
+  if (Test-Path -LiteralPath $Destination) {
+    $localFile = Get-Item -LiteralPath $Destination
+    $localHash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($localFile.Length -eq $expectedLength -and $localHash -eq $expectedHash) {
+      Write-ApexLog "ISO already present and matches manifest: $Destination (skipping download)."
+      return $Destination
+    }
+    Remove-Item -LiteralPath $Destination -Force
   }
-  Write-ApexLog "Downloaded and verified: $Destination ($local bytes)."
+
+  $partialPath = "$Destination.partial"
+  Remove-Item -LiteralPath $partialPath -Force -ErrorAction SilentlyContinue
+  try {
+    Write-ApexLog "Downloading $Container/$Blob ($([math]::Round($expectedLength/1GB,2)) GB) -> $Destination"
+    Get-AzStorageBlobContent -Container $Container -Blob $Blob -Destination $partialPath -Context $ctx -Force | Out-Null
+
+    $downloadedLength = (Get-Item -LiteralPath $partialPath).Length
+    if ($downloadedLength -ne $expectedLength) {
+      throw "Downloaded size mismatch for ${Blob}: local=$downloadedLength manifest=$expectedLength."
+    }
+    $downloadedHash = (Get-FileHash -LiteralPath $partialPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($downloadedHash -ne $expectedHash) {
+      throw "Downloaded SHA-256 mismatch for ${Blob}: local=$downloadedHash manifest=$expectedHash."
+    }
+
+    Move-Item -LiteralPath $partialPath -Destination $Destination -Force
+  }
+  finally {
+    Remove-Item -LiteralPath $partialPath -Force -ErrorAction SilentlyContinue
+  }
+
+  Write-ApexLog "Downloaded and verified against manifest: $Destination ($expectedLength bytes)."
   return $Destination
 }
 
@@ -270,76 +412,147 @@ function Convert-ApexIsoToVhdx {
     The resulting VHDX is Secure Boot / TPM capable (Gen2 UEFI layout), which the
     Azure Local security defaults (BitLocker / Credential Guard) require.
 
-    NOTE: For Azure Local nodes the OS image must reach the cloud-deployment-ready
-    state; applying install.wim produces a clean OS that still completes OOBE on
-    first boot. If a given Azure Local build resists offline imaging, the proven
-    fallback (used by the SFF profile) is to BOOT the node VM from the ISO with an
-    autounattend answer file instead of pre-applying the image - see New-ApexNestedVM
-    -BootFromIso. This function is the default (faster re-deploys); the fallback is
-    available without code changes.
+    The image is built at a temporary path, validated for its GPT partitions,
+    Windows payload, and UEFI BCD store, then atomically promoted to the cache.
   #>
-  [CmdletBinding()]
+  [CmdletBinding(DefaultParameterSetName = 'ByIndex')]
   param(
     [Parameter(Mandatory)] [string]$IsoPath,
     [Parameter(Mandatory)] [string]$VhdxPath,
     [int]$VhdxSizeGB = 127,
-    [string]$ImageName,            # e.g. 'Azure Stack HCI' / 'Windows Server 2025 Datacenter (Desktop Experience)'
-    [int]$ImageIndex = 0           # used when ImageName is not supplied
+    [Parameter(Mandatory, ParameterSetName = 'ByName')] [string]$ImageName,
+    [Parameter(Mandatory, ParameterSetName = 'ByIndex')] [ValidateRange(1, 65535)] [int]$ImageIndex
   )
-  if (Test-Path $VhdxPath) {
-    Write-ApexLog "Base VHDX already exists: $VhdxPath (skipping conversion)."
-    return $VhdxPath
-  }
   $dir = Split-Path -Parent $VhdxPath
   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+  $partialPath = Join-Path $dir ("{0}.partial.vhdx" -f [System.IO.Path]::GetFileNameWithoutExtension($VhdxPath))
+
+  function Get-AvailableDriveLetters {
+    param([int]$Count)
+
+    $usedLetters = @(Get-Volume -ErrorAction SilentlyContinue | Where-Object DriveLetter |
+      ForEach-Object { $_.DriveLetter.ToString().ToUpperInvariant() })
+    $availableLetters = @(
+      foreach ($codePoint in 90..68) {
+        $candidate = [char]$codePoint
+        if ($candidate -notin $usedLetters) { $candidate }
+      }
+    )
+    if ($availableLetters.Count -lt $Count) {
+      throw "Unable to reserve $Count drive letters for offline image conversion."
+    }
+    return @($availableLetters | Select-Object -First $Count)
+  }
+
+  function Test-BootableVhdx {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    $assignedPartitions = @()
+    try {
+      $validationDisk = Mount-VHD -Path $Path -ReadOnly -Passthru -ErrorAction Stop | Get-Disk -ErrorAction Stop
+      $partitions = @(Get-Partition -DiskNumber $validationDisk.Number -ErrorAction Stop)
+      $efiPartition = $partitions | Where-Object GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' | Select-Object -First 1
+      $osPartition = $partitions | Where-Object GptType -eq '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' | Select-Object -Last 1
+      if (-not $efiPartition -or -not $osPartition) { return $false }
+
+      $letters = @(Get-AvailableDriveLetters -Count 2)
+      $efiPartition | Set-Partition -NewDriveLetter $letters[0] -ErrorAction Stop | Out-Null
+      $assignedPartitions += [pscustomobject]@{ Partition = $efiPartition; AccessPath = "{0}:\" -f $letters[0] }
+      $osPartition | Set-Partition -NewDriveLetter $letters[1] -ErrorAction Stop | Out-Null
+      $assignedPartitions += [pscustomobject]@{ Partition = $osPartition; AccessPath = "{0}:\" -f $letters[1] }
+
+      $windowsPath = "{0}:\Windows\System32" -f $letters[1]
+      $bcdPath = "{0}:\EFI\Microsoft\Boot\BCD" -f $letters[0]
+      return (Test-Path -LiteralPath $windowsPath) -and (Test-Path -LiteralPath $bcdPath)
+    }
+    catch {
+      Write-ApexLog "VHDX validation failed for '$Path': $($_.Exception.Message)" -Level WARN
+      return $false
+    }
+    finally {
+      foreach ($assignment in $assignedPartitions) {
+        Remove-PartitionAccessPath -DiskNumber $assignment.Partition.DiskNumber `
+          -PartitionNumber $assignment.Partition.PartitionNumber -AccessPath $assignment.AccessPath `
+          -ErrorAction SilentlyContinue
+      }
+      Dismount-VHD -Path $Path -ErrorAction SilentlyContinue
+    }
+  }
+
+  if (Test-Path -LiteralPath $VhdxPath) {
+    if (Test-BootableVhdx -Path $VhdxPath) {
+      Write-ApexLog "Base VHDX already exists and passed boot validation: $VhdxPath"
+      return $VhdxPath
+    }
+    Write-ApexLog "Removing invalid cached base VHDX: $VhdxPath" -Level WARN
+    Remove-Item -LiteralPath $VhdxPath -Force
+  }
+  Remove-Item -LiteralPath $partialPath -Force -ErrorAction SilentlyContinue
 
   Write-ApexLog "Mounting ISO: $IsoPath"
-  $mount = Mount-DiskImage -ImagePath $IsoPath -PassThru
-  $isoDrive = ($mount | Get-Volume).DriveLetter
+  $mount = Mount-DiskImage -ImagePath $IsoPath -PassThru -ErrorAction Stop
   try {
+    $isoDrive = ($mount | Get-Volume -ErrorAction Stop).DriveLetter
+    if (-not $isoDrive) { throw "Mounted ISO has no drive letter: $IsoPath" }
     $wim = Join-Path "$($isoDrive):" 'sources\install.wim'
     if (-not (Test-Path $wim)) { $wim = Join-Path "$($isoDrive):" 'sources\install.esd' }
     if (-not (Test-Path $wim)) { throw "No install.wim/esd found on the ISO (${isoDrive}:)." }
 
-    # Resolve the image index to apply.
-    $idx = $ImageIndex
-    if ($ImageName) {
-      $img = Get-WindowsImage -ImagePath $wim | Where-Object { $_.ImageName -eq $ImageName }
-      if (-not $img) {
-        $available = (Get-WindowsImage -ImagePath $wim | ForEach-Object { "[$($_.ImageIndex)] $($_.ImageName)" }) -join '; '
+    $availableImages = @(Get-WindowsImage -ImagePath $wim -ErrorAction Stop)
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+      $matchingImages = @($availableImages | Where-Object { $_.ImageName -eq $ImageName })
+      if ($matchingImages.Count -ne 1) {
+        $available = ($availableImages | ForEach-Object { "[$($_.ImageIndex)] $($_.ImageName)" }) -join '; '
         throw "Image '$ImageName' not found in $wim. Available: $available"
       }
-      $idx = $img.ImageIndex
+      $selectedImage = $matchingImages[0]
     }
-    if (-not $idx -or $idx -lt 1) { $idx = 1 }
-    Write-ApexLog "Using image index $idx from $wim."
+    else {
+      $matchingImages = @($availableImages | Where-Object { $_.ImageIndex -eq $ImageIndex })
+      if ($matchingImages.Count -ne 1) {
+        $available = ($availableImages | ForEach-Object { "[$($_.ImageIndex)] $($_.ImageName)" }) -join '; '
+        throw "Image index '$ImageIndex' not found in $wim. Available: $available"
+      }
+      $selectedImage = $matchingImages[0]
+    }
+    $selectedIndex = $selectedImage.ImageIndex
+    Write-ApexLog "Using image index $selectedIndex ('$($selectedImage.ImageName)') from $wim."
 
-    # Create and mount the VHDX.
-    Write-ApexLog "Creating VHDX: $VhdxPath (${VhdxSizeGB} GB dynamic)"
-    New-VHD -Path $VhdxPath -SizeBytes ($VhdxSizeGB * 1GB) -Dynamic | Out-Null
-    $disk = Mount-VHD -Path $VhdxPath -Passthru | Get-Disk
+    Write-ApexLog "Creating VHDX: $partialPath (${VhdxSizeGB} GB dynamic)"
+    New-VHD -Path $partialPath -SizeBytes ($VhdxSizeGB * 1GB) -Dynamic -ErrorAction Stop | Out-Null
+    $disk = Mount-VHD -Path $partialPath -Passthru -ErrorAction Stop | Get-Disk -ErrorAction Stop
     Initialize-Disk -Number $disk.Number -PartitionStyle GPT -Confirm:$false | Out-Null
 
-    # UEFI layout: ESP (FAT32) + MSR + OS (NTFS).
+    $driveLetters = @(Get-AvailableDriveLetters -Count 2)
+    $efiDrive = $driveLetters[0]
+    $osDrive = $driveLetters[1]
     $efi = New-Partition -DiskNumber $disk.Number -Size 200MB -GptType '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'
     Format-Volume -Partition $efi -FileSystem FAT32 -NewFileSystemLabel 'System' -Confirm:$false | Out-Null
-    $efi | Set-Partition -NewDriveLetter 'S' | Out-Null
-    New-Partition -DiskNumber $disk.Number -Size 128MB -GptType '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' | Out-Null  # MSR
+    $efi | Set-Partition -NewDriveLetter $efiDrive | Out-Null
+    New-Partition -DiskNumber $disk.Number -Size 128MB -GptType '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' | Out-Null
     $os = New-Partition -DiskNumber $disk.Number -UseMaximumSize -GptType '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'
     Format-Volume -Partition $os -FileSystem NTFS -NewFileSystemLabel 'OS' -Confirm:$false | Out-Null
-    $os | Set-Partition -NewDriveLetter 'W' | Out-Null
+    $os | Set-Partition -NewDriveLetter $osDrive | Out-Null
 
-    # Apply the OS image, then write UEFI boot files to the ESP.
-    Write-ApexLog "Applying image index $idx to W: (this takes several minutes)..."
-    Expand-WindowsImage -ImagePath $wim -Index $idx -ApplyPath 'W:\' -ErrorAction Stop | Out-Null
-    Write-ApexLog 'Writing UEFI boot files (bcdboot) to S:...'
-    & "$env:SystemRoot\System32\bcdboot.exe" 'W:\Windows' /s 'S:' /f UEFI | Out-Null
+    $applyPath = "${osDrive}:\"
+    $efiPath = "${efiDrive}:"
+    Write-ApexLog "Applying image index $selectedIndex to $applyPath (this takes several minutes)..."
+    Expand-WindowsImage -ImagePath $wim -Index $selectedIndex -ApplyPath $applyPath -ErrorAction Stop | Out-Null
+    Write-ApexLog "Writing UEFI boot files to $efiPath..."
+    & "$env:SystemRoot\System32\bcdboot.exe" (Join-Path $applyPath 'Windows') /s $efiPath /f UEFI | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "bcdboot failed with exit code $LASTEXITCODE." }
 
-    Write-ApexLog "Base VHDX ready: $VhdxPath"
+    Dismount-VHD -Path $partialPath -ErrorAction Stop
+    if (-not (Test-BootableVhdx -Path $partialPath)) {
+      throw "Converted VHDX failed boot validation: $partialPath"
+    }
+    Move-Item -LiteralPath $partialPath -Destination $VhdxPath -Force
+    Write-ApexLog "Base VHDX ready and validated: $VhdxPath"
   }
   finally {
-    try { Dismount-VHD -Path $VhdxPath -ErrorAction SilentlyContinue } catch { }
+    Dismount-VHD -Path $partialPath -ErrorAction SilentlyContinue
     try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { }
+    Remove-Item -LiteralPath $partialPath -Force -ErrorAction SilentlyContinue
   }
   return $VhdxPath
 }
@@ -466,6 +679,15 @@ function New-ApexRouterVM {
     try { Install-RemoteAccess -VpnType RoutingOnly -ErrorAction SilentlyContinue } catch { }
     Get-NetNat -ErrorAction SilentlyContinue | Remove-NetNat -Confirm:$false -ErrorAction SilentlyContinue
     New-NetNat -Name 'ApexRouterNAT' -InternalIPInterfaceAddressPrefix $mgmtSubnet -ErrorAction SilentlyContinue | Out-Null
+
+    $nat = Get-NetNat -Name 'ApexRouterNAT' -ErrorAction Stop
+    $defaultRoute = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop |
+      Where-Object NextHop -eq $natGw | Select-Object -First 1
+    $forwardingInterfaces = @(Get-NetIPInterface -AddressFamily IPv4 |
+      Where-Object { $_.InterfaceIndex -in @($mgmtNic.ifIndex, $natNic.ifIndex) -and $_.Forwarding -eq 'Enabled' })
+    if (-not $nat -or -not $defaultRoute -or $forwardingInterfaces.Count -ne 2) {
+      throw 'Router forwarding, NAT, or default-route verification failed.'
+    }
   } -ArgumentList $mgmtMac, $natMac, $r.MgmtIp, $net.PrefixLength, $net.DnsServers[0], $r.NatIp, $net.PrefixLength, $net.NatHostIp, $net.SubnetPrefix
 
   Write-ApexLog "Router '$($r.Name)' ready (management gateway $($r.MgmtIp))."
@@ -491,32 +713,32 @@ function New-ApexUnattendXml {
     [string]$Locale = 'en-US',
     [string]$TimeZone = 'UTC'
   )
-  $xml = @"
+  [xml]$xml = @'
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="specialize">
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <ComputerName>$ComputerName</ComputerName>
-      <TimeZone>$TimeZone</TimeZone>
+      <ComputerName />
+      <TimeZone />
     </component>
   </settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <InputLocale>$Locale</InputLocale>
-      <SystemLocale>$Locale</SystemLocale>
-      <UILanguage>$Locale</UILanguage>
-      <UserLocale>$Locale</UserLocale>
+      <InputLocale />
+      <SystemLocale />
+      <UILanguage />
+      <UserLocale />
     </component>
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
       <UserAccounts>
         <AdministratorPassword>
-          <Value>$AdminPassword</Value>
+          <Value />
           <PlainText>true</PlainText>
         </AdministratorPassword>
       </UserAccounts>
@@ -531,14 +753,35 @@ function New-ApexUnattendXml {
     </component>
   </settings>
 </unattend>
-"@
+'@
+  $namespaceManager = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+  $namespaceManager.AddNamespace('u', 'urn:schemas-microsoft-com:unattend')
+  $specialize = $xml.SelectSingleNode("//u:settings[@pass='specialize']/u:component", $namespaceManager)
+  $specialize.SelectSingleNode('u:ComputerName', $namespaceManager).InnerText = $ComputerName
+  $specialize.SelectSingleNode('u:TimeZone', $namespaceManager).InnerText = $TimeZone
+
+  $international = $xml.SelectSingleNode(
+    "//u:settings[@pass='oobeSystem']/u:component[@name='Microsoft-Windows-International-Core']",
+    $namespaceManager
+  )
+  foreach ($elementName in @('InputLocale', 'SystemLocale', 'UILanguage', 'UserLocale')) {
+    $international.SelectSingleNode("u:$elementName", $namespaceManager).InnerText = $Locale
+  }
+  $passwordNode = $xml.SelectSingleNode('//u:AdministratorPassword/u:Value', $namespaceManager)
+  $passwordNode.InnerText = $AdminPassword
+
   if ($OutputPath) {
     $dir = Split-Path -Parent $OutputPath
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-    Set-Content -Path $OutputPath -Value $xml -Encoding UTF8
+    $writerSettings = New-Object System.Xml.XmlWriterSettings
+    $writerSettings.Encoding = New-Object System.Text.UTF8Encoding($false)
+    $writerSettings.Indent = $true
+    $writer = [System.Xml.XmlWriter]::Create($OutputPath, $writerSettings)
+    try { $xml.Save($writer) }
+    finally { $writer.Dispose() }
     return $OutputPath
   }
-  return $xml
+  return $xml.OuterXml
 }
 
 function New-ApexNestedVM {
@@ -550,8 +793,6 @@ function New-ApexNestedVM {
     needs it), a TPM (key protector + Enable-VMTPM), and an IMDS deny ACL on the
     nested adapter (OWNED-SCOPE M4: stops a nested node from grabbing the Azure
     HOST's managed identity at 169.254.169.254). Optionally injects an unattend.xml.
-    With -BootFromIso, attaches the ISO as the first boot device instead of using a
-    pre-applied base (the proven SFF fallback path).
   #>
   [CmdletBinding()]
   param(
@@ -563,9 +804,7 @@ function New-ApexNestedVM {
     [int]$CpuCount = 4,
     [string]$UnattendPath,
     [string]$ImdsAddress = '169.254.169.254',
-    [switch]$EnableTpm,
-    [switch]$BootFromIso,
-    [string]$IsoPath
+    [switch]$EnableTpm
   )
   # Idempotency: remove any prior instance + its differencing disk.
   $existing = Get-VM -Name $VmName -ErrorAction SilentlyContinue
@@ -578,28 +817,22 @@ function New-ApexNestedVM {
   $diff = Join-Path $VmDiffDiskDir "$VmName.vhdx"
   if (Test-Path $diff) { Remove-Item $diff -Force -ErrorAction SilentlyContinue }
 
-  if ($BootFromIso) {
-    # Fallback path: empty OS disk + boot from ISO with autounattend.
-    New-VHD -Path $diff -SizeBytes 127GB -Dynamic | Out-Null
-  }
-  else {
-    Write-ApexLog "Creating differencing disk for '$VmName' off base: $BaseVhdxPath"
-    New-VHD -Path $diff -ParentPath $BaseVhdxPath -Differencing | Out-Null
-    if ($UnattendPath) {
-      # Inject the unattend into the OS partition (Panther) of the differencing disk.
-      $m = Mount-VHD -Path $diff -Passthru | Get-Disk
-      try {
-        $osVol = Get-Partition -DiskNumber $m.Number | Get-Volume |
-          Where-Object { $_.FileSystem -eq 'NTFS' -and $_.DriveLetter } | Select-Object -First 1
-        if ($osVol) {
-          $panther = "$($osVol.DriveLetter):\Windows\Panther"
-          New-Item -ItemType Directory -Force -Path $panther | Out-Null
-          Copy-Item -Path $UnattendPath -Destination (Join-Path $panther 'unattend.xml') -Force
-          Write-ApexLog "Injected unattend.xml into '$VmName' ($($osVol.DriveLetter):)."
-        }
+  Write-ApexLog "Creating differencing disk for '$VmName' off base: $BaseVhdxPath"
+  New-VHD -Path $diff -ParentPath $BaseVhdxPath -Differencing | Out-Null
+  if ($UnattendPath) {
+    # Inject the unattend into the OS partition (Panther) of the differencing disk.
+    $m = Mount-VHD -Path $diff -Passthru | Get-Disk
+    try {
+      $osVol = Get-Partition -DiskNumber $m.Number | Get-Volume |
+        Where-Object { $_.FileSystem -eq 'NTFS' -and $_.DriveLetter } | Select-Object -First 1
+      if ($osVol) {
+        $panther = "$($osVol.DriveLetter):\Windows\Panther"
+        New-Item -ItemType Directory -Force -Path $panther | Out-Null
+        Copy-Item -Path $UnattendPath -Destination (Join-Path $panther 'unattend.xml') -Force
+        Write-ApexLog "Injected unattend.xml into '$VmName' ($($osVol.DriveLetter):)."
       }
-      finally { Dismount-VHD -Path $diff -ErrorAction SilentlyContinue }
     }
+    finally { Dismount-VHD -Path $diff -ErrorAction SilentlyContinue }
   }
 
   New-VM -Name $VmName -Generation 2 -MemoryStartupBytes ($MemoryMB * 1MB) `
@@ -616,12 +849,6 @@ function New-ApexNestedVM {
   }
 
   Set-VM -Name $VmName -AutomaticCheckpointsEnabled $false -ErrorAction SilentlyContinue
-
-  if ($BootFromIso) {
-    if (-not $IsoPath) { throw 'BootFromIso requires -IsoPath.' }
-    $dvd = Add-VMDvdDrive -VMName $VmName -Path $IsoPath -Passthru
-    Set-VMFirmware -VMName $VmName -FirstBootDevice $dvd
-  }
 
   # OWNED-SCOPE M4: deny the Azure-VM IMDS endpoint on the nested adapter BEFORE boot.
   $adapter = (Get-VMNetworkAdapter -VMName $VmName)[0]
@@ -659,10 +886,10 @@ function New-ApexDomainController {
   .SYNOPSIS Build the nested domain controller (AD DS forest + DNS + NTP authority).
   .DESCRIPTION
     Creates a Gen2 VM from the Windows Server base VHDX, applies a static IP via
-    PowerShell Direct, promotes it to a new forest, creates the deployment OU, and
-    configures it as the authoritative time source (OWNED-SCOPE M5: Azure Local is
-    acutely time-sensitive). The OU pre-creation that Azure Local needs is performed
-    by Invoke-ApexLocalClusterDeploy against this DC.
+    PowerShell Direct, promotes it to a new forest, and configures it as the
+    authoritative time source (OWNED-SCOPE M5: Azure Local is acutely time-sensitive).
+    Initialize-ApexActiveDirectory subsequently runs Microsoft's supported AD
+    precreation tool to create the deployment OU, LCM account, groups, and gMSAs.
   #>
   [CmdletBinding()]
   param(
@@ -711,20 +938,84 @@ function New-ApexDomainController {
   Start-Sleep -Seconds 60
   Wait-ApexVMReady -VmName $dom.DcHostName -Credential $domainCred -TimeoutMinutes 30 | Out-Null
 
-  # Create the Azure Local deployment OU + configure authoritative time (M5).
+  # Configure authoritative time (M5). The supported Microsoft AD preparation
+  # tool owns OU and deployment-account creation in the next orchestration stage.
   Invoke-Command -VMName $dom.DcHostName -Credential $domainCred -ScriptBlock {
-    param($ouName, $ouPath)
-    Import-Module ActiveDirectory
-    if (-not (Get-ADOrganizationalUnit -Filter "Name -eq '$ouName'" -ErrorAction SilentlyContinue)) {
-      New-ADOrganizationalUnit -Name $ouName -ProtectedFromAccidentalDeletion $false
-    }
+    param($fqdn)
     # Authoritative NTP from the PDC emulator; do not sync from the (paused) host clock.
     w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /reliable:yes /update | Out-Null
     Restart-Service w32time -ErrorAction SilentlyContinue
-  } -ArgumentList $dom.OuName, $dom.OuPath
+    Import-Module ActiveDirectory -ErrorAction Stop
+    $domain = Get-ADDomain -Identity $fqdn -ErrorAction Stop
+    $dnsRecord = Resolve-DnsName -Name $fqdn -Server '127.0.0.1' -ErrorAction Stop
+    $requiredServices = Get-Service -Name DNS, NTDS -ErrorAction Stop
+    if ($domain.DNSRoot -ne $fqdn -or -not $dnsRecord -or
+        @($requiredServices | Where-Object Status -ne 'Running').Count -gt 0) {
+      throw "Domain controller health verification failed for '$fqdn'."
+    }
+    w32tm /query /status | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Domain controller time-service verification failed for '$fqdn'." }
+  } -ArgumentList $dom.Fqdn
 
-  Write-ApexLog "Domain controller '$($dom.DcHostName)' ready (forest $($dom.Fqdn), OU $($dom.OuPath))."
+  Write-ApexLog "Domain controller '$($dom.DcHostName)' ready (forest $($dom.Fqdn))."
   return $domainCred
+}
+
+function Initialize-ApexActiveDirectory {
+  <#
+  .SYNOPSIS Prepare the Azure Local OU and dedicated LCM deployment account.
+  .DESCRIPTION
+    Runs Microsoft's pinned AsHciADArtifactsPreCreationTool on the nested domain
+    controller. The LCM account is distinct from the local administrator, while
+    this evaluation profile intentionally reuses the approved lab password.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [hashtable]$Config,
+    [Parameter(Mandatory)] [pscredential]$DomainAdminCredential,
+    [Parameter(Mandatory)] [securestring]$LcmPassword
+  )
+
+  $dom = $Config.Domain
+  $versionsPath = Join-Path $Config.Paths.RootDir 'ModuleVersions.psd1'
+  $moduleVersions = Import-PowerShellDataFile -Path $versionsPath
+
+  Write-ApexLog "Preparing Azure Local AD objects in '$($dom.OuPath)' with Microsoft's supported tool."
+  Invoke-Command -VMName $dom.DcHostName -Credential $DomainAdminCredential -ScriptBlock {
+    param(
+      [string]$moduleVersion,
+      [string]$lcmUserName,
+      [securestring]$lcmPassword,
+      [string]$ouPath
+    )
+
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    if (-not (Get-Module -ListAvailable -Name AsHciADArtifactsPreCreationTool |
+        Where-Object Version -eq ([version]$moduleVersion))) {
+      Install-Module -Name AsHciADArtifactsPreCreationTool -RequiredVersion $moduleVersion `
+        -Repository PSGallery -Scope AllUsers -Force
+    }
+    Import-Module AsHciADArtifactsPreCreationTool -RequiredVersion $moduleVersion -Force
+
+    $lcmCredential = New-Object System.Management.Automation.PSCredential($lcmUserName, $lcmPassword)
+    New-HciAdObjectsPreCreation -AzureStackLCMUserCredential $lcmCredential -AsHciOUName $ouPath
+
+    Import-Module ActiveDirectory
+    Import-Module GroupPolicy
+    $null = Get-ADOrganizationalUnit -Identity $ouPath -ErrorAction Stop
+    $null = Get-ADUser -Identity $lcmUserName -ErrorAction Stop
+    $inheritance = Get-GPInheritance -Target $ouPath
+    if (-not $inheritance.GpoInheritanceBlocked) {
+      throw "Group Policy inheritance is not blocked on '$ouPath'."
+    }
+  } -ArgumentList $moduleVersions.AsHciADArtifactsPreCreationTool, $dom.LcmUserName, $LcmPassword, $dom.OuPath
+
+  Write-ApexLog "Azure Local AD preparation completed for LCM user '$($dom.LcmUserName)'."
+  return New-Object System.Management.Automation.PSCredential(
+    "$($dom.NetBiosName)\$($dom.LcmUserName)",
+    $LcmPassword
+  )
 }
 
 function Set-ApexNodeTimeSync {
@@ -745,7 +1036,15 @@ function Set-ApexNodeTimeSync {
     w32tm /config /manualpeerlist:"$dc,0x9" /syncfromflags:manual /update | Out-Null
     Restart-Service w32time -ErrorAction SilentlyContinue
     w32tm /resync /force | Out-Null
+    w32tm /query /status | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Windows Time status query failed for DC '$dc'." }
+    $source = (w32tm /query /source).Trim()
+    if ($LASTEXITCODE -ne 0 -or $source -in @('Local CMOS Clock', 'VM IC Time Synchronization Provider')) {
+      throw "Node is using an invalid time source: '$source'."
+    }
   } -ArgumentList $DcIpAddress
+  $timeIntegration = Get-VMIntegrationService -VMName $VmName -Name 'Time Synchronization' -ErrorAction Stop
+  if ($timeIntegration.Enabled) { throw "Hyper-V time synchronization is still enabled for '$VmName'." }
   Write-ApexLog "Node '$VmName' time source set to DC $DcIpAddress."
 }
 
@@ -782,22 +1081,44 @@ function New-ApexLocalNode {
     -MemoryMB $c.NodeMemoryMB -CpuCount $c.NodeCpuCount -UnattendPath $unattend `
     -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
 
-  # Pin a deterministic MAC on the management NIC (only adapter so far) so the in-guest
-  # config can select it unambiguously once the two same-switch storage NICs are added.
-  # e.g. node 1 -> 0EAA00010001.
-  $mgmtMac = ('0EAA0001{0:D4}' -f $Index)
-  Set-VMNetworkAdapter -VMName $name -StaticMacAddress $mgmtMac
-
-  # OWNED-SCOPE M1: add two storage-intent adapters (converged on the internal
-  # switch for this nested lab; real hardware uses dedicated RDMA NICs/VLANs).
-  # Each also gets the IMDS deny ACL (every nested adapter must block 169.254.169.254).
-  foreach ($s in @('StorageA', 'StorageB')) {
-    Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName -Name $s -ErrorAction SilentlyContinue
-    $sAdapter = Get-VMNetworkAdapter -VMName $name -Name $s -ErrorAction SilentlyContinue
-    if ($sAdapter) {
-      Add-VMNetworkAdapterAcl -VMNetworkAdapter $sAdapter -Action Deny -Direction Inbound  -RemoteIPAddress $net.ImdsAddress
-      Add-VMNetworkAdapterAcl -VMNetworkAdapter $sAdapter -Action Deny -Direction Outbound -RemoteIPAddress $net.ImdsAddress
+  # Azure Local virtual deployments require blank capacity disks in addition to
+  # the OS disk. Differencing disks are not valid S2D capacity devices.
+  for ($dataDiskIndex = 1; $dataDiskIndex -le $c.DataDiskCount; $dataDiskIndex++) {
+    $dataDiskPath = Join-Path $paths.VmVhdDir "${name}-data${dataDiskIndex}.vhdx"
+    if (Test-Path $dataDiskPath) {
+      Remove-Item -Path $dataDiskPath -Force
     }
+    New-VHD -Path $dataDiskPath -SizeBytes ($c.DataDiskSizeGB * 1GB) -Dynamic | Out-Null
+    Add-VMHardDiskDrive -VMName $name -Path $dataDiskPath
+  }
+
+  # Deterministic MACs let the guest map Hyper-V adapter names without relying on
+  # enumeration order. The virtual deployment guidance requires spoofing, teaming,
+  # and trunk mode so Network ATC can create the management and storage intents.
+  $fabricMac = ('0EAA0001{0:D4}' -f $Index)
+  $storageAMac = ('0EAA0002{0:D4}' -f $Index)
+  $storageBMac = ('0EAA0003{0:D4}' -f $Index)
+
+  $fabricAdapter = Get-VMNetworkAdapter -VMName $name | Select-Object -First 1
+  Rename-VMNetworkAdapter -VMNetworkAdapter $fabricAdapter -NewName $c.FabricAdapter
+  Set-VMNetworkAdapter -VMName $name -Name $c.FabricAdapter -StaticMacAddress $fabricMac
+
+  Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName `
+    -Name $c.StorageAdapterA -StaticMacAddress $storageAMac
+  Add-VMNetworkAdapter -VMName $name -SwitchName $net.SwitchName `
+    -Name $c.StorageAdapterB -StaticMacAddress $storageBMac
+
+  $nodeAdapters = Get-VMNetworkAdapter -VMName $name
+  $nodeAdapters | Set-VMNetworkAdapter -MacAddressSpoofing On -AllowTeaming On
+  $nodeAdapters | Set-VMNetworkAdapterVlan -Trunk -NativeVlanId 0 -AllowedVlanIdList '0-1000'
+  foreach ($nodeAdapter in $nodeAdapters) {
+    Add-VMNetworkAdapterAcl -VMNetworkAdapter $nodeAdapter -Action Deny -Direction Inbound -RemoteIPAddress $net.ImdsAddress
+    Add-VMNetworkAdapterAcl -VMNetworkAdapter $nodeAdapter -Action Deny -Direction Outbound -RemoteIPAddress $net.ImdsAddress
+  }
+
+  $attachedDisks = @(Get-VMHardDiskDrive -VMName $name)
+  if ($attachedDisks.Count -ne ($c.DataDiskCount + 1)) {
+    throw "Node '$name' has $($attachedDisks.Count) attached disks; expected one OS disk plus $($c.DataDiskCount) capacity disks."
   }
 
   Start-VM -Name $name
@@ -805,13 +1126,53 @@ function New-ApexLocalNode {
 
   Write-ApexLog "Configuring node '$name' management IP $nodeIp."
   Invoke-Command -VMName $name -Credential $LocalAdminCredential -ScriptBlock {
-    param($ip, $prefix, $gw, $dns, $mgmtMac)
-    # Select the management NIC by its pinned MAC (robust with 3 same-switch NICs).
-    $nic = Get-NetAdapter | Where-Object { ($_.MacAddress -replace '[:-]', '') -eq $mgmtMac } | Select-Object -First 1
-    if (-not $nic) { $nic = Get-NetAdapter | Where-Object Status -eq 'Up' | Sort-Object ifIndex | Select-Object -First 1 }
-    New-NetIPAddress -InterfaceIndex $nic.ifIndex -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gw -ErrorAction SilentlyContinue | Out-Null
-    Set-DnsClientServerAddress -InterfaceIndex $nic.ifIndex -ServerAddresses $dns
-  } -ArgumentList $nodeIp, $net.PrefixLength, $net.Gateway, $net.DnsServers[0], $mgmtMac
+    param($ip, $prefix, $gw, $dns, $adapterMap, $fabricName, $storageNames, $expectedDataDisks)
+
+    foreach ($mapping in $adapterMap) {
+      $guestAdapter = Get-NetAdapter -Physical | Where-Object {
+        ($_.MacAddress -replace '[:-]', '') -eq $mapping.MacAddress
+      } | Select-Object -First 1
+      if (-not $guestAdapter) {
+        throw "Could not find guest adapter with MAC $($mapping.MacAddress)."
+      }
+      if ($guestAdapter.Name -ne $mapping.Name) {
+        $guestAdapter | Rename-NetAdapter -NewName $mapping.Name
+      }
+      Set-NetIPInterface -InterfaceAlias $mapping.Name -Dhcp Disabled -ErrorAction Stop
+    }
+
+    New-NetIPAddress -InterfaceAlias $fabricName -IPAddress $ip -PrefixLength $prefix `
+      -DefaultGateway $gw -AddressFamily IPv4 -ErrorAction Stop | Out-Null
+    Set-DnsClientServerAddress -InterfaceAlias $fabricName -ServerAddresses $dns
+
+    foreach ($storageName in $storageNames) {
+      Set-DnsClient -InterfaceAlias $storageName -RegisterThisConnectionsAddress $false
+    }
+
+    $poolableDisks = @(Get-PhysicalDisk -CanPool $true)
+    if ($poolableDisks.Count -lt $expectedDataDisks) {
+      throw "Only $($poolableDisks.Count) capacity disks can pool; expected at least $expectedDataDisks."
+    }
+  } -ArgumentList @(
+    $nodeIp,
+    $net.PrefixLength,
+    $net.Gateway,
+    $net.DnsServers[0],
+    @(
+      [pscustomobject]@{ Name = $c.FabricAdapter; MacAddress = $fabricMac }
+      [pscustomobject]@{ Name = $c.StorageAdapterA; MacAddress = $storageAMac }
+      [pscustomobject]@{ Name = $c.StorageAdapterB; MacAddress = $storageBMac }
+    ),
+    $c.FabricAdapter,
+    @($c.StorageAdapterA, $c.StorageAdapterB),
+    $c.DataDiskCount
+  )
+
+  $firmware = Get-VMFirmware -VMName $name
+  $tpm = Get-VMTPM -VMName $name
+  if ($firmware.SecureBoot -ne 'On' -or -not $tpm.TpmEnabled) {
+    throw "Node '$name' must have Secure Boot and vTPM enabled."
+  }
 
   Set-ApexNodeTimeSync -VmName $name -Credential $LocalAdminCredential -DcIpAddress $Config.Domain.DcIpAddress
 
@@ -819,28 +1180,207 @@ function New-ApexLocalNode {
   return [pscustomobject]@{ Name = $name; IpAddress = $nodeIp }
 }
 
+function Get-ApexCriticalValidationResult {
+  [CmdletBinding()]
+  param(
+    [Parameter(ValueFromPipeline)] [object]$InputObject
+  )
+
+  process {
+    if ($null -eq $InputObject -or $InputObject -is [string]) {
+      return
+    }
+
+    if ($InputObject -is [System.Collections.IEnumerable] -and
+        $InputObject -isnot [System.Management.Automation.PSCustomObject]) {
+      foreach ($item in $InputObject) {
+        Get-ApexCriticalValidationResult -InputObject $item
+      }
+      return
+    }
+
+    $properties = $InputObject.PSObject.Properties
+    $severity = $properties['Severity']
+    $status = $properties['Status']
+    if ($severity -and $status -and $severity.Value -eq 'Critical' -and
+        $status.Value -notin @('Succeeded', 'Success', 'Passed')) {
+      $identifier = foreach ($propertyName in @('Name', 'TestName', 'Title')) {
+        if ($properties[$propertyName] -and $properties[$propertyName].Value) {
+          $properties[$propertyName].Value
+          break
+        }
+      }
+      if (-not $identifier) { $identifier = 'UnknownCriticalTest' }
+      [pscustomobject]@{
+        Name   = [string]$identifier
+        Status = [string]$status.Value
+      }
+    }
+
+    foreach ($property in $properties) {
+      if ($property.Name -notin @('Severity', 'Status', 'Name', 'TestName', 'Title')) {
+        Get-ApexCriticalValidationResult -InputObject $property.Value
+      }
+    }
+  }
+}
+
+function Invoke-ApexEnvironmentValidation {
+  <#
+  .SYNOPSIS Run the standalone Azure Local readiness validators before Arc onboarding.
+  .DESCRIPTION
+    Runs the pinned Microsoft Environment Checker from the outer host against
+    PowerShell Direct sessions for all three nodes. Each validator's raw JSON
+    report is copied to the private build-log tree before critical findings stop
+    the deployment. Only exact test IDs listed in the configuration can be waived.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [hashtable]$Config,
+    [Parameter(Mandatory)] [string]$SubscriptionId,
+    [Parameter(Mandatory)] [string]$ResourceGroup,
+    [Parameter(Mandatory)] [string]$ClusterName,
+    [Parameter(Mandatory)] [array]$Nodes,
+    [Parameter(Mandatory)] [pscredential]$LocalAdminCredential,
+    [Parameter(Mandatory)] [pscredential]$DomainAdminCredential
+  )
+
+  $moduleVersions = Import-PowerShellDataFile `
+    -Path (Join-Path $Config.Paths.RootDir 'ModuleVersions.psd1')
+  $checkerVersion = $moduleVersions.AzStackHciEnvironmentChecker
+  if (-not (Get-Module -ListAvailable -Name AzStackHci.EnvironmentChecker |
+      Where-Object Version -eq ([version]$checkerVersion))) {
+    Install-Module -Name AzStackHci.EnvironmentChecker -RequiredVersion $checkerVersion `
+      -Repository PSGallery -Scope AllUsers -Force
+  }
+  Import-Module AzStackHci.EnvironmentChecker -RequiredVersion $checkerVersion -Force
+
+  $reportDirectory = Join-Path $Config.Paths.LogsDir 'EnvironmentChecker'
+  New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
+  $sourceReport = Join-Path $HOME '.AzStackHci\AzStackHciEnvironmentReport.json'
+  $allowedCriticalTests = @($Config.Validation.AllowedCriticalTests)
+  $validationSummary = @()
+  $nodeSessions = @()
+
+  # The outer host must resolve the nested forest for the AD validator.
+  $managementAlias = "vEthernet ($($Config.Network.SwitchName))"
+  Set-DnsClientServerAddress -InterfaceAlias $managementAlias `
+    -ServerAddresses $Config.Domain.DcIpAddress
+
+  function Invoke-ValidationStep {
+    param(
+      [Parameter(Mandatory)] [string]$Name,
+      [Parameter(Mandatory)] [scriptblock]$Operation
+    )
+
+    Remove-Item -Path $sourceReport -Force -ErrorAction SilentlyContinue
+    & $Operation
+    if (-not (Test-Path $sourceReport)) {
+      throw "Environment Checker '$Name' did not produce its expected JSON report."
+    }
+
+    $destination = Join-Path $reportDirectory `
+      ("{0}-{1}.json" -f $Name, (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    Copy-Item -Path $sourceReport -Destination $destination -Force
+    $report = Get-Content -Path $destination -Raw | ConvertFrom-Json
+    $criticalResults = @(Get-ApexCriticalValidationResult -InputObject $report)
+    $blockedResults = @($criticalResults | Where-Object Name -notin $allowedCriticalTests)
+
+    $validationSummary += [pscustomobject]@{
+      Validator       = $Name
+      CriticalCount   = $criticalResults.Count
+      BlockedCount    = $blockedResults.Count
+      CriticalTestIds = @($criticalResults.Name)
+    }
+    if ($blockedResults.Count -gt 0) {
+      $blockedNames = $blockedResults.Name -join ', '
+      throw "Environment Checker '$Name' reported blocking critical findings: $blockedNames."
+    }
+    Write-ApexLog "Environment Checker '$Name' passed with $($criticalResults.Count) waived critical finding(s)."
+  }
+
+  try {
+    foreach ($node in $Nodes) {
+      $nodeSessions += New-PSSession -VMName $node.Name -Credential $LocalAdminCredential -ErrorAction Stop
+    }
+
+    Invoke-ValidationStep -Name 'Connectivity' -Operation {
+      Invoke-AzStackHciConnectivityValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
+    }
+    Invoke-ValidationStep -Name 'Software' -Operation {
+      Invoke-AzStackHciSoftwareValidation -PsSession $nodeSessions `
+        -Exclude Test-IsNotPartofDomain -ErrorAction Stop | Out-Null
+    }
+    Invoke-ValidationStep -Name 'ActiveDirectory' -Operation {
+      Invoke-AzStackHciExternalActiveDirectoryValidation `
+        -ADOUPath $Config.Domain.OuPath `
+        -DomainFQDN $Config.Domain.Fqdn `
+        -NamingPrefix $Config.Domain.NamingPrefix `
+        -ActiveDirectoryServer $Config.Domain.Fqdn `
+        -ActiveDirectoryCredentials $DomainAdminCredential `
+        -ClusterName $ClusterName `
+        -PhysicalMachineNames ($Nodes.Name -join ',') `
+        -ErrorAction Stop | Out-Null
+    }
+
+    $ipPools = New-Object System.Collections.ArrayList
+    $null = $ipPools.Add([pscustomobject]@{
+      StartingAddress = $Config.Cluster.StartingIp
+      EndingAddress   = $Config.Cluster.EndingIp
+    })
+    $atcHostIntents = @(
+      [pscustomobject]@{
+        name        = 'Compute_Management'
+        trafficType = @('Management', 'Compute')
+        adapter     = @($Config.Cluster.FabricAdapter)
+      }
+      [pscustomobject]@{
+        name        = 'Storage'
+        trafficType = @('Storage')
+        adapter     = @($Config.Cluster.StorageAdapterA, $Config.Cluster.StorageAdapterB)
+      }
+    )
+    Invoke-ValidationStep -Name 'Network' -Operation {
+      Invoke-AzStackHciNetworkValidation -IpPools $ipPools `
+        -ManagementSubnetValue $Config.Network.SubnetPrefix `
+        -PSSession $nodeSessions `
+        -SessionCredential $LocalAdminCredential `
+        -OutputPath $reportDirectory `
+        -AtcHostIntents $atcHostIntents `
+        -ErrorAction Stop | Out-Null
+    }
+    Invoke-ValidationStep -Name 'ArcIntegration' -Operation {
+      Invoke-AzStackHciArcIntegrationValidation -SubscriptionID $SubscriptionId `
+        -RegistrationResourceGroupName $ResourceGroup `
+        -ArcResourceGroupName $ResourceGroup `
+        -NodeNames @($Nodes.Name) `
+        -ErrorAction Stop | Out-Null
+    }
+    Invoke-ValidationStep -Name 'Hardware' -Operation {
+      Invoke-AzStackHciHardwareValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
+    }
+
+    $summaryPath = Join-Path $reportDirectory 'validation-summary.json'
+    $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $summaryPath -Encoding UTF8
+  }
+  finally {
+    $nodeSessions | Remove-PSSession -ErrorAction SilentlyContinue
+    Remove-Module AzStackHci.EnvironmentChecker -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Connect-ApexNodeToArc {
   <#
-  .SYNOPSIS Arc-register a node and install the Azure Local deployment prerequisites.
+  .SYNOPSIS Run the supported Azure Local Arc initialization on a node.
   .DESCRIPTION
-    OWNED-SCOPE C2 (the real reimplementation iceberg): this is far more than
-    'azcmagent connect'. Azure Local cloud deployment requires each node to be:
-      1. An Arc-enabled server (azcmagent connect), AND
-      2. Carrying the mandatory deployment extensions:
-         Microsoft.AzureStackHCI/EdgeDevice + the LifecycleManager,
-         DeviceManagement (ADHS), and TelemetryAndDiagnostics agents that the
-         cloud deployment orchestrator drives.
-    Step 1 is implemented here. Step 2 (the bootstrap agents) is installed by the
-    Azure Local deployment itself once the edge devices are registered, but any
-    node-side prerequisites (e.g. enabling the required Windows features) are staged
-    here. This function is intentionally explicit about that boundary so it can be
-    hardened against the current Azure Local release.
+    Invokes the Azure Local OS-bundled Invoke-AzStackHciArcInitialization command,
+    which owns Arc registration and edge bootstrap for current 2505+ releases.
+    Bare azcmagent onboarding is intentionally unsupported because it does not
+    establish the Azure Local bootstrap state required for cloud deployment.
 
-    AUTH: a nested node has NO Azure managed identity, so `azcmagent connect` cannot
-    use -Identity. The HOST holds a system-assigned MI with Contributor on the RG, so
-    we acquire an ARM access token on the host (Get-AzAccessToken) and broker it into
-    the guest via PowerShell Direct as `--access-token`. The token is short-lived and
-    only crosses the host->guest PowerShell Direct channel (never the network).
+    The nested node has no managed identity, so the host acquires a short-lived ARM
+    token with its system-assigned identity and transfers it only over PowerShell
+    Direct. The token is cleared in both host and guest scopes after initialization.
   #>
   [CmdletBinding()]
   param(
@@ -849,8 +1389,7 @@ function Connect-ApexNodeToArc {
     [Parameter(Mandatory)] [string]$SubscriptionId,
     [Parameter(Mandatory)] [string]$ResourceGroup,
     [Parameter(Mandatory)] [string]$TenantId,
-    [Parameter(Mandatory)] [string]$Location,
-    [Parameter(Mandatory)] [string]$ArcCorrelationId
+    [Parameter(Mandatory)] [string]$Location
   )
   # Acquire an ARM access token on the HOST using its managed identity. Handle both
   # the legacy plaintext .Token and the newer -AsSecureString Az.Accounts behavior.
@@ -864,36 +1403,42 @@ function Connect-ApexNodeToArc {
   }
   if (-not $accessToken) { throw "Could not obtain an ARM access token from the host managed identity for '$VmName'." }
 
-  Write-ApexLog "Arc-registering node '$VmName' into $ResourceGroup ($Location)."
-  Invoke-Command -VMName $VmName -Credential $Credential -ScriptBlock {
-    param($subId, $rg, $tenant, $loc, $corr, $token)
+  try {
+    Write-ApexLog "Running Azure Local Arc initialization on '$VmName' in $ResourceGroup ($Location)."
+    $bootstrapVersion = Invoke-Command -VMName $VmName -Credential $Credential -ScriptBlock {
+      param(
+        [string]$subId,
+        [string]$rg,
+        [string]$tenant,
+        [string]$loc,
+        [string]$token
+      )
 
-    # Stage the node-side OS prerequisites the cluster deploy expects.
-    foreach ($f in @('Hyper-V', 'Failover-Clustering', 'Data-Center-Bridging', 'BitLocker', 'FS-FileServer')) {
-      try { Install-WindowsFeature -Name $f -IncludeManagementTools -ErrorAction SilentlyContinue | Out-Null } catch { }
-    }
-
-    # Install the Azure Connected Machine agent (azcmagent), then connect.
-    $msi = "$env:TEMP\AzureConnectedMachineAgent.msi"
-    if (-not (Get-Command azcmagent -ErrorAction SilentlyContinue)) {
-      Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/AzureConnectedMachineAgent' -OutFile $msi
-      Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msi`" /qn /norestart"
-    }
-    $azcm = Join-Path $env:ProgramW6432 'AzureConnectedMachineAgent\azcmagent.exe'
-    if (-not (Test-Path $azcm)) { $azcm = 'azcmagent' }
-
-    # Connect using the host-brokered ARM access token (the node has no MI of its own).
-    & $azcm connect `
-      --subscription-id $subId `
-      --resource-group $rg `
-      --tenant-id $tenant `
-      --location $loc `
-      --correlation-id $corr `
-      --access-token $token `
-      --cloud AzureCloud 2>&1 | Out-String | Write-Output
-  } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $ArcCorrelationId, $accessToken
-
-  Write-ApexLog "Node '$VmName' Arc onboarding attempted."
+      $command = Get-Command Invoke-AzStackHciArcInitialization -ErrorAction Stop
+      $version = if ($command.Module) { $command.Module.Version.ToString() } else { 'OS-bundled' }
+      $parameters = @{
+        TenantId       = $tenant
+        SubscriptionID = $subId
+        ResourceGroup  = $rg
+        Region         = $loc
+        Cloud          = 'AzureCloud'
+        ArmAccessToken = $token
+      }
+      try {
+        Invoke-AzStackHciArcInitialization @parameters -ErrorAction Stop | Out-Null
+      }
+      finally {
+        $parameters.ArmAccessToken = $null
+        $token = $null
+      }
+      return $version
+    } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $accessToken
+    Write-ApexLog "Azure Local Arc initialization completed on '$VmName' (command version $bootstrapVersion)."
+  }
+  finally {
+    $accessToken = $null
+    $raw = $null
+  }
 }
 
 #endregion
@@ -917,8 +1462,9 @@ function Invoke-ApexLocalClusterDeploy {
     host identity holds Contributor + User Access Administrator on the RG (assigned
     in main.bicep) so the template's role assignments succeed.
 
-    NOTE the template parameter spelling 'AzureStackLCMAdminPasssword' (three s's)
-    is intentional - it matches the vendored template exactly.
+    The pinned 2505+ template uses AzureStackLCMAdminPassword and the self-hosted
+    patch removes the cloud-witness key path because this profile is fixed to
+    three nodes with odd quorum.
   #>
   [CmdletBinding()]
   param(
@@ -931,8 +1477,8 @@ function Invoke-ApexLocalClusterDeploy {
     [Parameter(Mandatory)] [array]$Nodes,            # objects: { Name, IpAddress }
     [Parameter(Mandatory)] [pscredential]$LocalAdminCredential,
     [Parameter(Mandatory)] [pscredential]$DomainAdminCredential,
-    [string]$WitnessStorageAccountName = '',         # existing SA, used only for a Cloud witness (2-node)
-    [string]$TemplatePath = 'C:\ApexLocal\azlocal.json'
+    [string]$TemplatePath = 'C:\ApexLocal\azlocal.json',
+    [switch]$SkipValidation
   )
   if (-not (Test-Path $TemplatePath)) { throw "Cluster template not found: $TemplatePath" }
   $c = $Config.Cluster
@@ -975,21 +1521,13 @@ function Invoke-ApexLocalClusterDeploy {
     @{ name = 'StorageB'; networkAdapterName = 'StorageB'; vlanId = "$($c.StorageVlanB)" }
   )
 
-  # --- generated, globally-unique resource names ---
-  # The diagnostics SA is CREATED by the template (LRS + lock), so a fresh name is
-  # correct. The cluster WITNESS, however, must be an EXISTING account: for a Cloud
-  # witness (2-node) we point it at the staging storage account (which already
-  # exists and the host MI can reach); for a 3-node 'None' quorum it is unused.
-  $suffix = ([guid]::NewGuid().ToString('N')).Substring(0, 6).ToLower()
+  # Recovery must target the same resources created by the first deployment attempt.
+  $suffix = [Environment]::GetEnvironmentVariable('APEX_ClusterResourceSuffix', 'Machine')
+  if ($suffix -notmatch '^[a-z0-9]{6}$') {
+    throw "Invalid deterministic cluster resource suffix '$suffix'."
+  }
   $keyVaultName = "apxkv$suffix"
   $diagSa = "apxdiag$suffix"
-  $witnessSa = ''
-  if ($c.WitnessType -ne 'None') {
-    if (-not $WitnessStorageAccountName) {
-      throw "WitnessType '$($c.WitnessType)' requires -WitnessStorageAccountName (an existing storage account)."
-    }
-    $witnessSa = $WitnessStorageAccountName
-  }
 
   $common = @{
     ResourceGroupName                = $ResourceGroup
@@ -1005,9 +1543,8 @@ function Invoke-ApexLocalClusterDeploy {
     localAdminUserName               = $LocalAdminCredential.UserName
     localAdminPassword               = $LocalAdminCredential.Password
     AzureStackLCMAdminUsername       = $DomainAdminCredential.UserName
-    AzureStackLCMAdminPasssword      = $DomainAdminCredential.Password   # template spelling (3 s)
+    AzureStackLCMAdminPassword       = $DomainAdminCredential.Password
     keyVaultName                     = $keyVaultName
-    clusterWitnessStorageAccountName = $witnessSa
     diagnosticStorageAccountName     = $diagSa
     physicalNodesSettings            = $physicalNodes
     intentList                       = $intentList
@@ -1021,29 +1558,56 @@ function Invoke-ApexLocalClusterDeploy {
     subnetMask                       = $c.SubnetMask
     defaultGateway                   = $c.DefaultGateway
     dnsServers                       = @($dom.DcIpAddress)
-    witnessType                      = $c.WitnessType
+    witnessType                      = 'No Witness'
     securityLevel                    = 'Recommended'
     configurationMode                = 'Express'
   }
 
-  Write-ApexLog "Validating cluster '$ClusterName' (deploymentMode=Validate)..."
-  New-AzResourceGroupDeployment @common -deploymentMode 'Validate' `
-    -Name "apexlocal-validate-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop | Out-Null
-  Write-ApexLog 'Validation succeeded.'
+  if (-not $SkipValidation) {
+    Write-ApexLog "Validating cluster '$ClusterName' (deploymentMode=Validate)..."
+    New-AzResourceGroupDeployment @common -deploymentMode 'Validate' `
+      -Name "apexlocal-validate-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop | Out-Null
+    Write-ApexLog 'Validation succeeded.'
+  }
 
+  Set-ApexProgress -ResourceGroup $ResourceGroup -Progress 'ClusterDeploying' `
+    -Status "Deploying cluster $ClusterName" -Config $Config
   Write-ApexLog "Deploying cluster '$ClusterName' (deploymentMode=Deploy). This takes ~2.5-3 hours..."
-  New-AzResourceGroupDeployment @common -deploymentMode 'Deploy' `
-    -Name "apexlocal-deploy-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop | Out-Null
-  Write-ApexLog "Cluster deployment submitted for '$ClusterName'."
+  $deployment = New-AzResourceGroupDeployment @common -deploymentMode 'Deploy' `
+    -Name "apexlocal-deploy-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop
+  if ($deployment.ProvisioningState -ne 'Succeeded') {
+    throw "Cluster ARM deployment finished in state '$($deployment.ProvisioningState)'."
+  }
+
+  $clusterDeadline = (Get-Date).AddMinutes(30)
+  do {
+    $clusterResource = Get-AzResource -ResourceGroupName $ResourceGroup `
+      -ResourceType 'Microsoft.AzureStackHCI/clusters' -Name $ClusterName `
+      -ExpandProperties -ErrorAction SilentlyContinue
+    $provisioningState = $clusterResource.Properties.provisioningState
+    $connectionState = $clusterResource.Properties.status
+    if ($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') {
+      Write-ApexLog "Waiting for authoritative cluster state: provisioning=$provisioningState status=$connectionState."
+      Start-Sleep -Seconds 30
+    }
+  } while (($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') -and
+    (Get-Date) -lt $clusterDeadline)
+
+  if ($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') {
+    throw "Cluster '$ClusterName' did not reach Succeeded/Connected (provisioning=$provisioningState status=$connectionState)."
+  }
+  Write-ApexLog "Cluster '$ClusterName' reached Succeeded/Connected."
 }
 
 #endregion
 
 Export-ModuleMember -Function @(
   'Get-ApexConfig', 'Write-ApexLog', 'Connect-ApexAzure', 'Set-ApexProgress', 'Send-ApexLogsToStorage',
+  'Clear-ApexBootstrapSecrets',
   'Wait-ApexStagedIso', 'Get-ApexStagedIso', 'Convert-ApexIsoToVhdx',
   'New-ApexHostSwitch', 'New-ApexRouterVM',
   'New-ApexUnattendXml', 'New-ApexNestedVM', 'Wait-ApexVMReady', 'New-ApexDomainController',
-  'New-ApexLocalNode', 'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
+  'Initialize-ApexActiveDirectory', 'New-ApexLocalNode', 'Invoke-ApexEnvironmentValidation',
+  'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
   'Invoke-ApexLocalClusterDeploy'
 )

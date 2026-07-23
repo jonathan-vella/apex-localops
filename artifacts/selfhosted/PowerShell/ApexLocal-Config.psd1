@@ -98,6 +98,8 @@
     # OU for the Azure Local deployment objects. MUST NOT be at the domain root.
     OuPath       = 'OU=ApexLocal,DC=apexlocal,DC=local'
     OuName       = 'ApexLocal'
+    LcmUserName  = 'ApexLocalDeploy'
+    NamingPrefix = 'apexloc'
     # Local + domain admin used by the in-VM build and the cluster deploy. The
     # passwords are injected from the host CSE env vars at runtime, never stored.
     SafeModeUser = 'Administrator'
@@ -107,25 +109,36 @@
   # 3-node cluster (odd quorum, no witness). Bootstrap.ps1 can override Count and
   # the per-node memory from the CSE parameters.
   Cluster    = @{
-    NodeCount      = 3
-    NamePrefix     = 'apexlocal-n'    # -> apexlocal-n1 / -n2 / -n3
-    NodeMemoryMB   = 98304            # 96 GB per node
-    NodeCpuCount   = 16
-    Generation     = 2
+    NodeCount       = 3
+    NamePrefix      = 'apexlocal-n'    # -> apexlocal-n1 / -n2 / -n3
+    NodeMemoryMB    = 98304            # 96 GB per node
+    NodeCpuCount    = 16
+    Generation      = 2
+    DataDiskCount   = 4
+    DataDiskSizeGB  = 170
+    FabricAdapter   = 'FABRIC'
+    StorageAdapterA = 'StorageA'
+    StorageAdapterB = 'StorageB'
     # First node IP; subsequent nodes increment the last octet.
-    NodeStartIp    = '192.168.1.11'
+    NodeStartIp     = '192.168.1.11'
     # Contiguous management IP block for Azure Local + Arc Resource Bridge.
     # Must be >= 6 addresses and must NOT overlap the node/DC/gateway IPs.
-    StartingIp     = '192.168.1.20'
-    EndingIp       = '192.168.1.30'
-    SubnetMask     = '255.255.255.0'
-    DefaultGateway = '192.168.1.1'
+    StartingIp      = '192.168.1.20'
+    EndingIp        = '192.168.1.30'
+    SubnetMask      = '255.255.255.0'
+    DefaultGateway  = '192.168.1.1'
     # Storage intent adapters (switchless / converged on the single internal net
     # for this nested lab). Real hardware uses dedicated RDMA NICs.
-    StorageVlanA   = 711
-    StorageVlanB   = 712
-    # Witness: 'None' for 3 nodes (odd quorum); 'Cloud' required for 2 nodes.
-    WitnessType    = 'None'
+    StorageVlanA    = 711
+    StorageVlanB    = 712
+    # Three nodes have odd quorum and use the create-cluster contract value below.
+    WitnessType     = 'No Witness'
+  }
+
+  Validation = @{
+    # Populate only with exact Environment Checker test IDs proven to be
+    # unavoidable for this virtual evaluation topology during the golden run.
+    AllowedCriticalTests = @()
   }
 
   # Resource-group tag keys used to surface in-VM progress to

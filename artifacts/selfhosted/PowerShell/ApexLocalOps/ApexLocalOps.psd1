@@ -28,6 +28,7 @@
     'Connect-ApexAzure'
     'Set-ApexProgress'
     'Send-ApexLogsToStorage'
+    'Clear-ApexBootstrapSecrets'
     # Image pipeline
     'Wait-ApexStagedIso'
     'Get-ApexStagedIso'
@@ -40,7 +41,9 @@
     'New-ApexNestedVM'
     'Wait-ApexVMReady'
     'New-ApexDomainController'
+    'Initialize-ApexActiveDirectory'
     'New-ApexLocalNode'
+    'Invoke-ApexEnvironmentValidation'
     'Connect-ApexNodeToArc'
     'Set-ApexNodeTimeSync'
     # Cluster

@@ -13,6 +13,15 @@ in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
 ### Added
 
+- **Self-hosted release-candidate hardening:** fixed three-node witnessless topology,
+  Microsoft-supported AD preparation, Environment Checker and OS-bundled Arc initialization,
+  OAuth-only ISO staging with a SHA-256/image manifest, transactional VHDX conversion,
+  authoritative completion checks, private log upload, and protected cluster-only recovery via
+  `scripts/recover-selfhosted.sh`.
+- **Self-hosted release contracts:** pinned module/image/template dependencies, PowerShell 5.1
+  static validation, Pester topology/security/recovery contracts, and immutable candidate-SHA
+  preflight before any Azure resource is created.
+
 - **Small Form Factor (SFF) evaluation profile** (`infra/bicep/azlocal-sff/`,
   `artifacts/sff/`, `scripts/*-sff.sh`). A lighter second profile: one nested-virtualization
   host (`Standard_D8s_v5`) builds the Azure Local SFF **Maintenance OS (ROE)** test VM inside

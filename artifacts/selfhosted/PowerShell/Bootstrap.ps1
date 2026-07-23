@@ -42,6 +42,7 @@ param(
   [string]$nodeMemoryMB = '98304',
   [string]$nodeCpuCount = '16',
   [string]$clusterName = 'apexlocal-cluster',
+  [string]$clusterResourceSuffix,
   [string]$azureLocalInstanceLocation = 'westeurope',
   [string]$hciResourceProviderObjectId = ''
 )
@@ -75,6 +76,7 @@ $envVars = @{
   APEX_NodeMemoryMB           = $nodeMemoryMB
   APEX_NodeCpuCount           = $nodeCpuCount
   APEX_ClusterName            = $clusterName
+  APEX_ClusterResourceSuffix  = $clusterResourceSuffix
   APEX_InstanceLocation       = $azureLocalInstanceLocation
   APEX_HciRpObjectId          = $hciResourceProviderObjectId
 }
@@ -91,6 +93,7 @@ $decodedPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::From
 $base = $templateBaseUrl.TrimEnd('/')
 $rootFiles = @{
   'ApexLocal-Config.psd1'    = 'artifacts/selfhosted/PowerShell/ApexLocal-Config.psd1'
+  'ModuleVersions.psd1'      = 'artifacts/selfhosted/PowerShell/ModuleVersions.psd1'
   'New-ApexLocalCluster.ps1' = 'artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1'
   'azlocal.json'             = 'artifacts/selfhosted/azlocal.json'
 }
@@ -112,6 +115,7 @@ foreach ($mf in $moduleFiles) {
 # Load config + module for the disk/module steps below.
 Import-Module (Join-Path $moduleDir 'ApexLocalOps.psd1') -Force
 $cfg = Get-ApexConfig -ConfigPath (Join-Path $rootDir 'ApexLocal-Config.psd1')
+$moduleVersions = Import-PowerShellDataFile -Path (Join-Path $rootDir 'ModuleVersions.psd1')
 New-Item -ItemType Directory -Force -Path $cfg.Paths.IsoDir, $cfg.Paths.ToolsDir, $cfg.Paths.AnswerDir | Out-Null
 
 #######################################################################
@@ -139,11 +143,14 @@ if (-not (Test-Path 'V:\')) {
     Write-Output 'Data disks pooled and mounted as V:.'
   }
   else {
-    Write-Output 'WARN: no poolable data disks found to create V: (continuing).'
+    throw 'No poolable data disks are available to create the required V: drive.'
   }
 }
 else {
   Write-Output 'Drive V: already present; skipping storage pool creation.'
+}
+if (-not (Test-Path 'V:\')) {
+  throw 'Required V: drive is unavailable after storage-pool initialization.'
 }
 New-Item -ItemType Directory -Force -Path $cfg.Paths.BaseVhdDir, $cfg.Paths.VmVhdDir, $cfg.Paths.VmDir | Out-Null
 
@@ -153,10 +160,15 @@ New-Item -ItemType Directory -Force -Path $cfg.Paths.BaseVhdDir, $cfg.Paths.VmVh
 Write-Output 'Installing Az PowerShell modules...'
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
-foreach ($m in @('Az.Accounts', 'Az.Resources', 'Az.Storage')) {
-  if (-not (Get-Module -ListAvailable -Name $m)) {
-    Write-Output "  installing $m"
-    Install-Module -Name $m -Scope AllUsers -Force -AllowClobber
+@{
+  'Az.Accounts'                   = $moduleVersions.AzAccounts
+  'Az.Resources'                  = $moduleVersions.AzResources
+  'Az.Storage'                    = $moduleVersions.AzStorage
+  'AzStackHci.EnvironmentChecker' = $moduleVersions.AzStackHciEnvironmentChecker
+}.GetEnumerator() | ForEach-Object {
+  if (-not (Get-Module -ListAvailable -Name $_.Key | Where-Object Version -eq ([version]$_.Value))) {
+    Write-Output "  installing $($_.Key) $($_.Value)"
+    Install-Module -Name $_.Key -RequiredVersion $_.Value -Scope AllUsers -Force -AllowClobber
   }
 }
 
@@ -188,7 +200,7 @@ $taskName = 'ApexLocalBuild'
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -NoProfile -File `"$phase2`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -UserId $adminUsername -RunLevel Highest -LogonType Interactive
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 8)
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 24)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 Write-Output "Registered scheduled task '$taskName' to run Phase 2 at logon."
 

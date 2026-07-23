@@ -53,9 +53,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
     supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
-    // Shared keys are allowed (Az.Storage MI flows still use OAuth via
-    // -UseConnectedAccount); set false only if you also remove any key-based path.
-    allowSharedKeyAccess: true
+    allowSharedKeyAccess: false
   }
   tags: resourceTags
 }

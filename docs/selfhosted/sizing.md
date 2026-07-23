@@ -59,21 +59,19 @@ nodes plus a domain controller fit within 256 GB.
 `deploy-selfhosted.sh` and `main.bicep` constrain the host to high-memory,
 nested-virtualization-capable SKUs:
 
-`Standard_E32s_v5`, `Standard_E48s_v5`, `Standard_E64s_v5`, `Standard_E32s_v6`,
-`Standard_E48s_v6`, `Standard_E64s_v6`.
-
-The E-series gives the RAM that nested Azure Local nodes need; v6 is preferred where available.
-Adjust `nodeMemoryMB` and `nodeCpuCount` if you change the host size.
+The release host is fixed to `Standard_E64s_v6`. Each of the three nested nodes receives 96 GB
+RAM, 16 vCPUs, and four 170-GB capacity disks. These values are not deployment parameters.
 
 ## Quota
 
 The single most common blocker is host-family vCPU quota in the target region. The default needs
-**64 vCPUs** of the `standardESv6Family` (32 for a 2-node `E32s_v6`). Preflight checks this and
+**64 vCPUs** of the `standardESv6Family`. Preflight checks this and
 fails fast; request an increase if you are short.
 
 ## Regions
 
-- **Infrastructure** (`location`) can be most regions; the default is `swedencentral`.
+- **Infrastructure** (`location`) uses `swedencentral` as primary and
+  `germanywestcentral` as the explicit fallback.
 - **Azure Local instance** (`azureLocalInstanceLocation`) is separate because not every region
   supports the instance — the default is `westeurope`. Keep these two distinct, matching the
   LocalBox profile.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 #
 # monitor-selfhosted.sh - Observe the in-VM build of the SELF-HOSTED Azure Local lab.
 #
@@ -6,8 +8,8 @@
 # conversion, nested DC + node build, cluster validate/deploy) happens INSIDE the
 # cluster host over several hours. This makes that phase observable without
 # Bastion/RDP by polling:
-#   • the resource-group ApexProgress / ApexStatus tags (in-VM milestones), and
-#   • the authoritative Azure Local cluster state via 'az stack-hci cluster list'
+#   - the resource-group ApexProgress / ApexStatus tags (in-VM milestones), and
+#   - the authoritative Azure Local cluster state via 'az stack-hci cluster list'
 #     (NOT 'az resource list', which can return empty even when the cluster exists).
 #
 # Usage:
@@ -17,8 +19,6 @@
 #   ./monitor-selfhosted.sh --logs                # also tail the in-VM build log
 #   ./monitor-selfhosted.sh --resource-group <n>  # default: rg-apexlocal
 #   ./monitor-selfhosted.sh --help
-
-set -euo pipefail
 
 RESOURCE_GROUP="rg-apexlocal"
 HOST_VM="ApexLocal-Host"

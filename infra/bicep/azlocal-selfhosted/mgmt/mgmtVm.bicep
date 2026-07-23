@@ -38,14 +38,8 @@ param location string = resourceGroup().location
 @description('Windows Server version (a fully patched image of this version is selected).')
 param windowsOSVersion string = '2025-datacenter-g2'
 
-@description('Base URL used to fetch the helper scripts from this repo. Empty disables the jumpbox setup extension.')
-param templateBaseUrl string = ''
-
-@description('Name of the storage account that holds the staged ISOs (baked into the on-desktop upload instructions).')
-param stagingStorageAccountName string = ''
-
-@description('Name of the ISO blob container.')
-param isoContainerName string = 'iso-images'
+@description('Pinned Windows Server image version verified in Sweden Central and Germany West Central.')
+param windowsImageVersion string = '26100.33158.260711'
 
 @description('Apply Windows Server Azure Hybrid Benefit (licenseType=Windows_Server). On by default; set false for license-included (PAYG).')
 param enableAzureHybridBenefit bool = true
@@ -102,7 +96,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
         publisher: 'MicrosoftWindowsServer'
         offer: 'WindowsServer'
         sku: windowsOSVersion
-        version: 'latest'
+        version: windowsImageVersion
       }
     }
     networkProfile: {
@@ -127,27 +121,6 @@ resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
         secureBootEnabled: true
         vTpmEnabled: true
       }
-    }
-  }
-}
-
-// Provision the jumpbox as an acquisition workstation: install Azure CLI + Az
-// modules + AzCopy and stage Upload-Isos.ps1 + desktop instructions. Skipped when
-// templateBaseUrl is empty (e.g. unit what-ifs).
-resource jumpboxSetup 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = if (!empty(templateBaseUrl)) {
-  parent: vm
-  name: 'SetupJumpbox'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Compute'
-    type: 'CustomScriptExtension'
-    typeHandlerVersion: '1.10'
-    autoUpgradeMinorVersion: true
-    protectedSettings: {
-      fileUris: [
-        uri(templateBaseUrl, 'artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1')
-      ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Setup-Jumpbox.ps1 -templateBaseUrl ${templateBaseUrl} -stagingStorageAccountName ${stagingStorageAccountName} -isoContainerName ${isoContainerName}'
     }
   }
 }

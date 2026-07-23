@@ -1,6 +1,6 @@
 ---
 description: "Prevents terminal heredoc/redirect file corruption in VS Code Copilot by enforcing file-editing tools instead of shell redirections."
-applyTo: "scripts/**/*.sh, infra/bicep/**/*.bicep, .github/workflows/*.yml, .github/skills/**/SKILL.md, .github/instructions/**/*.instructions.md, docs/**/*.md, README.md, CHANGELOG.md, ATTRIBUTION.md"
+applyTo: "scripts/**/*.sh, infra/bicep/**/*.bicep, artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.psd1, .github/workflows/*.yml, .github/skills/**/SKILL.md, .github/instructions/**/*.instructions.md, docs/**/*.md, README.md, CHANGELOG.md, ATTRIBUTION.md"
 ---
 
 # MANDATORY: File Operations Use Editing Tools, Not Heredocs

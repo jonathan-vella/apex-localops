@@ -65,9 +65,7 @@ The RBAC assignments, made in
 
 | Principal | Role | Scope | Why |
 | --- | --- | --- | --- |
-| Deployer (you / CI) | Storage Blob Data **Owner** | Storage account | Upload the ISOs (a control-plane Owner role is not data access). |
 | `apex-host` identity | Storage Blob Data **Contributor** | Storage account | Read ISOs and write build logs. |
-| `apex-host` identity | **Tag Contributor** + **Reader** | Resource group | Progress tags and metadata. |
 | `apex-host` identity | **Contributor** + **User Access Administrator** | Resource group | The in-VM cluster deploy creates resources **and assigns roles** — UAA is required, not optional. |
 | `apex-mgmt` identity | Storage Blob Data **Contributor** | Storage account | Upload the ISOs from the jumpbox. |
 
@@ -123,19 +121,19 @@ sequenceDiagram
     participant SA as Storage (iso-images)
     participant Box as apex-mgmt jumpbox
 
-    Op->>Dep: run (prompts password; resolves deployer + HCI RP oids)
+    Op->>Dep: run with approved password env + immutable artifact SHA
     Dep->>ARM: deploy main.bicep (storage, network, Bastion, NAT, LA, 2 VMs, RBAC)
     ARM->>Host: CustomScriptExtension -> Bootstrap.ps1
     Host->>Host: pool disks -> V:, install Hyper-V, autologon, reboot
     Host->>Host: Phase 2 — internal + NAT switches, then WAIT for ISOs
     Op->>Box: RDP over Bastion, download both ISOs
-    Box->>SA: Upload-Isos.ps1 (MI) -> AzureLocalOS.iso + WindowsServer.iso
-    Host->>SA: detect + pull both ISOs (MI)
+    Box->>SA: Upload-Isos.ps1 -> both ISOs + SHA-256 manifest (MI)
+    Host->>SA: validate manifest + pull and hash both ISOs (MI)
     Host->>Host: Convert-ApexIsoToVhdx x2 (bootable VHDX)
     Host->>Host: New-ApexRouterVM (gateway 192.168.1.1, RRAS + WinNAT)
     Host->>Host: New-ApexDomainController (forest + DNS + NTP)
     Host->>Host: New-ApexLocalNode x3 (static IPs, storage NICs, time sync)
-    Host->>ARM: Connect-ApexNodeToArc (azcmagent) -> Arc machines
+    Host->>ARM: OS-bundled Invoke-AzStackHciArcInitialization -> Arc machines
     Host->>ARM: Invoke-ApexLocalClusterDeploy (Validate -> Deploy)
     ARM-->>Op: cluster Succeeded / Connected (monitor-selfhosted.sh)
 ```
@@ -161,11 +159,10 @@ implemented here from first principles and are the highest-risk parts. They are 
 in the module with `OWNED-SCOPE:` and summarized in
 [the plan](../plans/plan-selfHostedAzureLocal.prompt.md):
 
-- **ISO to bootable VHDX** (`Convert-ApexIsoToVhdx`) — no prebaked VHD exists. A boot-from-ISO
-  plus `autounattend` fallback is built into `New-ApexNestedVM -BootFromIso` if offline imaging
-  stalls on a given Azure Local build.
-- **Arc bootstrap** (`Connect-ApexNodeToArc`) — node Arc onboarding plus the deployment
-  prerequisites the cloud deploy expects (more than `azcmagent connect`).
+- **ISO to bootable VHDX** (`Convert-ApexIsoToVhdx`) — no prebaked VHD exists. Conversion uses
+    explicit image selection, temporary VHDX paths, UEFI boot validation, and atomic promotion.
+- **Arc bootstrap** (`Connect-ApexNodeToArc`) — uses the Azure Local OS-bundled
+    `Invoke-AzStackHciArcInitialization` command with a transient host managed-identity token.
 - **Fabric networking** (`New-ApexHostSwitch` + `New-ApexRouterVM` + node storage NICs) — two
   host switches (management and NAT uplink), a router VM as the management gateway (Jumpstart's
   `vm-router` model), and intent-based storage adapters.

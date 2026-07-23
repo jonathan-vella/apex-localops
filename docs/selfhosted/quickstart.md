@@ -27,6 +27,7 @@ module.
 - [5. Confirm success](#5-confirm-success)
 - [Customization](#customization)
 - [Tear down](#tear-down)
+- [Recover a cloud deployment](#recover-a-cloud-deployment)
 - [Troubleshooting](#troubleshooting)
 - [Next steps](#next-steps)
 
@@ -59,13 +60,20 @@ export LOCALSELF_HCI_RP_OBJECT_ID=<oid>
 ## 2. Deploy the infrastructure
 
 ```bash
-./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal --location swedencentral
+export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
+./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal \
+  --location swedencentral --artifact-ref <candidate-commit-sha>
 ```
 
-The script prompts for the Windows admin password (never written to disk), runs preflight and a
-what-if preview, then deploys: the hardened storage account, the network (Bastion plus NAT
-Gateway, closed inbound NSG), Log Analytics, the jumpbox, and the cluster host. ARM finishes in
-about 15–20 minutes.
+Use an immutable pushed candidate commit SHA until the `v1.3.0-rc.1` release tag exists. The
+script runs mandatory preflight before reading the password or creating the resource group,
+then runs what-if and deploys the hardened storage account, network, Bastion, NAT Gateway, Log
+Analytics, jumpbox, and cluster host. ARM finishes in about 15–20 minutes.
+
+Azure Hybrid Benefit, paid deployment, and the half-day execution window are pre-authorized for
+this evaluation. They are not interactive approval gates; technical preflight remains mandatory.
+Sweden Central is primary. Use `--location germanywestcentral` only as the explicit capacity
+fallback. Azure Local registration remains pinned to West Europe.
 
 The cluster host then installs Hyper-V, pools its data disks into `V:`, configures the internal
 and NAT-uplink switches, and **waits** for both ISOs to appear in storage. The nested router VM
@@ -95,8 +103,10 @@ desktop).
        -WindowsServerIsoPath C:\isos\WindowsServer2025.iso
    ```
 
-   `<staging-sa>` is printed by `deploy-selfhosted.sh` and shown in the desktop README. The blob
-   names must be `AzureLocalOS.iso` and `WindowsServer.iso` (the helper sets these by default).
+  `<staging-sa>` is printed by `deploy-selfhosted.sh` and shown in the desktop README. Both ISOs
+  are mandatory in one invocation. The helper verifies their lengths, records SHA-256 and image
+  metadata, and publishes `iso-manifest.json` last. Raw `az storage blob upload` commands are
+  unsupported because they do not create this manifest.
 
 ## 4. Watch the build
 
@@ -130,23 +140,10 @@ az stack-hci cluster list -g rg-apexlocal \
 
 ## Customization
 
-Override at deploy time without editing files:
-
-```bash
-# 2-node cluster (cloud witness) on a smaller host:
-az deployment group create -g rg-apexlocal \
-  -f infra/bicep/azlocal-selfhosted/main.bicep \
-  -p infra/bicep/azlocal-selfhosted/main.bicepparam \
-  -p clusterNodeCount=2 -p hostVmSize=Standard_E32s_v6 -p hostDataDiskCount=8
-```
-
-For a 2-node cluster, also set `witnessType=Cloud` (in
-[ApexLocal-Config.psd1](../../artifacts/selfhosted/PowerShell/ApexLocal-Config.psd1)) so the
-cluster has quorum.
-
-For reproducible builds, pin `githubBranch` to a release tag in
-[main.bicepparam](../../infra/bicep/azlocal-selfhosted/main.bicepparam) so the host pulls the
-in-VM scripts from that tag.
+The release topology is fixed to three nodes, no witness, an `E64s_v6` host, and 96 GB/16 vCPU
+per node. Unsupported shape parameters are intentionally not exposed. Select only the approved
+infrastructure region, immutable artifact ref, cluster name, and Azure Hybrid Benefit mode through
+`deploy-selfhosted.sh`.
 
 ## Tear down
 
@@ -157,18 +154,37 @@ in-VM scripts from that tag.
 The host, its 12 Premium disks, Bastion, and the NAT Gateway bill continuously even when the
 nested VMs are off — deleting the resource group is the only way to reach $0.
 
+## Recover a cloud deployment
+
+Cluster-only recovery is supported only after all three nested nodes exist and their Arc machine
+resources report `Connected`. Supply the same immutable artifact ref and approved lab password:
+
+```bash
+export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
+./scripts/recover-selfhosted.sh --artifact-ref <candidate-commit-sha> \
+  --resource-group rg-apexlocal --mode ValidateDeploy
+```
+
+Use `ValidateDeploy` for a failed validation or when the cloud failure stage is uncertain. Use
+`DeployOnly` only when the same candidate already passed ARM Validate and then failed during ARM
+Deploy. Azure Managed Run Command encrypts the password as a protected parameter; the in-VM
+recovery process reconstructs credentials transiently and clears the plaintext parameter before
+exit. For failures before three Arc-connected nodes, use cleanup and start a clean deployment.
+
+See [Self-hosted troubleshooting](troubleshooting.md) for the evidence and recovery decision table.
+
 ## Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
-| Build stuck at `AwaitingIsos` | Are both blobs present? `az storage blob list --account-name <sa> -c iso-images --auth-mode login -o table`. Names must be `AzureLocalOS.iso` and `WindowsServer.iso`. |
+| Build stuck at `AwaitingIsos` | Confirm `AzureLocalOS.iso`, `WindowsServer.iso`, and `iso-manifest.json` are present. Re-run `Upload-Isos.ps1` if the manifest is missing or invalid. |
 | Upload fails with "not authorized" | The deployer or jumpbox needs **Storage Blob Data** roles (a control-plane Owner role is not enough). Re-run the deploy so RBAC is reapplied; allow a few minutes for propagation. |
 | `Failed` during cluster deploy | The in-VM identity needs **User Access Administrator** on the resource group (assigned by the template); confirm the role assignments exist. Pull logs from the `logs/` container. |
 | No public internet on nested nodes | Egress is via the host NAT (`192.168.1.0/24`) → host NIC → Azure NAT Gateway. Check `Get-NetNat` on the host. |
 | `az stack-hci cluster list` empty | Use this command (not `az resource list`); allow time after `ClusterDeploying`. The deploy itself takes ~2.5–3 hours. |
 
-For the shared, nested-cluster build failures (witness and policy issues), see
-[LocalBox troubleshooting](../localbox/troubleshooting.md).
+For failure evidence and supported recovery points, see
+[Self-hosted troubleshooting](troubleshooting.md).
 
 ## Next steps
 

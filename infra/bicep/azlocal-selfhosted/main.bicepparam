@@ -10,9 +10,9 @@ using './main.bicep'
 
 // --- Windows credentials: password is NEVER stored in this file ---
 // Read from the LOCALSELF_ADMIN_PASSWORD environment variable at deploy time.
-// Use scripts/deploy-selfhosted.sh, which prompts for it securely (no echo, no disk write).
+// Use scripts/deploy-selfhosted.sh, which requires it in the process environment.
 param windowsAdminUsername = 'arcdemo'
-param windowsAdminPassword = readEnvironmentVariable('LOCALSELF_ADMIN_PASSWORD', '')
+param windowsAdminPassword = readEnvironmentVariable('LOCALSELF_ADMIN_PASSWORD')
 
 // --- Region & naming ---
 // Infra region. NOTE: the Azure Local INSTANCE region is a separate parameter
@@ -20,29 +20,16 @@ param windowsAdminPassword = readEnvironmentVariable('LOCALSELF_ADMIN_PASSWORD',
 param location = 'swedencentral'
 param namePrefix = 'ApexLocal'
 
-// --- Cluster host (nested-virtualization) ---
-// E64s_v6 (64 vCPU / 512 GB) hosts a 3-node cluster (3 x 96 GB nodes + a DC).
-// Drop to E32s_v6 for a 2-node cluster (set clusterNodeCount = 2).
-param hostVmSize = 'Standard_E64s_v6'
-param hostDataDiskCount = 12
-param hostDataDiskSizeGB = 256
-
-// --- Azure Local cluster shape ---
-//   3 nodes  => odd quorum, no witness (default)
-//   2 nodes  => cloud witness required (configure in artifacts/selfhosted/azlocal.json)
-param clusterNodeCount = 3
-param nodeMemoryMB = 98304
-param nodeCpuCount = 16
-param clusterName = 'apexlocal-cluster'
-// swedencentral is NOT supported for the Azure Local instance; register it in westeurope.
-param azureLocalInstanceLocation = 'westeurope'
+// --- Fixed Azure Local evaluation shape ---
+// The release contract is 3 x 96 GB / 16-vCPU nodes on E64s_v6 with 12 x 256 GB
+// P30 host disks. These values are intentionally not public deployment parameters.
+param clusterName = 'apexlocal'
 
 // --- Azure Hybrid Benefit (ON by default for this project) ---
 param enableAzureHybridBenefit = true
 
 // --- Connectivity: Bastion ON => no public IP on the VMs; NAT Gateway egress ---
 param deployBastion = true
-param vmAutologon = true
 
 // --- Acquisition / management jumpbox (Windows Server 2025, reached via Bastion) ---
 // The operator's in-Azure workstation for the one manual step: download the two
@@ -51,21 +38,18 @@ param deployManagementVm = true
 param managementVmSize = 'Standard_D4s_v5'
 
 // --- Observability + artifact source (self-hosted in this repo) ---
-// Pin githubBranch to a release tag (e.g. 'v1.0.0') for reproducible deploys.
+// The candidate defaults to the reserved release tag. Golden validation overrides
+// this with the immutable candidate commit SHA.
 param logAnalyticsWorkspaceName = 'ApexLocal-Workspace'
 param isoContainerName = 'iso-images'
 param logsContainerName = 'logs'
 param githubAccount = 'jonathan-vella'
 param githubRepo = 'apex-localops'
-param githubBranch = 'main'
+param artifactRef = 'v1.3.0-rc.1'
 
-// --- Identity inputs (resolved at deploy time; never committed) ---
-// deployerPrincipalId  : signed-in user/SP object id -> Storage Blob Data Owner (ISO upload).
+// --- Identity input (resolved at deploy time; never committed) ---
 // hciResourceProviderObjectId : object id of app 1412d89f-b8a8-4111-b4fd-e82905cbd85d in your
 //                               tenant -> required by the in-VM cluster deploy.
-// Both are resolved by scripts/deploy-selfhosted.sh; leave empty for a what-if.
-param deployerPrincipalId = readEnvironmentVariable('LOCALSELF_DEPLOYER_PRINCIPAL_ID', '')
-param deployerPrincipalType = 'User'
 param hciResourceProviderObjectId = readEnvironmentVariable('LOCALSELF_HCI_RP_OBJECT_ID', '')
 
 // --- Tagging: governResourceTags=false (not a Microsoft-internal lab tenant) ---
