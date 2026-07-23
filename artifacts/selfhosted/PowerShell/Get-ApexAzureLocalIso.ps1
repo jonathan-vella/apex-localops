@@ -159,7 +159,7 @@ if ($ResolveOnly) {
     releaseCode = $ReleaseCode
     sourceAlias = $releaseAlias
     resolvedUri = $resolvedUri.AbsoluteUri
-    bytes        = $expectedLength
+    bytes       = $expectedLength
   }
 }
 
@@ -185,7 +185,7 @@ $sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowe
   releaseCode = $ReleaseCode
   sourceAlias = $releaseAlias
   resolvedUri = $resolvedUri.AbsoluteUri
-  path         = $destination
-  bytes        = (Get-Item -LiteralPath $destination).Length
-  sha256       = $sha256
+  path        = $destination
+  bytes       = (Get-Item -LiteralPath $destination).Length
+  sha256      = $sha256
 }

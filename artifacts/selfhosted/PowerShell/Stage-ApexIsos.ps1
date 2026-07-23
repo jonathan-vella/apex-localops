@@ -27,7 +27,7 @@ Start-Transcript -Path (Join-Path $logsDir 'Stage-ApexIsos.log') -Append
 
 try {
   if ($AzureLocalLicenseTerms -ne 'Accepted' -or
-      $WindowsServerEvaluationTerms -ne 'Accepted') {
+    $WindowsServerEvaluationTerms -ne 'Accepted') {
     throw 'Both Microsoft terms assertions are required for unattended staging.'
   }
 

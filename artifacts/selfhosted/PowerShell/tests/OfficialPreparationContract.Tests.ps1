@@ -30,13 +30,13 @@ Describe 'Pinned Microsoft Azure Local preparation' {
   It 'runs all required readiness validators before Arc initialization' {
     $manifest.FunctionsToExport | Should -Contain 'Test-ApexEnvironmentReadiness'
     foreach ($commandName in @(
-      'Invoke-AzStackHciConnectivityValidation',
-      'Invoke-AzStackHciSoftwareValidation',
-      'Invoke-AzStackHciExternalActiveDirectoryValidation',
-      'Invoke-AzStackHciNetworkValidation',
-      'Invoke-AzStackHciArcIntegrationValidation',
-      'Invoke-AzStackHciHardwareValidation'
-    )) {
+        'Invoke-AzStackHciConnectivityValidation',
+        'Invoke-AzStackHciSoftwareValidation',
+        'Invoke-AzStackHciExternalActiveDirectoryValidation',
+        'Invoke-AzStackHciNetworkValidation',
+        'Invoke-AzStackHciArcIntegrationValidation',
+        'Invoke-AzStackHciHardwareValidation'
+      )) {
       $moduleSource | Should -Match $commandName
     }
 

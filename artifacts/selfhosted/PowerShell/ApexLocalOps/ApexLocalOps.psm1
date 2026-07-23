@@ -201,7 +201,7 @@ function Clear-ApexBootstrapSecrets {
   }
   foreach ($answerDirectory in $answerDirectories | Select-Object -Unique) {
     Get-ChildItem -Path $answerDirectory -Filter '*unattend*.xml' -File -ErrorAction SilentlyContinue |
-      Remove-Item -Force -ErrorAction SilentlyContinue
+    Remove-Item -Force -ErrorAction SilentlyContinue
   }
 
   Write-ApexLog 'Cleared host bootstrap credentials and generated answer files.'
@@ -682,7 +682,7 @@ function New-ApexRouterVM {
 
     $nat = Get-NetNat -Name 'ApexRouterNAT' -ErrorAction Stop
     $defaultRoute = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop |
-      Where-Object NextHop -eq $natGw | Select-Object -First 1
+    Where-Object NextHop -eq $natGw | Select-Object -First 1
     $forwardingInterfaces = @(Get-NetIPInterface -AddressFamily IPv4 |
       Where-Object { $_.InterfaceIndex -in @($mgmtNic.ifIndex, $natNic.ifIndex) -and $_.Forwarding -eq 'Enabled' })
     if (-not $nat -or -not $defaultRoute -or $forwardingInterfaces.Count -ne 2) {
@@ -824,7 +824,7 @@ function New-ApexNestedVM {
     $m = Mount-VHD -Path $diff -Passthru | Get-Disk
     try {
       $osVol = Get-Partition -DiskNumber $m.Number | Get-Volume |
-        Where-Object { $_.FileSystem -eq 'NTFS' -and $_.DriveLetter } | Select-Object -First 1
+      Where-Object { $_.FileSystem -eq 'NTFS' -and $_.DriveLetter } | Select-Object -First 1
       if ($osVol) {
         $panther = "$($osVol.DriveLetter):\Windows\Panther"
         New-Item -ItemType Directory -Force -Path $panther | Out-Null
@@ -950,7 +950,7 @@ function New-ApexDomainController {
     $dnsRecord = Resolve-DnsName -Name $fqdn -Server '127.0.0.1' -ErrorAction Stop
     $requiredServices = Get-Service -Name DNS, NTDS -ErrorAction Stop
     if ($domain.DNSRoot -ne $fqdn -or -not $dnsRecord -or
-        @($requiredServices | Where-Object Status -ne 'Running').Count -gt 0) {
+      @($requiredServices | Where-Object Status -ne 'Running').Count -gt 0) {
       throw "Domain controller health verification failed for '$fqdn'."
     }
     w32tm /query /status | Out-Null
@@ -1192,7 +1192,7 @@ function Get-ApexCriticalValidationResult {
     }
 
     if ($InputObject -is [System.Collections.IEnumerable] -and
-        $InputObject -isnot [System.Management.Automation.PSCustomObject]) {
+      $InputObject -isnot [System.Management.Automation.PSCustomObject]) {
       foreach ($item in $InputObject) {
         Get-ApexCriticalValidationResult -InputObject $item
       }
@@ -1203,7 +1203,7 @@ function Get-ApexCriticalValidationResult {
     $severity = $properties['Severity']
     $status = $properties['Status']
     if ($severity -and $status -and $severity.Value -eq 'Critical' -and
-        $status.Value -notin @('Succeeded', 'Success', 'Passed')) {
+      $status.Value -notin @('Succeeded', 'Success', 'Passed')) {
       $identifier = foreach ($propertyName in @('Name', 'TestName', 'Title')) {
         if ($properties[$propertyName] -and $properties[$propertyName].Value) {
           $properties[$propertyName].Value
@@ -1280,7 +1280,7 @@ function Test-ApexEnvironmentReadiness {
     }
 
     $destination = Join-Path $reportDirectory `
-      ("{0}-{1}.json" -f $Name, (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    ("{0}-{1}.json" -f $Name, (Get-Date -Format 'yyyyMMdd-HHmmss'))
     Copy-Item -Path $sourceReport -Destination $destination -Force
     $report = Get-Content -Path $destination -Raw | ConvertFrom-Json
     $criticalResults = @(Get-ApexCriticalValidationResult -InputObject $report)
@@ -1325,9 +1325,9 @@ function Test-ApexEnvironmentReadiness {
 
     $ipPools = New-Object System.Collections.ArrayList
     $null = $ipPools.Add([pscustomobject]@{
-      StartingAddress = $Config.Cluster.StartingIp
-      EndingAddress   = $Config.Cluster.EndingIp
-    })
+        StartingAddress = $Config.Cluster.StartingIp
+        EndingAddress   = $Config.Cluster.EndingIp
+      })
     $atcHostIntents = @(
       [pscustomobject]@{
         name        = 'Compute_Management'
@@ -1492,26 +1492,26 @@ function Start-ApexLocalClusterDeployment {
   # --- intentList: converged management/compute + storage (nested lab) ---
   $intentList = @(
     @{
-      name                               = 'Compute_Management'
-      trafficType                        = @('Management', 'Compute')
-      adapter                            = @('FABRIC')
-      overrideVirtualSwitchConfiguration = $false
+      name                                = 'Compute_Management'
+      trafficType                         = @('Management', 'Compute')
+      adapter                             = @('FABRIC')
+      overrideVirtualSwitchConfiguration  = $false
       virtualSwitchConfigurationOverrides = @{ enableIov = ''; loadBalancingAlgorithm = '' }
-      overrideQosPolicy                  = $false
-      qosPolicyOverrides                 = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
-      overrideAdapterProperty            = $false
-      adapterPropertyOverrides           = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
+      overrideQosPolicy                   = $false
+      qosPolicyOverrides                  = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
+      overrideAdapterProperty             = $false
+      adapterPropertyOverrides            = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
     },
     @{
-      name                               = 'Storage'
-      trafficType                        = @('Storage')
-      adapter                            = @('StorageA', 'StorageB')
-      overrideVirtualSwitchConfiguration = $false
+      name                                = 'Storage'
+      trafficType                         = @('Storage')
+      adapter                             = @('StorageA', 'StorageB')
+      overrideVirtualSwitchConfiguration  = $false
       virtualSwitchConfigurationOverrides = @{ enableIov = ''; loadBalancingAlgorithm = '' }
-      overrideQosPolicy                  = $false
-      qosPolicyOverrides                 = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
-      overrideAdapterProperty            = $false
-      adapterPropertyOverrides           = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
+      overrideQosPolicy                   = $false
+      qosPolicyOverrides                  = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
+      overrideAdapterProperty             = $false
+      adapterPropertyOverrides            = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
     }
   )
 
@@ -1530,37 +1530,37 @@ function Start-ApexLocalClusterDeployment {
   $diagSa = "apxdiag$suffix"
 
   $common = @{
-    ResourceGroupName                = $ResourceGroup
-    TemplateFile                     = $TemplatePath
-    clusterName                      = $ClusterName
-    location                         = $InstanceLocation
-    tenantId                         = [Environment]::GetEnvironmentVariable('APEX_TenantId', 'Machine')
-    hciResourceProviderObjectID      = $HciResourceProviderObjectId
-    arcNodeResourceIds               = $ArcNodeResourceIds
-    domainFqdn                       = $dom.Fqdn
-    adouPath                         = $dom.OuPath
-    namingPrefix                     = 'apexloc'
-    localAdminUserName               = $LocalAdminCredential.UserName
-    localAdminPassword               = $LocalAdminCredential.Password
-    AzureStackLCMAdminUsername       = $DomainAdminCredential.UserName
-    AzureStackLCMAdminPassword       = $DomainAdminCredential.Password
-    keyVaultName                     = $keyVaultName
-    diagnosticStorageAccountName     = $diagSa
-    physicalNodesSettings            = $physicalNodes
-    intentList                       = $intentList
-    storageNetworkList               = $storageNetworkList
-    networkingType                   = 'switchedMultiServerDeployment'
-    storageConnectivitySwitchless    = $false
-    enableStorageAutoIp              = $true
-    customLocation                   = "$ClusterName-cl"
-    startingIPAddress                = $c.StartingIp
-    endingIPAddress                  = $c.EndingIp
-    subnetMask                       = $c.SubnetMask
-    defaultGateway                   = $c.DefaultGateway
-    dnsServers                       = @($dom.DcIpAddress)
-    witnessType                      = 'No Witness'
-    securityLevel                    = 'Recommended'
-    configurationMode                = 'Express'
+    ResourceGroupName             = $ResourceGroup
+    TemplateFile                  = $TemplatePath
+    clusterName                   = $ClusterName
+    location                      = $InstanceLocation
+    tenantId                      = [Environment]::GetEnvironmentVariable('APEX_TenantId', 'Machine')
+    hciResourceProviderObjectID   = $HciResourceProviderObjectId
+    arcNodeResourceIds            = $ArcNodeResourceIds
+    domainFqdn                    = $dom.Fqdn
+    adouPath                      = $dom.OuPath
+    namingPrefix                  = 'apexloc'
+    localAdminUserName            = $LocalAdminCredential.UserName
+    localAdminPassword            = $LocalAdminCredential.Password
+    AzureStackLCMAdminUsername    = $DomainAdminCredential.UserName
+    AzureStackLCMAdminPassword    = $DomainAdminCredential.Password
+    keyVaultName                  = $keyVaultName
+    diagnosticStorageAccountName  = $diagSa
+    physicalNodesSettings         = $physicalNodes
+    intentList                    = $intentList
+    storageNetworkList            = $storageNetworkList
+    networkingType                = 'switchedMultiServerDeployment'
+    storageConnectivitySwitchless = $false
+    enableStorageAutoIp           = $true
+    customLocation                = "$ClusterName-cl"
+    startingIPAddress             = $c.StartingIp
+    endingIPAddress               = $c.EndingIp
+    subnetMask                    = $c.SubnetMask
+    defaultGateway                = $c.DefaultGateway
+    dnsServers                    = @($dom.DcIpAddress)
+    witnessType                   = 'No Witness'
+    securityLevel                 = 'Recommended'
+    configurationMode             = 'Express'
   }
 
   if (-not $SkipValidation) {

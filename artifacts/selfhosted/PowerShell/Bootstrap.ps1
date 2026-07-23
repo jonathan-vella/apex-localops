@@ -61,24 +61,24 @@ Start-Transcript -Path (Join-Path $logsDir 'Bootstrap.log') -Append
 
 # --- Persist parameters as machine environment variables (read by Phase 2) ---
 $envVars = @{
-  APEX_AdminUsername          = $adminUsername
-  APEX_AdminPasswordB64       = $adminPassword     # base64; decoded in-memory by Phase 2
-  APEX_SubscriptionId         = $subscriptionId
-  APEX_TenantId               = $tenantId
-  APEX_ResourceGroup          = $resourceGroup
-  APEX_AzureLocation          = $azureLocation
-  APEX_StagingStorageAccount  = $stagingStorageAccountName
-  APEX_IsoContainer           = $isoContainerName
-  APEX_LogsContainer          = $logsContainerName
-  APEX_WorkspaceName          = $workspaceName
-  APEX_TemplateBaseUrl        = $templateBaseUrl
-  APEX_ClusterNodeCount       = $clusterNodeCount
-  APEX_NodeMemoryMB           = $nodeMemoryMB
-  APEX_NodeCpuCount           = $nodeCpuCount
-  APEX_ClusterName            = $clusterName
-  APEX_ClusterResourceSuffix  = $clusterResourceSuffix
-  APEX_InstanceLocation       = $azureLocalInstanceLocation
-  APEX_HciRpObjectId          = $hciResourceProviderObjectId
+  APEX_AdminUsername         = $adminUsername
+  APEX_AdminPasswordB64      = $adminPassword     # base64; decoded in-memory by Phase 2
+  APEX_SubscriptionId        = $subscriptionId
+  APEX_TenantId              = $tenantId
+  APEX_ResourceGroup         = $resourceGroup
+  APEX_AzureLocation         = $azureLocation
+  APEX_StagingStorageAccount = $stagingStorageAccountName
+  APEX_IsoContainer          = $isoContainerName
+  APEX_LogsContainer         = $logsContainerName
+  APEX_WorkspaceName         = $workspaceName
+  APEX_TemplateBaseUrl       = $templateBaseUrl
+  APEX_ClusterNodeCount      = $clusterNodeCount
+  APEX_NodeMemoryMB          = $nodeMemoryMB
+  APEX_NodeCpuCount          = $nodeCpuCount
+  APEX_ClusterName           = $clusterName
+  APEX_ClusterResourceSuffix = $clusterResourceSuffix
+  APEX_InstanceLocation      = $azureLocalInstanceLocation
+  APEX_HciRpObjectId         = $hciResourceProviderObjectId
 }
 foreach ($kv in $envVars.GetEnumerator()) {
   [System.Environment]::SetEnvironmentVariable($kv.Key, $kv.Value, [System.EnvironmentVariableTarget]::Machine)
@@ -131,7 +131,7 @@ if (-not (Test-Path 'V:\')) {
     foreach ($physicalDisk in Get-PhysicalDisk -CanPool $true -ErrorAction SilentlyContinue) {
       $disk = Get-Disk -UniqueId $physicalDisk.UniqueId -ErrorAction SilentlyContinue
       if ($disk -and -not $disk.IsBoot -and -not $disk.IsSystem -and
-          $disk.PartitionStyle -eq 'RAW' -and $disk.Size -eq $expectedDataDiskSize) {
+        $disk.PartitionStyle -eq 'RAW' -and $disk.Size -eq $expectedDataDiskSize) {
         $physicalDisk
       }
     }
@@ -149,7 +149,7 @@ if (-not (Test-Path 'V:\')) {
     $diskNum = ($vd | Get-Disk).Number
     Initialize-Disk -Number $diskNum -PartitionStyle GPT -ErrorAction SilentlyContinue | Out-Null
     New-Partition -DiskNumber $diskNum -DriveLetter V -UseMaximumSize |
-      Format-Volume -FileSystem NTFS -NewFileSystemLabel 'ApexLocal' -AllocationUnitSize 65536 -Confirm:$false | Out-Null
+    Format-Volume -FileSystem NTFS -NewFileSystemLabel 'ApexLocal' -AllocationUnitSize 65536 -Confirm:$false | Out-Null
     Write-Output 'Data disks pooled and mounted as V:.'
   }
   else {
