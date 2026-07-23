@@ -116,7 +116,7 @@ foreach ($mf in $moduleFiles) {
 Import-Module (Join-Path $moduleDir 'ApexLocalOps.psd1') -Force
 $cfg = Get-ApexConfig -ConfigPath (Join-Path $rootDir 'ApexLocal-Config.psd1')
 $moduleVersions = Import-PowerShellDataFile -Path (Join-Path $rootDir 'ModuleVersions.psd1')
-New-Item -ItemType Directory -Force -Path $cfg.Paths.IsoDir, $cfg.Paths.ToolsDir, $cfg.Paths.AnswerDir | Out-Null
+New-Item -ItemType Directory -Force -Path $cfg.Paths.IsoDir, $cfg.Paths.ToolsDir | Out-Null
 
 #######################################################################
 # Pool the Premium data disks into drive V: (Storage Spaces)
@@ -125,8 +125,18 @@ if (-not (Test-Path 'V:\')) {
   Write-Output 'Pooling the data disks into drive V:...'
   $poolName = 'ApexLocalPool'
   $vdiskName = 'ApexLocalDisk'
-  $canPool = Get-PhysicalDisk -CanPool $true -ErrorAction SilentlyContinue
-  if ($canPool) {
+  $expectedDataDiskCount = 12
+  $expectedDataDiskSize = 256GB
+  $canPool = @(
+    foreach ($physicalDisk in Get-PhysicalDisk -CanPool $true -ErrorAction SilentlyContinue) {
+      $disk = Get-Disk -UniqueId $physicalDisk.UniqueId -ErrorAction SilentlyContinue
+      if ($disk -and -not $disk.IsBoot -and -not $disk.IsSystem -and
+          $disk.PartitionStyle -eq 'RAW' -and $disk.Size -eq $expectedDataDiskSize) {
+        $physicalDisk
+      }
+    }
+  )
+  if ($canPool.Count -eq $expectedDataDiskCount) {
     $sub = Get-StorageSubSystem
     if (-not (Get-StoragePool -FriendlyName $poolName -ErrorAction SilentlyContinue)) {
       New-StoragePool -FriendlyName $poolName -StorageSubSystemFriendlyName $sub.FriendlyName -PhysicalDisks $canPool | Out-Null
@@ -143,7 +153,7 @@ if (-not (Test-Path 'V:\')) {
     Write-Output 'Data disks pooled and mounted as V:.'
   }
   else {
-    throw 'No poolable data disks are available to create the required V: drive.'
+    throw "Expected exactly $expectedDataDiskCount raw, non-system 256-GB data disks; found $($canPool.Count)."
   }
 }
 else {
@@ -152,7 +162,8 @@ else {
 if (-not (Test-Path 'V:\')) {
   throw 'Required V: drive is unavailable after storage-pool initialization.'
 }
-New-Item -ItemType Directory -Force -Path $cfg.Paths.BaseVhdDir, $cfg.Paths.VmVhdDir, $cfg.Paths.VmDir | Out-Null
+New-Item -ItemType Directory -Force -Path `
+  $cfg.Paths.BaseVhdDir, $cfg.Paths.VmVhdDir, $cfg.Paths.VmDir, $cfg.Paths.AnswerDir | Out-Null
 
 #######################################################################
 # Install required Az PowerShell modules and report initial progress

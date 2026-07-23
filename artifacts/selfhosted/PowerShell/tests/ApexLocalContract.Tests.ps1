@@ -213,9 +213,16 @@ Describe 'Self-hosted orchestration safety' {
   }
 
   It 'fails fast without the data volume and allows the full build window' {
-    $bootstrapSource | Should -Match "throw 'No poolable data disks are available"
+    $bootstrapSource | Should -Match '\$expectedDataDiskCount = 12'
+    $bootstrapSource | Should -Match '\$expectedDataDiskSize = 256GB'
+    $bootstrapSource | Should -Match '-not \$disk\.IsBoot -and -not \$disk\.IsSystem'
+    $bootstrapSource | Should -Match "PartitionStyle -eq 'RAW'"
+    $bootstrapSource | Should -Match 'Expected exactly \$expectedDataDiskCount raw, non-system 256-GB data disks'
     $bootstrapSource | Should -Match "throw 'Required V: drive is unavailable"
     $bootstrapSource | Should -Match 'ExecutionTimeLimit \(New-TimeSpan -Hours 24\)'
+    $answerDirectoryIndex = $bootstrapSource.IndexOf('$cfg.Paths.AnswerDir')
+    $volumeGuardIndex = $bootstrapSource.IndexOf("if (-not (Test-Path 'V:\'))")
+    $answerDirectoryIndex | Should -BeGreaterThan $volumeGuardIndex
   }
 
   It 'uses XML APIs for unattended setup values' {
