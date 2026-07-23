@@ -14,6 +14,7 @@ BeforeAll {
   $clusterTemplatePath = Join-Path $repoRoot 'artifacts/selfhosted/azlocal.json'
   $orchestratorPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1'
   $isoPublisherPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Upload-Isos.ps1'
+  $isoDownloaderPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Get-ApexAzureLocalIso.ps1'
   $bootstrapPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Bootstrap.ps1'
   $jumpboxSetupPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1'
   $recoveryPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1'
@@ -32,6 +33,7 @@ BeforeAll {
   $clusterTemplateSource = Get-Content -Path $clusterTemplatePath -Raw
   $orchestratorSource = Get-Content -Path $orchestratorPath -Raw
   $isoPublisherSource = Get-Content -Path $isoPublisherPath -Raw
+  $isoDownloaderSource = Get-Content -Path $isoDownloaderPath -Raw
   $bootstrapSource = Get-Content -Path $bootstrapPath -Raw
   $jumpboxSetupSource = Get-Content -Path $jumpboxSetupPath -Raw
   $recoverySource = Get-Content -Path $recoveryPath -Raw
@@ -173,8 +175,22 @@ Describe 'Self-hosted ISO integrity contract' {
     Should -BeGreaterThan $isoPublisherSource.IndexOf('foreach ($u in $uploads)')
   }
 
+  It 'downloads the pinned Azure Local ISO only from the official release host' {
+    $isoDownloaderSource | Should -Match "ReleaseCode = '2607'"
+    $isoDownloaderSource | Should -Match 'https://aka\.ms/hcireleaseimage/\$ReleaseCode'
+    $isoDownloaderSource | Should -Match "allowedDownloadHost = 'azurestackreleases\.download\.prss\.microsoft\.com'"
+    $isoDownloaderSource | Should -Match '\[Parameter\(Mandatory\)\] \[switch\]\$AcceptLicenseTerms'
+    $isoDownloaderSource | Should -Match 'if \(\$ResolveOnly\)'
+    $isoDownloaderSource | Should -Match '\$partialPath = "\$destination\.partial"'
+    $isoDownloaderSource | Should -Match 'ContentRange'
+    $isoDownloaderSource | Should -Match 'CD001'
+    $isoDownloaderSource | Should -Match 'Get-FileHash[^\r\n]+SHA256'
+    $jumpboxSetupSource | Should -Match "Get-ApexAzureLocalIso\.ps1', 'Upload-Isos\.ps1"
+    $deployWrapperSource | Should -Match 'Get-ApexAzureLocalIso\.ps1'
+  }
+
   It 'treats the manifest-producing jumpbox tool as required' {
-    $jumpboxSetupSource | Should -Match 'throw "Could not stage the required Upload-Isos\.ps1 tool'
+    $jumpboxSetupSource | Should -Match 'throw "Could not stage the required ISO tools'
   }
 
   It 'requires a valid manifest with both ISO entries before declaring readiness' {

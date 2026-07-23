@@ -96,12 +96,22 @@ desktop).
 1. **RDP to the jumpbox over Azure Bastion** (`ApexLocal-Mgmt`, no public IP).
 2. Download the **Azure Local OS ISO** (portal) and the **Windows Server 2025 ISO** onto the
    jumpbox, for example to `C:\isos\`.
+  After accepting the Azure Local terms in the portal, the pinned Azure Local 2607 download can
+  run non-interactively from Microsoft's official release alias:
+
+  ```powershell
+  C:\ApexLocal\Get-ApexAzureLocalIso.ps1 -AcceptLicenseTerms
+  ```
+
+  This writes `C:\ISOs\AzureLocal-2607.iso` transactionally and validates the final Microsoft
+  host, response length, ISO signature, and SHA-256. It does not execute third-party code or
+  select a moving "latest" release.
 3. Upload both (this uses the jumpbox managed identity — no keys):
 
    ```powershell
    Connect-AzAccount -Identity
    C:\ApexLocal\Upload-Isos.ps1 -StorageAccountName <staging-sa> `
-       -AzureLocalIsoPath    C:\isos\AzureLocal.iso `
+      -AzureLocalIsoPath    C:\isos\AzureLocal-2607.iso `
        -WindowsServerIsoPath C:\isos\WindowsServer2025.iso
    ```
 

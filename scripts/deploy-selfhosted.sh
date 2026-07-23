@@ -34,6 +34,7 @@ RUNTIME_ARTIFACTS=(
   artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1
   artifacts/selfhosted/PowerShell/ApexLocal-Config.psd1
   artifacts/selfhosted/PowerShell/ModuleVersions.psd1
+  artifacts/selfhosted/PowerShell/Get-ApexAzureLocalIso.ps1
   artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1
   artifacts/selfhosted/PowerShell/Upload-Isos.ps1
   artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psd1

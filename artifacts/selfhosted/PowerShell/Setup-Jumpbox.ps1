@@ -7,7 +7,7 @@
   Runs as the jumpbox VM's Custom Script Extension. A stock Windows Server image
   has none of the tooling needed for the one manual step in this profile, so this:
     1. Installs Azure CLI, the Az PowerShell modules, and AzCopy.
-    2. Stages Upload-Isos.ps1 to C:\ApexLocal on the jumpbox.
+    2. Stages the pinned Azure Local ISO downloader and Upload-Isos.ps1.
     3. Writes a desktop README with the exact download + upload commands, pre-filled
        with this deployment's storage account + container names.
 
@@ -86,15 +86,17 @@ catch {
   Write-Output "WARN: AzCopy install issue (continuing): $($_.Exception.Message)"
 }
 
-# --- Stage Upload-Isos.ps1 from the repo ---
+# --- Stage the ISO acquisition and upload tools from the immutable artifact set ---
 try {
-  $dest = Join-Path $rootDir 'Upload-Isos.ps1'
-  $url = ($templateBaseUrl.TrimEnd('/') + '/artifacts/selfhosted/PowerShell/Upload-Isos.ps1')
-  Write-Output "  downloading $url"
-  Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
+  foreach ($toolName in @('Get-ApexAzureLocalIso.ps1', 'Upload-Isos.ps1')) {
+    $dest = Join-Path $rootDir $toolName
+    $url = ($templateBaseUrl.TrimEnd('/') + "/artifacts/selfhosted/PowerShell/$toolName")
+    Write-Output "  downloading $url"
+    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest
+  }
 }
 catch {
-  throw "Could not stage the required Upload-Isos.ps1 tool: $($_.Exception.Message)"
+  throw "Could not stage the required ISO tools: $($_.Exception.Message)"
 }
 
 # --- Desktop README with this deployment's exact commands ---
@@ -109,10 +111,13 @@ with its managed identity - NO Jumpstart blob, NO prebaked VHD.
 Storage account : $stagingStorageAccountName
 Container       : $isoContainerName
 
-1) Download the Azure Local OS ISO (license-gated):
-   - Azure portal > search "Azure Local" > Get started > Download software
-   - Accept the license, choose the recommended version, Download.
-   - Save it on this jumpbox, e.g. C:\isos\AzureLocal.iso
+1) After accepting the Azure Local license terms in the portal, download the
+  pinned 2607 release automatically from Microsoft's official release alias:
+
+  C:\ApexLocal\Get-ApexAzureLocalIso.ps1 -AcceptLicenseTerms
+
+  The downloader writes C:\ISOs\AzureLocal-2607.iso, validates the Microsoft
+  redirect host, response length, ISO signature, and reports its SHA-256.
 
 2) Download the Windows Server 2025 ISO (evaluation is fine for a lab):
    - https://www.microsoft.com/evalcenter/  (Windows Server 2025)
@@ -123,7 +128,7 @@ Container       : $isoContainerName
    Connect-AzAccount -Identity     # uses this jumpbox's managed identity
    C:\ApexLocal\Upload-Isos.ps1 ``
        -StorageAccountName $stagingStorageAccountName ``
-       -AzureLocalIsoPath    C:\isos\AzureLocal.iso ``
+      -AzureLocalIsoPath    C:\isos\AzureLocal-2607.iso ``
        -WindowsServerIsoPath C:\isos\WindowsServer2025.iso
 
 4) Track the build from your workstation:  scripts/monitor-selfhosted.sh
