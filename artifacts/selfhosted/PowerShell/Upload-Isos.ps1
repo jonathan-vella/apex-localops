@@ -93,8 +93,8 @@ function Get-IsoImageMetadata {
         [ordered]@{
           imageIndex   = $_.ImageIndex
           imageName    = $_.ImageName
-          version      = $_.Version.ToString()
-          architecture = $_.Architecture
+          version      = if ($null -ne $_.Version) { $_.Version.ToString() } else { $null }
+          architecture = if ($null -ne $_.Architecture) { [string]$_.Architecture } else { $null }
         }
       }
     )

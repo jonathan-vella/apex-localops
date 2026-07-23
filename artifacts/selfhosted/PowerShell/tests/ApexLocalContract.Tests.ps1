@@ -179,6 +179,8 @@ Describe 'Self-hosted ISO integrity contract' {
     $isoPublisherSource | Should -Match 'Get-FileHash[^\r\n]+SHA256'
     $isoPublisherSource.IndexOf('Set-AzStorageBlobContent -File $manifestPath') |
     Should -BeGreaterThan $isoPublisherSource.IndexOf('foreach ($u in $uploads)')
+    $isoPublisherSource | Should -Match 'if \(\$null -ne \$_\.Version\)'
+    $isoPublisherSource | Should -Match 'if \(\$null -ne \$_\.Architecture\)'
   }
 
   It 'downloads the pinned Azure Local ISO only from the official release host' {
