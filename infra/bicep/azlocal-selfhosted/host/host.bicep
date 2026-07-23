@@ -78,7 +78,7 @@ var publicIpAddressName = '${vmName}-PIP'
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
 
-resource networkInterface 'Microsoft.Network/networkInterfaces@2025-07-01' = {
+resource networkInterface 'Microsoft.Network/networkInterfaces@2024-10-01' = {
   name: networkInterfaceName
   location: location
   properties: {
@@ -102,7 +102,7 @@ resource networkInterface 'Microsoft.Network/networkInterfaces@2025-07-01' = {
   tags: resourceTags
 }
 
-resource publicIpAddress 'Microsoft.Network/publicIPAddresses@2025-07-01' = if (deployBastion == false) {
+resource publicIpAddress 'Microsoft.Network/publicIPAddresses@2024-10-01' = if (deployBastion == false) {
   name: publicIpAddressName
   location: location
   properties: {

@@ -9,6 +9,7 @@ BeforeAll {
   $hostBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/host/host.bicep'
   $managementBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/mgmtVm.bicep'
   $storageBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/stagingStorage.bicep'
+  $networkBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/network/network.bicep'
   $clusterTemplatePath = Join-Path $repoRoot 'artifacts/selfhosted/azlocal.json'
   $orchestratorPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1'
   $isoPublisherPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Upload-Isos.ps1'
@@ -23,6 +24,7 @@ BeforeAll {
   $hostBicepSource = Get-Content -Path $hostBicepPath -Raw
   $managementBicepSource = Get-Content -Path $managementBicepPath -Raw
   $storageBicepSource = Get-Content -Path $storageBicepPath -Raw
+  $networkBicepSource = Get-Content -Path $networkBicepPath -Raw
   $clusterTemplateSource = Get-Content -Path $clusterTemplatePath -Raw
   $orchestratorSource = Get-Content -Path $orchestratorPath -Raw
   $isoPublisherSource = Get-Content -Path $isoPublisherPath -Raw
@@ -114,6 +116,12 @@ Describe 'Self-hosted cloud deployment contract' {
 }
 
 Describe 'Self-hosted infrastructure ordering and access' {
+  It 'uses the proven stable API for public IP resources' {
+    $networkBicepSource | Should -Match 'Microsoft\.Network/publicIPAddresses@2024-10-01'
+    $networkBicepSource | Should -Not -Match 'Microsoft\.Network/publicIPAddresses@2025-07-01'
+    $hostBicepSource | Should -Not -Match 'Microsoft\.Network/publicIPAddresses@2025-07-01'
+  }
+
   It 'deploys CSE modules only from main after managed identity roles' {
     $hostBicepSource | Should -Not -Match 'BootstrapApexLocal'
     $managementBicepSource | Should -Not -Match 'SetupJumpbox'

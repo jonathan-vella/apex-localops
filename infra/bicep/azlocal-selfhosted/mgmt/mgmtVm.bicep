@@ -49,7 +49,7 @@ param resourceTags object
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
 
-resource networkInterface 'Microsoft.Network/networkInterfaces@2025-07-01' = {
+resource networkInterface 'Microsoft.Network/networkInterfaces@2024-10-01' = {
   name: networkInterfaceName
   location: location
   properties: {
