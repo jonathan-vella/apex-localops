@@ -136,7 +136,9 @@ function Set-ApexProgress {
     if (-not $subId) { $subId = [Environment]::GetEnvironmentVariable('APEX_SubscriptionId', 'Machine') }
     $rgId = "/subscriptions/$subId/resourceGroups/$ResourceGroup"
     $merge = @{ $progressKey = $Progress }
-    if ($PSBoundParameters.ContainsKey('Status') -and $Status) { $merge[$statusKey] = $Status }
+    if ($PSBoundParameters.ContainsKey('Status') -and $Status) {
+      $merge[$statusKey] = if ($Status.Length -gt 256) { $Status.Substring(0, 256) } else { $Status }
+    }
     $null = Update-AzTag -ResourceId $rgId -Tag $merge -Operation Merge -ErrorAction Stop
     Write-ApexLog "Progress tag '$progressKey' = '$Progress'."
   }

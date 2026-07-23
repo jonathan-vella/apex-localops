@@ -126,6 +126,10 @@ Describe 'Self-hosted cloud deployment contract' {
   It 'cleans bootstrap secrets and exits nonzero after failure' {
     $orchestratorSource | Should -Match 'Clear-ApexBootstrapSecrets'
     $orchestratorSource | Should -Match '(?m)^\s*exit\s+1\s*$'
+    $orchestratorSource.IndexOf('Stop-Transcript') |
+      Should -BeLessThan $orchestratorSource.IndexOf('Send-ApexLogsToStorage')
+    $moduleSource | Should -Match '\$Status\.Length -gt 256'
+    $moduleSource | Should -Match '\$Status\.Substring\(0, 256\)'
   }
 }
 
@@ -251,6 +255,10 @@ Describe 'Self-hosted ISO integrity contract' {
     $moduleSource | Should -Match 'EFI\\Microsoft\\Boot\\BCD'
     $moduleSource | Should -Match 'Test-BootableVhdx'
     $moduleSource | Should -Not -Match 'BootFromIso'
+    $orchestratorSource | Should -Match "Windows Server 2025 Datacenter Evaluation \(Desktop Experience\)"
+    $convertingIndex = $orchestratorSource.IndexOf("-Progress 'BaseImagesConverting'")
+    $convertedIndex = $orchestratorSource.IndexOf("-Progress 'BaseImagesConverted'")
+    $convertedIndex | Should -BeGreaterThan $convertingIndex
   }
 }
 

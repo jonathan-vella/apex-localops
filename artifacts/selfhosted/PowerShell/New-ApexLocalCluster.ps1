@@ -92,11 +92,12 @@ try {
     -Blob $cfg.Artifacts.WindowsServerBlob -Destination (Join-Path $cfg.Paths.IsoDir $cfg.Artifacts.WindowsServerBlob)
 
   # 3) Convert both ISOs to bootable base VHDXs -------------------------------
-  Set-ApexProgress -ResourceGroup $rg -Progress 'BaseImagesConverted' -Status 'Converting ISOs to VHDX' -Config $cfg
+  Set-ApexProgress -ResourceGroup $rg -Progress 'BaseImagesConverting' -Status 'Converting ISOs to VHDX' -Config $cfg
   $azlBase = Convert-ApexIsoToVhdx -IsoPath $azlIso -VhdxPath (Join-Path $cfg.Paths.BaseVhdDir 'azurelocal-base.vhdx') `
     -ImageIndex 1
   $wsBase = Convert-ApexIsoToVhdx -IsoPath $wsIso  -VhdxPath (Join-Path $cfg.Paths.BaseVhdDir 'windowsserver-base.vhdx') `
-    -ImageName 'Windows Server 2025 Datacenter (Desktop Experience)'
+    -ImageName 'Windows Server 2025 Datacenter Evaluation (Desktop Experience)'
+  Set-ApexProgress -ResourceGroup $rg -Progress 'BaseImagesConverted' -Status 'Both base VHDX images converted and validated' -Config $cfg
 
   # 4) Router VM (the management subnet's gateway; built from the WS base) -----
   Set-ApexProgress -ResourceGroup $rg -Progress 'RouterReady' -Status "Building router $($cfg.Router.Name)" -Config $cfg
@@ -179,8 +180,8 @@ finally {
     $buildFailed = $true
   }
   Clear-Variable -Name adminPw, adminPwB64, securePw, localAdminCred, domainAdminCred, lcmCredential -ErrorAction SilentlyContinue
+  try { Stop-Transcript } catch { }
   if ($storageAcct) { Send-ApexLogsToStorage -StorageAccountName $storageAcct -Container $logsCont }
-  Stop-Transcript
   if ($lockAcquired) { $buildMutex.ReleaseMutex() }
   $buildMutex.Dispose()
 }
