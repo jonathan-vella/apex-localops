@@ -174,8 +174,21 @@ module hostDeployment 'host/host.bicep' = {
     dataDiskSizeGB: hostDataDiskSizeGB
     enableAzureHybridBenefit: enableAzureHybridBenefit
     resourceTags: resourceTags
-    dataCollectionRuleId: mgmtArtifactsDeployment.outputs.dcrId
   }
+}
+
+module hostMonitoringDeployment 'mgmt/hostMonitoring.bicep' = {
+  name: 'hostMonitoringDeployment'
+  params: {
+    vmName: hostVmNameVar
+    workspaceName: mgmtArtifactsDeployment.outputs.workspaceName
+    workspaceResourceId: mgmtArtifactsDeployment.outputs.workspaceId
+    location: location
+    resourceTags: resourceTags
+  }
+  dependsOn: [
+    hostDeployment
+  ]
 }
 
 module managementVmDeployment 'mgmt/mgmtVm.bicep' = if (deployManagementVm) {

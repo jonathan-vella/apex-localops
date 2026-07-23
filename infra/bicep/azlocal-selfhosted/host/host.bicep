@@ -71,9 +71,6 @@ param dataDiskTier string = 'P30'
 param enableAzureHybridBenefit bool = true
 
 param resourceTags object
-
-@description('Resource id of the Data Collection Rule the Azure Monitor Agent associates with. Empty disables host monitoring.')
-param dataCollectionRuleId string = ''
 var publicIpAddressName = '${vmName}-PIP'
 var networkInterfaceName = '${vmName}-NIC'
 var osDiskType = 'Premium_LRS'
@@ -194,33 +191,6 @@ resource vm 'Microsoft.Compute/virtualMachines@2025-04-01' = {
       }
     }
   }
-}
-
-// Azure Monitor Agent + DCR association so the long headless in-VM build is
-// diagnosable from Azure Monitor (Windows event logs + perf) without Bastion/RDP.
-// Skipped when no DCR id is supplied (e.g. unit what-ifs).
-resource azureMonitorAgent 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = if (!empty(dataCollectionRuleId)) {
-  parent: vm
-  name: 'AzureMonitorWindowsAgent'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Azure.Monitor'
-    type: 'AzureMonitorWindowsAgent'
-    typeHandlerVersion: '1.0'
-    autoUpgradeMinorVersion: true
-    enableAutomaticUpgrade: true
-  }
-}
-
-resource dcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = if (!empty(dataCollectionRuleId)) {
-  name: 'apexlocal-host-dcra'
-  scope: vm
-  properties: {
-    dataCollectionRuleId: dataCollectionRuleId
-  }
-  dependsOn: [
-    azureMonitorAgent
-  ]
 }
 
 output adminUsername string = windowsAdminUsername

@@ -9,6 +9,7 @@ BeforeAll {
   $hostBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/host/host.bicep'
   $managementBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/mgmtVm.bicep'
   $storageBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/stagingStorage.bicep'
+  $monitoringBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/hostMonitoring.bicep'
   $networkBicepPath = Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/network/network.bicep'
   $clusterTemplatePath = Join-Path $repoRoot 'artifacts/selfhosted/azlocal.json'
   $orchestratorPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1'
@@ -26,6 +27,7 @@ BeforeAll {
   $hostBicepSource = Get-Content -Path $hostBicepPath -Raw
   $managementBicepSource = Get-Content -Path $managementBicepPath -Raw
   $storageBicepSource = Get-Content -Path $storageBicepPath -Raw
+  $monitoringBicepSource = Get-Content -Path $monitoringBicepPath -Raw
   $networkBicepSource = Get-Content -Path $networkBicepPath -Raw
   $clusterTemplateSource = Get-Content -Path $clusterTemplatePath -Raw
   $orchestratorSource = Get-Content -Path $orchestratorPath -Raw
@@ -137,6 +139,14 @@ Describe 'Self-hosted infrastructure ordering and access' {
     $mainBicepSource | Should -Match 'hostContributor'
     $mainBicepSource | Should -Match 'hostUserAccessAdmin'
     $mainBicepSource | Should -Match "module jumpboxSetupDeployment 'mgmt/jumpboxSetup.bicep'"
+  }
+
+  It 'deploys host monitoring after workspace and VM creation' {
+    $mainBicepSource | Should -Match "module hostMonitoringDeployment 'mgmt/hostMonitoring.bicep'"
+    $mainBicepSource | Should -Match 'hostMonitoringDeployment[\s\S]+dependsOn:\s*\[\s*hostDeployment'
+    $hostBicepSource | Should -Not -Match 'AzureMonitorWindowsAgent'
+    $monitoringBicepSource | Should -Match 'Microsoft-Event'
+    $monitoringBicepSource | Should -Match 'Microsoft-Perf'
   }
 
   It 'uses OAuth-only staging and no redundant or deployer data roles' {
