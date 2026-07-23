@@ -43,6 +43,8 @@ to this point, complete the [SFF quickstart](quickstart.md) first.
 > `RoeSucceeded`). For the fully chained, hands-off path, see
 > [Zero-touch deployment](zero-touch.md).
 
+<!-- Separate adjacent callouts for markdownlint. -->
+
 > [!NOTE]
 > **Multiple nested VMs (`nestedVmCount > 1`).** The shipped parameters build **two** guests
 > (`linuxsff-vm-1`, `linuxsff-vm-2`) reserved at `192.168.200.50` and `.51`, each storing its

@@ -179,6 +179,8 @@ then the script window closes itself.
 > The nested `jumpstart.local` Active Directory exists only inside the management VM
 > (`AzLMGMT`) and never involves this host.
 
+<!-- Separate adjacent callouts for markdownlint. -->
+
 > [!WARNING]
 > While `vmAutologon` is on, the admin password sits in the Winlogon registry in plaintext for
 > the duration of the build. The logon script removes the auto-logon registry keys

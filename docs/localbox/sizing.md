@@ -47,6 +47,8 @@ The table below details the default 3-node profile:
 > workload commits ~316 GB; E32 (256 GB) cannot boot all three nodes. To use E32, switch to
 > the 2-node profile (`clusterNodeCount = 2`), which also enables a cloud witness.
 
+<!-- Separate adjacent callouts for markdownlint. -->
+
 > [!TIP]
 > **Why 3 nodes by default?** An odd number of nodes gives the cluster odd quorum, so it needs
 > no witness at all. That removes the cloud-witness storage account entirely — which is what an

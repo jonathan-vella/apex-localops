@@ -12,6 +12,8 @@ module.
 > New here? Read the [Self-hosted overview](overview.md) first for the topology and the RBAC
 > model, and [Self-hosted sizing and cost](sizing.md) for VM sizes and cost.
 
+<!-- Separate adjacent callouts for markdownlint. -->
+
 > [!NOTE]
 > The self-hosted profile is in **preview** and still being validated across regions and Azure
 > Local builds. See [Project status](../../README.md#project-status) and the
