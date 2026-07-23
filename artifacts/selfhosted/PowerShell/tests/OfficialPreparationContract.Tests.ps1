@@ -28,7 +28,7 @@ Describe 'Pinned Microsoft Azure Local preparation' {
   }
 
   It 'runs all required readiness validators before Arc initialization' {
-    $manifest.FunctionsToExport | Should -Contain 'Invoke-ApexEnvironmentValidation'
+    $manifest.FunctionsToExport | Should -Contain 'Test-ApexEnvironmentReadiness'
     foreach ($commandName in @(
       'Invoke-AzStackHciConnectivityValidation',
       'Invoke-AzStackHciSoftwareValidation',
@@ -40,7 +40,7 @@ Describe 'Pinned Microsoft Azure Local preparation' {
       $moduleSource | Should -Match $commandName
     }
 
-    $readinessIndex = $orchestratorSource.IndexOf('Invoke-ApexEnvironmentValidation')
+    $readinessIndex = $orchestratorSource.IndexOf('Test-ApexEnvironmentReadiness')
     $arcIndex = $orchestratorSource.IndexOf('Connect-ApexNodeToArc')
     $readinessIndex | Should -BeGreaterOrEqual 0
     $arcIndex | Should -BeGreaterThan $readinessIndex

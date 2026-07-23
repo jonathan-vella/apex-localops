@@ -78,7 +78,7 @@ Turn the existing self-hosted profile into a release-ready **evaluation** path f
     - Validate the OU structure, account constraints, interactive/batch-logon prerequisites, naming prefix (≤8), and cluster/node uniqueness. Pass the LCM credential—not domain Administrator—to the cluster ARM deployment.
 
 13. **Run standalone Environment Checker as a release gate.**
-    - Add `Invoke-ApexEnvironmentValidation` on the outer host using a pinned `AzStackHci.EnvironmentChecker` version and PowerShell Direct sessions to all three nodes.
+    - Add `Test-ApexEnvironmentReadiness` on the outer host using a pinned `AzStackHci.EnvironmentChecker` version and PowerShell Direct sessions to all three nodes.
     - Run connectivity, software/time, AD, network, Arc-integration, and virtual-hardware checks in the documented order. Any unwaived Critical result blocks Arc/deployment; warnings remain evidence. Allow only test-ID-specific virtual-lab deviations demonstrated during the golden run, never a broad hardware bypass.
     - Copy uniquely named raw reports to the private logs container (they contain PII), write only redacted counts/test IDs to the build summary, unload/uninstall the standalone checker from Azure Local nodes before cloud deployment, and rerun affected validators after remediation.
 
@@ -90,7 +90,7 @@ Turn the existing self-hosted profile into a release-ready **evaluation** path f
 15. **Refresh and specialize the cluster template for current 2505+ releases.**
     - Replace `artifacts/selfhosted/azlocal.json` from Azure Quickstart Templates commit `b56eb9051390299afe2d913bf2d10861fef279fd` (`quickstarts/microsoft.azurestackhci/create-cluster/azuredeploy.json`) and record its provenance/hash.
     - Apply one documented self-hosted patch: remove/condition all cloud-witness storage, `listKeys`, witness Key Vault secret, deployment-secret entry, and witness dependencies for the fixed `No Witness` topology. This avoids the existing empty-name/region conflict and permits staging storage shared keys to remain disabled.
-    - Update `Invoke-ApexLocalClusterDeploy` to the current `AzureStackLCMAdminPassword` parameter and `2025-09-15-preview` contract; remove old witness arguments; explicitly pass `No Witness`; use deterministic Key Vault/diagnostic names derived from a Bicep-provided suffix so recovery reuses resources.
+    - Update `Start-ApexLocalClusterDeployment` to the current `AzureStackLCMAdminPassword` parameter and `2025-09-15-preview` contract; remove old witness arguments; explicitly pass `No Witness`; use deterministic Key Vault/diagnostic names derived from a Bicep-provided suffix so recovery reuses resources.
     - Validate the ARM result object for both `Validate` and `Deploy`; set `ClusterDeploying` before the latter; follow Microsoft’s rule not to rerun Validate after a Deploy-stage failure that could trigger license-sync issues.
 
 16. **Make completion authoritative and failures observable.**

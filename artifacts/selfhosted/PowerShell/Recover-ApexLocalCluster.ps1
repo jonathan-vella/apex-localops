@@ -104,12 +104,12 @@ try {
   Set-ApexProgress -ResourceGroup $resourceGroup -Progress 'RecoveryValidating' `
     -Status "Cluster-only recovery mode: $Mode" -Config $config
   if ($Mode -eq 'ValidateDeploy') {
-    Invoke-ApexEnvironmentValidation -Config $config -SubscriptionId $subscriptionId `
+    Test-ApexEnvironmentReadiness -Config $config -SubscriptionId $subscriptionId `
       -ResourceGroup $resourceGroup -ClusterName $clusterName -Nodes $nodes `
       -LocalAdminCredential $localCredential -DomainAdminCredential $domainCredential
   }
 
-  Invoke-ApexLocalClusterDeploy -Config $config -ResourceGroup $resourceGroup `
+  Start-ApexLocalClusterDeployment -Config $config -ResourceGroup $resourceGroup `
     -ClusterName $clusterName -InstanceLocation $instanceLocation `
     -HciResourceProviderObjectId $hciRpObjectId -ArcNodeResourceIds $arcIds `
     -Nodes $nodes -LocalAdminCredential $localCredential -DomainAdminCredential $lcmCredential `

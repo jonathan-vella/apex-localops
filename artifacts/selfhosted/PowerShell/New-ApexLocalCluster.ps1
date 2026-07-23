@@ -119,7 +119,7 @@ try {
   Set-ApexProgress -ResourceGroup $rg -Progress 'NodesCreated' -Status "$($nodes.Count) nodes created" -Config $cfg
 
   # 8) Run deployment readiness validators ----------------------------------
-  Invoke-ApexEnvironmentValidation -Config $cfg -SubscriptionId $subId `
+  Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
     -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
     -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred
 
@@ -156,7 +156,7 @@ try {
 
   # 10) Validate + deploy the cluster ----------------------------------------
   Set-ApexProgress -ResourceGroup $rg -Progress 'ClusterValidating' -Status 'Validating cluster deployment' -Config $cfg
-  Invoke-ApexLocalClusterDeploy -Config $cfg -ResourceGroup $rg -ClusterName $clusterName `
+  Start-ApexLocalClusterDeployment -Config $cfg -ResourceGroup $rg -ClusterName $clusterName `
     -InstanceLocation $instanceLoc -HciResourceProviderObjectId $hciRpOid -ArcNodeResourceIds $arcIds `
     -Nodes $nodes -LocalAdminCredential $localAdminCred -DomainAdminCredential $lcmCredential `
     -TemplatePath (Join-Path $rootDir 'azlocal.json')

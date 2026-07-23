@@ -43,11 +43,11 @@
     'New-ApexDomainController'
     'Initialize-ApexActiveDirectory'
     'New-ApexLocalNode'
-    'Invoke-ApexEnvironmentValidation'
+    'Test-ApexEnvironmentReadiness'
     'Connect-ApexNodeToArc'
     'Set-ApexNodeTimeSync'
     # Cluster
-    'Invoke-ApexLocalClusterDeploy'
+    'Start-ApexLocalClusterDeployment'
   )
 
   CmdletsToExport   = @()

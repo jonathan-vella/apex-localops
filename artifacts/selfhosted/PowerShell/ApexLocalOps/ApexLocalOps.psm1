@@ -1225,7 +1225,7 @@ function Get-ApexCriticalValidationResult {
   }
 }
 
-function Invoke-ApexEnvironmentValidation {
+function Test-ApexEnvironmentReadiness {
   <#
   .SYNOPSIS Run the standalone Azure Local readiness validators before Arc onboarding.
   .DESCRIPTION
@@ -1445,7 +1445,7 @@ function Connect-ApexNodeToArc {
 
 #region ---------------------------------------------------------------- Cluster
 
-function Invoke-ApexLocalClusterDeploy {
+function Start-ApexLocalClusterDeployment {
   <#
   .SYNOPSIS Validate then deploy the Azure Local cluster via the ARM template.
   .DESCRIPTION
@@ -1607,7 +1607,7 @@ Export-ModuleMember -Function @(
   'Wait-ApexStagedIso', 'Get-ApexStagedIso', 'Convert-ApexIsoToVhdx',
   'New-ApexHostSwitch', 'New-ApexRouterVM',
   'New-ApexUnattendXml', 'New-ApexNestedVM', 'Wait-ApexVMReady', 'New-ApexDomainController',
-  'Initialize-ApexActiveDirectory', 'New-ApexLocalNode', 'Invoke-ApexEnvironmentValidation',
+  'Initialize-ApexActiveDirectory', 'New-ApexLocalNode', 'Test-ApexEnvironmentReadiness',
   'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
-  'Invoke-ApexLocalClusterDeploy'
+  'Start-ApexLocalClusterDeployment'
 )

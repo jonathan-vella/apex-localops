@@ -134,7 +134,7 @@ sequenceDiagram
     Host->>Host: New-ApexDomainController (forest + DNS + NTP)
     Host->>Host: New-ApexLocalNode x3 (static IPs, storage NICs, time sync)
     Host->>ARM: OS-bundled Invoke-AzStackHciArcInitialization -> Arc machines
-    Host->>ARM: Invoke-ApexLocalClusterDeploy (Validate -> Deploy)
+    Host->>ARM: Start-ApexLocalClusterDeployment (Validate -> Deploy)
     ARM-->>Op: cluster Succeeded / Connected (monitor-selfhosted.sh)
 ```
 

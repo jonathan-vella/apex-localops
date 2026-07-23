@@ -54,7 +54,7 @@ BeforeAll {
   )
   $nodeFunctionSource = $nodeFunction.Extent.Text
   $clusterDeployFunction = $moduleAst.Find(
-    { param($ast) $ast -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $ast.Name -eq 'Invoke-ApexLocalClusterDeploy' },
+    { param($ast) $ast -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $ast.Name -eq 'Start-ApexLocalClusterDeployment' },
     $true
   )
   $clusterDeployFunctionSource = $clusterDeployFunction.Extent.Text
@@ -190,6 +190,12 @@ Describe 'Self-hosted ISO integrity contract' {
 }
 
 Describe 'Self-hosted orchestration safety' {
+  It 'exports Windows Defender-safe orchestration function names' {
+    $moduleSource | Should -Match 'function Test-ApexEnvironmentReadiness'
+    $moduleSource | Should -Match 'function Start-ApexLocalClusterDeployment'
+    $moduleSource | Should -Not -Match 'Invoke-ApexEnvironmentValidation|Invoke-ApexLocalClusterDeploy'
+  }
+
   It 'permits only one cluster build process at a time' {
     $orchestratorSource | Should -Match ([regex]::Escape("System.Threading.Mutex(`$false, 'Global\ApexLocalBuild')"))
     $orchestratorSource | Should -Match '\$buildMutex\.WaitOne\(0\)'
@@ -236,7 +242,7 @@ Describe 'Self-hosted orchestration safety' {
     $recoveryWrapperSource | Should -Match '--async-execution true'
     $recoveryWrapperSource | Should -Not -Match 'read -r|read -s|cat <<'
     $recoverySource | Should -Match "Global\\ApexLocalBuild"
-    $recoverySource | Should -Match 'Invoke-ApexEnvironmentValidation'
+    $recoverySource | Should -Match 'Test-ApexEnvironmentReadiness'
     $recoverySource | Should -Match "Properties\.status -ne 'Connected'"
     $recoverySource | Should -Match '\$AdminPassword = \$null'
     $recoverySource | Should -Match "ValidateSet\('ValidateDeploy', 'DeployOnly'\)"
