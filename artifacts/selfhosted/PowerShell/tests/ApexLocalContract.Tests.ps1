@@ -309,6 +309,8 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match 'Get-Service -Name ADWS, DNS, NTDS'
     $moduleSource | Should -Match '\$healthDeadline = \(Get-Date\)\.AddMinutes\(15\)'
     $moduleSource | Should -Match 'Domain controller services are not ready; retrying in 20s'
+    $moduleSource | Should -Match '\$null = Invoke-Command -VMName \$dom\.DcHostName -Credential \$domainCred'
+    $moduleSource | Should -Match 'return \$domainCred'
     $moduleSource | Should -Match 'Resolve-DnsName -Name \$fqdn'
     $moduleSource | Should -Match 'Node is using an invalid time source'
     $moduleSource | Should -Match 'Hyper-V time synchronization is still enabled'

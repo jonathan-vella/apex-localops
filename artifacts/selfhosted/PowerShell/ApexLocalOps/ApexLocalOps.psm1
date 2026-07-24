@@ -945,7 +945,7 @@ function New-ApexDomainController {
 
   # Static IP + loopback DNS via PowerShell Direct.
   Write-ApexLog "Configuring DC static IP $($dom.DcIpAddress)/$($net.PrefixLength)."
-  Invoke-Command -VMName $dom.DcHostName -Credential $LocalAdminCredential -ScriptBlock {
+  $null = Invoke-Command -VMName $dom.DcHostName -Credential $LocalAdminCredential -ScriptBlock {
     param($ip, $prefix, $gw)
     $if = (Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object -First 1)
     New-NetIPAddress -InterfaceIndex $if.ifIndex -IPAddress $ip -PrefixLength $prefix -DefaultGateway $gw -ErrorAction SilentlyContinue | Out-Null
@@ -954,7 +954,7 @@ function New-ApexDomainController {
 
   # Promote to a new forest.
   Write-ApexLog "Promoting '$($dom.DcHostName)' to forest '$($dom.Fqdn)' (a reboot follows)."
-  Invoke-Command -VMName $dom.DcHostName -Credential $LocalAdminCredential -ScriptBlock {
+  $null = Invoke-Command -VMName $dom.DcHostName -Credential $LocalAdminCredential -ScriptBlock {
     param($fqdn, $netbios, $safePwd)
     Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools | Out-Null
     Import-Module ADDSDeployment
@@ -974,7 +974,7 @@ function New-ApexDomainController {
   $healthError = $null
   while ((Get-Date) -lt $healthDeadline) {
     try {
-      Invoke-Command -VMName $dom.DcHostName -Credential $domainCred -ErrorAction Stop -ScriptBlock {
+      $null = Invoke-Command -VMName $dom.DcHostName -Credential $domainCred -ErrorAction Stop -ScriptBlock {
         param($fqdn)
         # Authoritative NTP from the PDC emulator; do not sync from the (paused) host clock.
         w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /reliable:yes /update | Out-Null
