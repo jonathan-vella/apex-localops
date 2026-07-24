@@ -840,7 +840,7 @@ function New-ApexNestedVM {
         $usedLetters = @(Get-Volume -ErrorAction SilentlyContinue | Where-Object DriveLetter |
           ForEach-Object { $_.DriveLetter.ToString().ToUpperInvariant() })
         $driveLetter = @(68..90 | ForEach-Object { [char]$_ }) |
-          Where-Object { $_ -notin $usedLetters } | Select-Object -First 1
+        Where-Object { $_ -notin $usedLetters } | Select-Object -First 1
         if (-not $driveLetter) { throw 'No drive letter is available for unattend injection.' }
         $temporaryAccessPath = "${driveLetter}:\"
         $osPartition | Set-Partition -NewDriveLetter $driveLetter -ErrorAction Stop | Out-Null
@@ -970,22 +970,38 @@ function New-ApexDomainController {
 
   # Configure authoritative time (M5). The supported Microsoft AD preparation
   # tool owns OU and deployment-account creation in the next orchestration stage.
-  Invoke-Command -VMName $dom.DcHostName -Credential $domainCred -ScriptBlock {
-    param($fqdn)
-    # Authoritative NTP from the PDC emulator; do not sync from the (paused) host clock.
-    w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /reliable:yes /update | Out-Null
-    Restart-Service w32time -ErrorAction SilentlyContinue
-    Import-Module ActiveDirectory -ErrorAction Stop
-    $domain = Get-ADDomain -Identity $fqdn -ErrorAction Stop
-    $dnsRecord = Resolve-DnsName -Name $fqdn -Server '127.0.0.1' -ErrorAction Stop
-    $requiredServices = Get-Service -Name DNS, NTDS -ErrorAction Stop
-    if ($domain.DNSRoot -ne $fqdn -or -not $dnsRecord -or
-      @($requiredServices | Where-Object Status -ne 'Running').Count -gt 0) {
-      throw "Domain controller health verification failed for '$fqdn'."
+  $healthDeadline = (Get-Date).AddMinutes(15)
+  $healthError = $null
+  while ((Get-Date) -lt $healthDeadline) {
+    try {
+      Invoke-Command -VMName $dom.DcHostName -Credential $domainCred -ErrorAction Stop -ScriptBlock {
+        param($fqdn)
+        # Authoritative NTP from the PDC emulator; do not sync from the (paused) host clock.
+        w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /reliable:yes /update | Out-Null
+        Restart-Service w32time -ErrorAction SilentlyContinue
+        Import-Module ActiveDirectory -ErrorAction Stop
+        $domain = Get-ADDomain -Identity $fqdn -ErrorAction Stop
+        $dnsRecord = Resolve-DnsName -Name $fqdn -Server '127.0.0.1' -ErrorAction Stop
+        $requiredServices = Get-Service -Name ADWS, DNS, NTDS -ErrorAction Stop
+        if ($domain.DNSRoot -ne $fqdn -or -not $dnsRecord -or
+          @($requiredServices | Where-Object Status -ne 'Running').Count -gt 0) {
+          throw "Domain controller health verification failed for '$fqdn'."
+        }
+        w32tm /query /status | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Domain controller time-service verification failed for '$fqdn'." }
+      } -ArgumentList $dom.Fqdn
+      $healthError = $null
+      break
     }
-    w32tm /query /status | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Domain controller time-service verification failed for '$fqdn'." }
-  } -ArgumentList $dom.Fqdn
+    catch {
+      $healthError = $_.Exception.Message
+      Write-ApexLog "Domain controller services are not ready; retrying in 20s: $healthError" -Level WARN
+      Start-Sleep -Seconds 20
+    }
+  }
+  if ($healthError) {
+    throw "Timed out waiting for domain controller health. Last error: $healthError"
+  }
 
   Write-ApexLog "Domain controller '$($dom.DcHostName)' ready (forest $($dom.Fqdn))."
   return $domainCred

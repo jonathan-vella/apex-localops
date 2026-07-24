@@ -306,6 +306,9 @@ Describe 'Self-hosted orchestration safety' {
   It 'verifies router, domain, and node time readiness' {
     $moduleSource | Should -Match 'Router forwarding, NAT, or default-route verification failed'
     $moduleSource | Should -Match 'Get-ADDomain -Identity \$fqdn'
+    $moduleSource | Should -Match 'Get-Service -Name ADWS, DNS, NTDS'
+    $moduleSource | Should -Match '\$healthDeadline = \(Get-Date\)\.AddMinutes\(15\)'
+    $moduleSource | Should -Match 'Domain controller services are not ready; retrying in 20s'
     $moduleSource | Should -Match 'Resolve-DnsName -Name \$fqdn'
     $moduleSource | Should -Match 'Node is using an invalid time source'
     $moduleSource | Should -Match 'Hyper-V time synchronization is still enabled'
