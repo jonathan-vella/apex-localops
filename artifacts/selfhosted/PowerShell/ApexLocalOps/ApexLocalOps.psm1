@@ -791,8 +791,8 @@ function New-ApexNestedVM {
   .SYNOPSIS Create a Generation 2 nested VM from a base VHDX (differencing disk).
   .DESCRIPTION
     Creates a Gen2 VM with a differencing disk off the converted base VHDX, static
-    memory, the requested vCPU count, Secure Boot (Microsoft UEFI CA for OS that
-    needs it), a TPM (key protector + Enable-VMTPM), and an IMDS deny ACL on the
+    memory, the requested vCPU count, Windows Secure Boot, a TPM (key protector +
+    Enable-VMTPM), and an IMDS deny ACL on the
     nested adapter (OWNED-SCOPE M4: stops a nested node from grabbing the Azure
     HOST's managed identity at 169.254.169.254). Optionally injects an unattend.xml.
   #>
@@ -824,17 +824,44 @@ function New-ApexNestedVM {
   if ($UnattendPath) {
     # Inject the unattend into the OS partition (Panther) of the differencing disk.
     $m = Mount-VHD -Path $diff -Passthru | Get-Disk
+    $temporaryAccessPath = $null
+    $osPartition = $null
     try {
-      $osVol = Get-Partition -DiskNumber $m.Number | Get-Volume |
-      Where-Object { $_.FileSystem -eq 'NTFS' -and $_.DriveLetter } | Select-Object -First 1
-      if ($osVol) {
-        $panther = "$($osVol.DriveLetter):\Windows\Panther"
-        New-Item -ItemType Directory -Force -Path $panther | Out-Null
-        Copy-Item -Path $UnattendPath -Destination (Join-Path $panther 'unattend.xml') -Force
-        Write-ApexLog "Injected unattend.xml into '$VmName' ($($osVol.DriveLetter):)."
+      $osPartition = Get-Partition -DiskNumber $m.Number |
+        Where-Object GptType -eq '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' |
+        Sort-Object Size -Descending | Select-Object -First 1
+      $osVolume = $osPartition | Get-Volume
+      if (-not $osPartition -or $osVolume.FileSystem -ne 'NTFS') {
+        throw "Could not find the NTFS OS partition in '$diff'."
       }
+
+      $driveLetter = $osVolume.DriveLetter
+      if (-not $driveLetter) {
+        $usedLetters = @(Get-Volume -ErrorAction SilentlyContinue | Where-Object DriveLetter |
+          ForEach-Object { $_.DriveLetter.ToString().ToUpperInvariant() })
+        $driveLetter = @('D'..'Z') | Where-Object { $_ -notin $usedLetters } | Select-Object -First 1
+        if (-not $driveLetter) { throw 'No drive letter is available for unattend injection.' }
+        $temporaryAccessPath = "${driveLetter}:\"
+        $osPartition | Set-Partition -NewDriveLetter $driveLetter -ErrorAction Stop | Out-Null
+      }
+
+      $panther = "${driveLetter}:\Windows\Panther"
+      New-Item -ItemType Directory -Force -Path $panther | Out-Null
+      $destination = Join-Path $panther 'unattend.xml'
+      Copy-Item -LiteralPath $UnattendPath -Destination $destination -Force
+      if (-not (Test-Path -LiteralPath $destination)) {
+        throw "Unattend injection verification failed for '$VmName'."
+      }
+      Write-ApexLog "Injected unattend.xml into '$VmName' (${driveLetter}:)."
     }
-    finally { Dismount-VHD -Path $diff -ErrorAction SilentlyContinue }
+    finally {
+      if ($temporaryAccessPath -and $osPartition) {
+        Remove-PartitionAccessPath -DiskNumber $osPartition.DiskNumber `
+          -PartitionNumber $osPartition.PartitionNumber -AccessPath $temporaryAccessPath `
+          -ErrorAction SilentlyContinue
+      }
+      Dismount-VHD -Path $diff -ErrorAction SilentlyContinue
+    }
   }
 
   New-VM -Name $VmName -Generation 2 -MemoryStartupBytes ($MemoryMB * 1MB) `
@@ -843,9 +870,9 @@ function New-ApexNestedVM {
   Set-VMProcessor -VMName $VmName -Count $CpuCount -ExposeVirtualizationExtensions $true
 
   if ($EnableTpm) {
-    # Secure Boot on with the Microsoft UEFI CA template (needed by some OS images);
-    # a key protector is required before Enable-VMTPM.
-    Set-VMFirmware -VMName $VmName -EnableSecureBoot On -SecureBootTemplate 'MicrosoftUEFICertificateAuthority'
+    # All nested guests in this profile are Windows; the generic UEFI CA template
+    # does not trust the Windows boot manager used by these offline-applied images.
+    Set-VMFirmware -VMName $VmName -EnableSecureBoot On -SecureBootTemplate 'MicrosoftWindows'
     Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector
     Enable-VMTPM -VMName $VmName
   }

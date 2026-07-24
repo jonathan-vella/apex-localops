@@ -293,6 +293,12 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match '\$passwordNode\.InnerText = \$AdminPassword'
     $moduleSource | Should -Match 'System\.Xml\.XmlWriter'
     $moduleSource | Should -Not -Match '<Value>\$AdminPassword</Value>'
+    $moduleSource | Should -Match "GptType -eq '\{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7\}'"
+    $moduleSource | Should -Match 'Set-Partition -NewDriveLetter \$driveLetter'
+    $moduleSource | Should -Match 'Remove-PartitionAccessPath'
+    $moduleSource | Should -Match 'Unattend injection verification failed'
+    $moduleSource | Should -Match "SecureBootTemplate 'MicrosoftWindows'"
+    $moduleSource | Should -Not -Match "SecureBootTemplate 'MicrosoftUEFICertificateAuthority'"
   }
 
   It 'verifies router, domain, and node time readiness' {
