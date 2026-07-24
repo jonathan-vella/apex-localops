@@ -828,8 +828,8 @@ function New-ApexNestedVM {
     $osPartition = $null
     try {
       $osPartition = Get-Partition -DiskNumber $m.Number |
-        Where-Object GptType -eq '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' |
-        Sort-Object Size -Descending | Select-Object -First 1
+      Where-Object GptType -eq '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}' |
+      Sort-Object Size -Descending | Select-Object -First 1
       $osVolume = $osPartition | Get-Volume
       if (-not $osPartition -or $osVolume.FileSystem -ne 'NTFS') {
         throw "Could not find the NTFS OS partition in '$diff'."
@@ -839,7 +839,8 @@ function New-ApexNestedVM {
       if (-not $driveLetter) {
         $usedLetters = @(Get-Volume -ErrorAction SilentlyContinue | Where-Object DriveLetter |
           ForEach-Object { $_.DriveLetter.ToString().ToUpperInvariant() })
-        $driveLetter = @('D'..'Z') | Where-Object { $_ -notin $usedLetters } | Select-Object -First 1
+        $driveLetter = @(68..90 | ForEach-Object { [char]$_ }) |
+          Where-Object { $_ -notin $usedLetters } | Select-Object -First 1
         if (-not $driveLetter) { throw 'No drive letter is available for unattend injection.' }
         $temporaryAccessPath = "${driveLetter}:\"
         $osPartition | Set-Partition -NewDriveLetter $driveLetter -ErrorAction Stop | Out-Null

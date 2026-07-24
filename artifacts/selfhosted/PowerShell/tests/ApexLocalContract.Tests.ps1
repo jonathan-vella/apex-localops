@@ -296,6 +296,8 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match "GptType -eq '\{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7\}'"
     $moduleSource | Should -Match 'Set-Partition -NewDriveLetter \$driveLetter'
     $moduleSource | Should -Match 'Remove-PartitionAccessPath'
+    $moduleSource | Should -Match '@\(68\.\.90 \| ForEach-Object \{ \[char\]\$_ \}\)'
+    $moduleSource | Should -Not -Match "'D'\.\.'Z'"
     $moduleSource | Should -Match 'Unattend injection verification failed'
     $moduleSource | Should -Match "SecureBootTemplate 'MicrosoftWindows'"
     $moduleSource | Should -Not -Match "SecureBootTemplate 'MicrosoftUEFICertificateAuthority'"
