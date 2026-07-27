@@ -1339,18 +1339,25 @@ function New-ApexLocalNode {
 function Get-ApexCriticalValidationResult {
   [CmdletBinding()]
   param(
-    [Parameter(ValueFromPipeline)] [object]$InputObject
+    [Parameter(ValueFromPipeline)] [object]$InputObject,
+    [int]$Depth = 0
   )
 
   process {
-    if ($null -eq $InputObject -or $InputObject -is [string]) {
+    # Validation reports embed primitives whose own properties recurse forever -
+    # [datetime].Date returns a [datetime] - so never descend into value types, and
+    # bound the walk as a second guard against unexpectedly deep report graphs.
+    if ($null -eq $InputObject -or $Depth -gt 16) {
+      return
+    }
+    if ($InputObject -is [string] -or $InputObject -is [valuetype]) {
       return
     }
 
     if ($InputObject -is [System.Collections.IEnumerable] -and
       $InputObject -isnot [System.Management.Automation.PSCustomObject]) {
       foreach ($item in $InputObject) {
-        Get-ApexCriticalValidationResult -InputObject $item
+        Get-ApexCriticalValidationResult -InputObject $item -Depth ($Depth + 1)
       }
       return
     }
@@ -1375,7 +1382,7 @@ function Get-ApexCriticalValidationResult {
 
     foreach ($property in $properties) {
       if ($property.Name -notin @('Severity', 'Status', 'Name', 'TestName', 'Title')) {
-        Get-ApexCriticalValidationResult -InputObject $property.Value
+        Get-ApexCriticalValidationResult -InputObject $property.Value -Depth ($Depth + 1)
       }
     }
   }
