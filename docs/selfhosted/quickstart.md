@@ -28,6 +28,7 @@ module.
 - [4. Watch the build](#4-watch-the-build)
 - [5. Confirm success](#5-confirm-success)
 - [Customization](#customization)
+- [Refresh the pinned images](#refresh-the-pinned-images)
 - [Tear down](#tear-down)
 - [Resume a failed build at its stage](#resume-a-failed-build-at-its-stage)
 - [Recover a cloud deployment](#recover-a-cloud-deployment)
@@ -184,6 +185,29 @@ The release topology is fixed to three nodes, no witness, an `E64s_v6` host, and
 per node. Unsupported shape parameters are intentionally not exposed. Select only the approved
 infrastructure region, immutable artifact ref, cluster name, and
 [Azure Hybrid Benefit](sizing.md#azure-hybrid-benefit) mode through `deploy-selfhosted.sh`.
+
+## Refresh the pinned images
+
+Both ISO pins are perishable. The Azure Local release alias
+(`https://aka.ms/hcireleaseimage/<YYMM>`) is superseded every few months, and the Windows Server
+2025 download is a **180-day evaluation** build that is periodically rolled. Preflight resolves
+both aliases before creating any resource, so a dead pin costs nothing rather than being
+discovered mid-build.
+
+If preflight reports that the **Azure Local** alias no longer resolves, pass a current release:
+
+```bash
+./scripts/deploy-selfhosted.sh --azure-local-release-code 2610 ...
+```
+
+If preflight reports that the **Windows Server** alias no longer resolves, the evaluation
+fwlink has rolled. Update `WINDOWS_SERVER_ISO_ALIAS` in
+[scripts/deploy-selfhosted.sh](../../scripts/deploy-selfhosted.sh) and `$sourceAlias` in
+[Get-ApexWindowsServerIso.ps1](../../artifacts/selfhosted/PowerShell/Get-ApexWindowsServerIso.ps1)
+to the current Windows Server 2025 evaluation link, keeping the approved download host unchanged.
+
+Both downloaders verify the resolved host, response length, ISO signature, and SHA-256 before
+anything is uploaded, so a changed pin cannot silently substitute an untrusted image.
 
 ## Tear down
 
