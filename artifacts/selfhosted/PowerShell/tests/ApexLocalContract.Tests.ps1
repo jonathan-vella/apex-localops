@@ -323,6 +323,16 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'can run the whole lab from one command once licences are accepted' {
+    # Forgetting the separate staging step strands the build in Wait-ApexStagedIso.
+    $deployWrapperSource | Should -Match '--accept-azure-local-license-terms\) ACCEPT_AZURE_LOCAL_TERMS=true'
+    $deployWrapperSource | Should -Match '--accept-windows-server-evaluation-terms\) ACCEPT_WINDOWS_SERVER_TERMS=true'
+    $deployWrapperSource | Should -Match 'STAGE_ISOS="\$SCRIPT_DIR/stage-selfhosted-isos\.sh"'
+    # Acceptance must never be defaulted on for the operator.
+    $deployWrapperSource | Should -Match 'ACCEPT_AZURE_LOCAL_TERMS=false'
+    $deployWrapperSource | Should -Match 'ACCEPT_WINDOWS_SERVER_TERMS=false'
+  }
+
   It 'turns a failure into a named stage the operator can resume from' {
     # A stranger must not have to read a transcript over Bastion to recover.
     $orchestratorSource | Should -Match "Stage '\`$failedStage' failed:"

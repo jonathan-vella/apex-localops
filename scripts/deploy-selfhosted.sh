@@ -19,6 +19,10 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 TEMPLATE="$REPO_ROOT/infra/bicep/azlocal-selfhosted/main.bicep"
 PARAMS="$REPO_ROOT/infra/bicep/azlocal-selfhosted/main.bicepparam"
 MONITOR="$SCRIPT_DIR/monitor-selfhosted.sh"
+STAGE_ISOS="$SCRIPT_DIR/stage-selfhosted-isos.sh"
+# License acceptance stays an explicit operator act, so it is never defaulted on.
+ACCEPT_AZURE_LOCAL_TERMS=false
+ACCEPT_WINDOWS_SERVER_TERMS=false
 HCI_RP_APP_ID="1412d89f-b8a8-4111-b4fd-e82905cbd85d"
 HOST_SKU="Standard_E64s_v6"
 HOST_VCPU=64
@@ -56,7 +60,13 @@ usage() {
     '  --artifact-ref <immutable-sha-or-tag>' \
     '  --cluster-name <name>' \
     '  --disable-azure-hybrid-benefit   Bill Windows Server at the license-included (PAYG) rate' \
+    '  --accept-azure-local-license-terms' \
+    '  --accept-windows-server-evaluation-terms' \
     '  --help, -h' \
+    '' \
+    'Pass both --accept-* flags to stage the ISOs automatically once the ARM deployment' \
+    'succeeds, so the whole lab runs from this one command. Without them the deployment' \
+    'still completes and prints the staging command to run yourself.' \
     '' \
     'Set LOCALSELF_ADMIN_PASSWORD before running; it is never written to disk.' \
     'Azure Hybrid Benefit is ON by default; enabling it self-attests that you hold qualifying' \
@@ -219,6 +229,8 @@ while [[ $# -gt 0 ]]; do
     --artifact-ref) ARTIFACT_REF="${2:?missing value}"; shift 2 ;;
     --cluster-name) CLUSTER_NAME="${2:?missing value}"; shift 2 ;;
     --disable-azure-hybrid-benefit) ENABLE_AZURE_HYBRID_BENEFIT=false; shift ;;
+    --accept-azure-local-license-terms) ACCEPT_AZURE_LOCAL_TERMS=true; shift ;;
+    --accept-windows-server-evaluation-terms) ACCEPT_WINDOWS_SERVER_TERMS=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -286,25 +298,45 @@ ISO_CONTAINER=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NA
   --query properties.outputs.isoContainerName.value -o tsv)
 MANAGEMENT_VM=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" \
   --query properties.outputs.managementVmName.value -o tsv)
-printf '%s\n' \
-  '' \
-  'ARM resources are deployed. The host now waits for both ISOs and iso-manifest.json.' \
-  '' \
-  'Next step - stage both ISOs unattended (no VM sign-in required):' \
-  '' \
-  "  $SCRIPT_DIR/stage-selfhosted-isos.sh \\" \
-  "    --resource-group $RESOURCE_GROUP \\" \
-  "    --artifact-ref $ARTIFACT_REF \\" \
-  '    --accept-azure-local-license-terms \' \
-  '    --accept-windows-server-evaluation-terms' \
-  '' \
-  "It runs on ${MANAGEMENT_VM} under its managed identity, downloads the pinned Azure Local" \
-  "and Windows Server ISOs, verifies each one, uploads them to '${ISO_CONTAINER}' on" \
-  "${STAGING_ACCOUNT}, and publishes the manifest last." \
-  'Raw az storage blob uploads are unsupported because they omit the integrity manifest.' \
-  '' \
-  "Monitor: $MONITOR --resource-group $RESOURCE_GROUP" \
-  "Cleanup: $SCRIPT_DIR/cleanup-selfhosted.sh"
+if [[ "$ACCEPT_AZURE_LOCAL_TERMS" == "true" && "$ACCEPT_WINDOWS_SERVER_TERMS" == "true" ]]; then
+  printf '%s\n' \
+    '' \
+    'ARM resources are deployed. Staging both ISOs now (licence terms accepted on the' \
+    'command line), so the host build proceeds without any further operator action.' \
+    ''
+  [[ -x "$STAGE_ISOS" ]] || { echo "ERROR: staging script not executable: $STAGE_ISOS" >&2; exit 1; }
+  "$STAGE_ISOS" \
+    --resource-group "$RESOURCE_GROUP" \
+    --artifact-ref "$ARTIFACT_REF" \
+    --accept-azure-local-license-terms \
+    --accept-windows-server-evaluation-terms
+  printf '%s\n' \
+    '' \
+    "Monitor: $MONITOR --resource-group $RESOURCE_GROUP" \
+    "Cleanup: $SCRIPT_DIR/cleanup-selfhosted.sh"
+else
+  printf '%s\n' \
+    '' \
+    'ARM resources are deployed. The host now waits for both ISOs and iso-manifest.json.' \
+    '' \
+    'Next step - stage both ISOs unattended (no VM sign-in required):' \
+    '' \
+    "  $SCRIPT_DIR/stage-selfhosted-isos.sh \\" \
+    "    --resource-group $RESOURCE_GROUP \\" \
+    "    --artifact-ref $ARTIFACT_REF \\" \
+    '    --accept-azure-local-license-terms \' \
+    '    --accept-windows-server-evaluation-terms' \
+    '' \
+    "It runs on ${MANAGEMENT_VM} under its managed identity, downloads the pinned Azure Local" \
+    "and Windows Server ISOs, verifies each one, uploads them to '${ISO_CONTAINER}' on" \
+    "${STAGING_ACCOUNT}, and publishes the manifest last." \
+    'Raw az storage blob uploads are unsupported because they omit the integrity manifest.' \
+    '' \
+    'Tip: pass both --accept-* flags to deploy-selfhosted.sh to have it do this for you.' \
+    '' \
+    "Monitor: $MONITOR --resource-group $RESOURCE_GROUP" \
+    "Cleanup: $SCRIPT_DIR/cleanup-selfhosted.sh"
+fi
 if [[ "$RUN_MONITOR" == "true" && -x "$MONITOR" ]]; then
   exec "$MONITOR" --resource-group "$RESOURCE_GROUP"
 fi

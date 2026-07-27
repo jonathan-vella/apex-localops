@@ -29,6 +29,7 @@ module.
 - [5. Confirm success](#5-confirm-success)
 - [Customization](#customization)
 - [Tear down](#tear-down)
+- [Resume a failed build at its stage](#resume-a-failed-build-at-its-stage)
 - [Recover a cloud deployment](#recover-a-cloud-deployment)
 - [Troubleshooting](#troubleshooting)
 - [Next steps](#next-steps)
@@ -60,6 +61,20 @@ export LOCALSELF_HCI_RP_OBJECT_ID=<oid>
 ```
 
 ## 2. Deploy the infrastructure
+
+If you have already read and accepted both licence terms (step 3 explains them), run the
+whole lab from one command — deployment and ISO staging back to back:
+
+```bash
+export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
+./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal \
+  --location swedencentral --artifact-ref <candidate-commit-sha> \
+  --accept-azure-local-license-terms \
+  --accept-windows-server-evaluation-terms
+```
+
+To review the licence terms first, omit the two `--accept-*` flags and stage the ISOs
+yourself in step 3:
 
 ```bash
 export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
@@ -93,6 +108,8 @@ To preview only, with no deploy:
 ```
 
 ## 3. Stage the two ISOs
+
+Skip this step if you passed both `--accept-*` flags in step 2 — staging already ran.
 
 After accepting the Azure Local and Windows Server Evaluation terms, start unattended staging
 from the repository workstation:
@@ -176,6 +193,23 @@ infrastructure region, immutable artifact ref, cluster name, and
 
 The host, its 12 Premium disks, Bastion, and the NAT Gateway bill continuously even when the
 nested VMs are off — deleting the resource group is the only way to reach $0.
+
+## Resume a failed build at its stage
+
+When the build fails, the `ApexStatus` tag names the stage that failed, and
+`monitor-selfhosted.sh` prints the exact command to resume from it. Resuming reuses the staged
+ISOs, converted base images, router, domain controller, and nodes the previous attempt already
+built, so a fix costs one stage instead of a full rebuild:
+
+```bash
+export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
+./scripts/resume-selfhosted.sh --stage Readiness \
+  --artifact-ref <candidate-commit-sha> --resource-group rg-apexlocal
+```
+
+Stages run in this order: `HostFabric`, `Isos`, `BaseImages`, `Router`, `DomainController`,
+`ActiveDirectory`, `Nodes`, `Readiness`, `Arc`, `ClusterDeploy`. Resume refreshes the runtime
+scripts from the artifact ref first, so pass the ref that contains your fix.
 
 ## Recover a cloud deployment
 
