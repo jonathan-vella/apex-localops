@@ -646,7 +646,7 @@ function New-ApexRouterVM {
   # Reuse the generic builder for the diff disk, TPM, IMDS-deny, unattend, and the
   # first (Mgmt) NIC on the management switch.
   New-ApexNestedVM -VmName $r.Name -BaseVhdxPath $WindowsServerBaseVhdx `
-    -VmDiffDiskDir $paths.VmVhdDir -SwitchName $net.SwitchName `
+    -VmDiffDiskDir $paths.VmVhdDir -VmConfigDir $paths.VmDir -SwitchName $net.SwitchName `
     -MemoryMB $r.MemoryMB -CpuCount $r.CpuCount -UnattendPath $unattend `
     -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
 
@@ -829,6 +829,7 @@ function New-ApexNestedVM {
     [Parameter(Mandatory)] [string]$VmName,
     [Parameter(Mandatory)] [string]$BaseVhdxPath,
     [Parameter(Mandatory)] [string]$VmDiffDiskDir,
+    [Parameter(Mandatory)] [string]$VmConfigDir,
     [Parameter(Mandatory)] [string]$SwitchName,
     [int]$MemoryMB = 4096,
     [int]$CpuCount = 4,
@@ -893,8 +894,13 @@ function New-ApexNestedVM {
     }
   }
 
+  # VM configuration must live on the pooled V: volume. Hyper-V writes a .VMRS
+  # memory-contents file the size of the VM's RAM next to the configuration, and a
+  # 96-GB node cannot allocate that on the small OS disk.
+  if (-not (Test-Path $VmConfigDir)) { New-Item -ItemType Directory -Force -Path $VmConfigDir | Out-Null }
   New-VM -Name $VmName -Generation 2 -MemoryStartupBytes ($MemoryMB * 1MB) `
-    -VHDPath $diff -SwitchName $SwitchName | Out-Null
+    -VHDPath $diff -SwitchName $SwitchName -Path $VmConfigDir | Out-Null
+  Set-VM -Name $VmName -SmartPagingFilePath $VmConfigDir -SnapshotFilePath $VmConfigDir
   Set-VMMemory -VMName $VmName -DynamicMemoryEnabled $false
   Set-VMProcessor -VMName $VmName -Count $CpuCount -ExposeVirtualizationExtensions $true
 
@@ -964,7 +970,7 @@ function New-ApexDomainController {
     -OutputPath (Join-Path $paths.AnswerDir "$($dom.DcHostName)-unattend.xml")
 
   New-ApexNestedVM -VmName $dom.DcHostName -BaseVhdxPath $WindowsServerBaseVhdx `
-    -VmDiffDiskDir $paths.VmVhdDir -SwitchName $net.SwitchName `
+    -VmDiffDiskDir $paths.VmVhdDir -VmConfigDir $paths.VmDir -SwitchName $net.SwitchName `
     -MemoryMB 4096 -CpuCount 4 -UnattendPath $unattend -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
 
   Start-VM -Name $dom.DcHostName
@@ -1226,7 +1232,7 @@ function New-ApexLocalNode {
     -OutputPath (Join-Path $paths.AnswerDir "$name-unattend.xml")
 
   New-ApexNestedVM -VmName $name -BaseVhdxPath $AzureLocalBaseVhdx `
-    -VmDiffDiskDir $paths.VmVhdDir -SwitchName $net.SwitchName `
+    -VmDiffDiskDir $paths.VmVhdDir -VmConfigDir $paths.VmDir -SwitchName $net.SwitchName `
     -MemoryMB $c.NodeMemoryMB -CpuCount $c.NodeCpuCount -UnattendPath $unattend `
     -ImdsAddress $net.ImdsAddress -EnableTpm | Out-Null
 

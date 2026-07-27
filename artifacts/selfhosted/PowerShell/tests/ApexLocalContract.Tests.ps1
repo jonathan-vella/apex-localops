@@ -296,6 +296,16 @@ Describe 'Self-hosted orchestration safety' {
     $guestScript | Should -Match '\$null = New-HciAdObjectsPreCreation'
   }
 
+  It 'stores nested VM configuration and paging files on the pooled volume' {
+    # Hyper-V writes a .VMRS file the size of the VM's RAM beside the configuration,
+    # so a 96-GB node cannot be configured on the small OS disk.
+    $moduleSource | Should -Match '\[Parameter\(Mandatory\)\] \[string\]\$VmConfigDir'
+    $moduleSource | Should -Match '-VHDPath \$diff -SwitchName \$SwitchName -Path \$VmConfigDir'
+    $moduleSource | Should -Match 'Set-VM -Name \$VmName -SmartPagingFilePath \$VmConfigDir -SnapshotFilePath \$VmConfigDir'
+    $config.Paths.VmDir | Should -Match '^V:'
+    ([regex]::Matches($moduleSource, '-VmConfigDir \$paths\.VmDir')).Count | Should -Be 3
+  }
+
   It 'applies IMDS deny ACLs idempotently across every nested adapter' {
     # Hyper-V rejects a duplicate port ACL with 0x800700B7. Nodes inherit an
     # already-denied fabric adapter and then add storage adapters.
