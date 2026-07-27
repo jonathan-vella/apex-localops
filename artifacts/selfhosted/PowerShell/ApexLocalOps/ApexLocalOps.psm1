@@ -1587,7 +1587,12 @@ function Test-ApexEnvironmentReadiness {
     [Parameter(Mandatory)] [string]$ClusterName,
     [Parameter(Mandatory)] [array]$Nodes,
     [Parameter(Mandatory)] [pscredential]$LocalAdminCredential,
-    [Parameter(Mandatory)] [pscredential]$DomainAdminCredential
+    [Parameter(Mandatory)] [pscredential]$DomainAdminCredential,
+    # ArcIntegration inspects the Arc machine resources, which only exist after node
+    # onboarding, so it cannot run in the same pass as the validators that must pass
+    # before onboarding. Running it early failed on four criticals for the sole reason
+    # that zero Arc machines existed yet.
+    [ValidateSet('PreArc', 'PostArc')] [string]$Phase = 'PreArc'
   )
 
   $moduleVersions = Import-PowerShellDataFile `
@@ -1661,6 +1666,19 @@ function Test-ApexEnvironmentReadiness {
   }
 
   try {
+    if ($Phase -eq 'PostArc') {
+      Invoke-ValidationStep -Name 'ArcIntegration' -Operation {
+        Invoke-AzStackHciArcIntegrationValidation -SubscriptionID $SubscriptionId `
+          -RegistrationResourceGroupName $ResourceGroup `
+          -ArcResourceGroupName $ResourceGroup `
+          -NodeNames @($Nodes.Name) `
+          -ErrorAction Stop | Out-Null
+      }
+      $arcSummaryPath = Join-Path $reportDirectory 'validation-summary-PostArc.json'
+      $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $arcSummaryPath -Encoding UTF8
+      return
+    }
+
     foreach ($node in $Nodes) {
       # These must be WinRM sessions, not PowerShell Direct. The checker's
       # EnvValidatorNwkLibEnsureTestSessionOpen unconditionally destroys every session
@@ -1744,18 +1762,11 @@ function Test-ApexEnvironmentReadiness {
         -AtcHostIntents $atcHostIntents `
         -ErrorAction Stop | Out-Null
     }
-    Invoke-ValidationStep -Name 'ArcIntegration' -Operation {
-      Invoke-AzStackHciArcIntegrationValidation -SubscriptionID $SubscriptionId `
-        -RegistrationResourceGroupName $ResourceGroup `
-        -ArcResourceGroupName $ResourceGroup `
-        -NodeNames @($Nodes.Name) `
-        -ErrorAction Stop | Out-Null
-    }
     Invoke-ValidationStep -Name 'Hardware' -Operation {
       Invoke-AzStackHciHardwareValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
     }
 
-    $summaryPath = Join-Path $reportDirectory 'validation-summary.json'
+    $summaryPath = Join-Path $reportDirectory 'validation-summary-PreArc.json'
     $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $summaryPath -Encoding UTF8
   }
   finally {

@@ -427,6 +427,26 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'validates Arc integration only after the Arc machines exist' {
+    # Running ArcIntegration before onboarding failed on four criticals for the sole
+    # reason that zero Arc machines existed yet.
+    $moduleSource.Contains("[ValidateSet('PreArc', 'PostArc')] [string]`$Phase = 'PreArc'") |
+      Should -BeTrue
+    $moduleSource.Contains("if (`$Phase -eq 'PostArc')") | Should -BeTrue
+    $orchestratorSource.Contains("-Phase 'PostArc'") | Should -BeTrue
+
+    # The post-Arc call must come after the Arc-connected wait, not before it.
+    $waitIndex = $orchestratorSource.IndexOf('Expected exactly 3 Arc machines')
+    $postArcIndex = $orchestratorSource.IndexOf("-Phase 'PostArc'")
+    $waitIndex | Should -BeGreaterThan 0
+    $postArcIndex | Should -BeGreaterThan $waitIndex
+
+    # ArcIntegration must no longer sit with the pre-Arc validators.
+    $preArc = $moduleSource.Substring($moduleSource.IndexOf("Invoke-ValidationStep -Name 'Connectivity'"))
+    $preArc = $preArc.Substring(0, $preArc.IndexOf('validation-summary-PreArc'))
+    $preArc.Contains('ArcIntegration') | Should -BeFalse
+  }
+
   It 'reads each validator report from where that validator actually writes it' {
     # -OutputPath redirects the network report away from the profile location the
     # other validators use, so the harness must be told, not assume.

@@ -251,6 +251,15 @@ try {
     throw "Expected exactly 3 Arc machines before cluster deployment; discovered $($arcIds.Count)."
   }
 
+  # ArcIntegration can only be validated now that the Arc machines exist. Running it
+  # alongside the pre-Arc validators failed on four criticals purely because none did.
+  if (Test-ApexStage 'Arc') {
+    Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
+      -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
+      -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred `
+      -Phase 'PostArc'
+  }
+
   # 10) Validate + deploy the cluster ----------------------------------------
   if (Test-ApexStage 'ClusterDeploy') {
     Set-ApexProgress -ResourceGroup $rg -Progress 'ClusterValidating' -Status 'Validating cluster deployment' -Config $cfg
