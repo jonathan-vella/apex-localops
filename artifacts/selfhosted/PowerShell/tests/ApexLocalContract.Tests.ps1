@@ -319,6 +319,16 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'parses validator reports without case-folding their keys' {
+    # Windows PowerShell's ConvertFrom-Json throws when one object carries both
+    # 'value' and 'Value', which the Software validator emits.
+    $moduleSource | Should -Match 'function ConvertFrom-ApexReportJson'
+    $moduleSource | Should -Match 'JavaScriptSerializer'
+    $moduleSource | Should -Match '\$report = ConvertFrom-ApexReportJson -Path \$destination'
+    $moduleSource | Should -Not -Match 'Get-Content -Path \$destination -Raw \| ConvertFrom-Json'
+    $moduleSource | Should -Match '\$InputObject -is \[System\.Collections\.IDictionary\]'
+  }
+
   It 'verifies node Secure Boot and vTPM with supported Hyper-V cmdlets' {
     $moduleSource | Should -Match 'Get-VMSecurity -VMName \$name'
     $moduleSource | Should -Match '-not \$security\.TpmEnabled'

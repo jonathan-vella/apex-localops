@@ -93,4 +93,50 @@ Describe 'Get-ApexCriticalValidationResult' {
       @(Get-ApexCriticalValidationResult -InputObject 42).Count | Should -Be 0
     }
   }
+
+  It 'walks case-sensitive dictionaries containing colliding keys' {
+    # Regression: the Software validator report carries both 'value' and 'Value'
+    # hundreds of times, so it must be parsed case-sensitively into dictionaries
+    # rather than PSCustomObjects.
+    InModuleScope ApexLocalOps {
+      $report = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $report['value'] = 'lower case entry'
+      $report['Value'] = 'upper case entry'
+
+      $failed = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $failed['Name'] = 'Test-Software'
+      $failed['Severity'] = 'Critical'
+      $failed['Status'] = 'Failed'
+
+      $passed = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $passed['Name'] = 'Test-Passed'
+      $passed['Severity'] = 'Critical'
+      $passed['Status'] = 'Succeeded'
+
+      $report['Results'] = @($passed, $failed)
+
+      $result = @(Get-ApexCriticalValidationResult -InputObject $report)
+
+      $result.Count | Should -Be 1
+      $result[0].Name | Should -Be 'Test-Software'
+      $result[0].Status | Should -Be 'Failed'
+    }
+  }
+
+  It 'names an unidentified dictionary finding rather than dropping it' {
+    InModuleScope ApexLocalOps {
+      $finding = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $finding['Severity'] = 'Critical'
+      $finding['Status'] = 'Failed'
+
+      $result = @(Get-ApexCriticalValidationResult -InputObject $finding)
+
+      $result.Count | Should -Be 1
+      $result[0].Name | Should -Be 'UnknownCriticalTest'
+    }
+  }
 }

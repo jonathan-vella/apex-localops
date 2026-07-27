@@ -1336,6 +1336,27 @@ function New-ApexLocalNode {
   return [pscustomobject]@{ Name = $name; IpAddress = $nodeIp }
 }
 
+function ConvertFrom-ApexReportJson {
+  <#
+  .SYNOPSIS Parse an Environment Checker report without case-folding its keys.
+  .DESCRIPTION
+    Windows PowerShell's ConvertFrom-Json compares object keys case-insensitively and
+    throws when one object carries both 'value' and 'Value'. The Software validator
+    emits exactly that, hundreds of times. JavaScriptSerializer compares keys
+    ordinally, so it preserves both and returns nested IDictionary/object[] graphs.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [string]$Path
+  )
+
+  Add-Type -AssemblyName System.Web.Extensions
+  $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+  $serializer.MaxJsonLength = [int]::MaxValue
+  $serializer.RecursionLimit = 512
+  return $serializer.DeserializeObject((Get-Content -Path $Path -Raw))
+}
+
 function Get-ApexCriticalValidationResult {
   [CmdletBinding()]
   param(
@@ -1351,6 +1372,36 @@ function Get-ApexCriticalValidationResult {
       return
     }
     if ($InputObject -is [string] -or $InputObject -is [valuetype]) {
+      return
+    }
+
+    # Reports parsed case-sensitively arrive as dictionaries, which are also
+    # IEnumerable; handle them before the collection branch so keys are not walked
+    # as KeyValuePair objects.
+    if ($InputObject -is [System.Collections.IDictionary]) {
+      $keys = @($InputObject.Keys)
+      $severityValue = if ($keys -contains 'Severity') { [string]$InputObject['Severity'] } else { $null }
+      $statusValue = if ($keys -contains 'Status') { [string]$InputObject['Status'] } else { $null }
+      if ($severityValue -eq 'Critical' -and
+        $statusValue -notin @('Succeeded', 'Success', 'Passed')) {
+        $identifier = $null
+        foreach ($propertyName in @('Name', 'TestName', 'Title')) {
+          if ($keys -contains $propertyName -and $InputObject[$propertyName]) {
+            $identifier = $InputObject[$propertyName]
+            break
+          }
+        }
+        if (-not $identifier) { $identifier = 'UnknownCriticalTest' }
+        [pscustomobject]@{
+          Name   = [string]$identifier
+          Status = [string]$statusValue
+        }
+      }
+      foreach ($key in $keys) {
+        if ($key -notin @('Severity', 'Status', 'Name', 'TestName', 'Title')) {
+          Get-ApexCriticalValidationResult -InputObject $InputObject[$key] -Depth ($Depth + 1)
+        }
+      }
       return
     }
 
@@ -1445,7 +1496,7 @@ function Test-ApexEnvironmentReadiness {
     $destination = Join-Path $reportDirectory `
     ("{0}-{1}.json" -f $Name, (Get-Date -Format 'yyyyMMdd-HHmmss'))
     Copy-Item -Path $sourceReport -Destination $destination -Force
-    $report = Get-Content -Path $destination -Raw | ConvertFrom-Json
+    $report = ConvertFrom-ApexReportJson -Path $destination
     $criticalResults = @(Get-ApexCriticalValidationResult -InputObject $report)
     $blockedResults = @($criticalResults | Where-Object Name -notin $allowedCriticalTests)
 
