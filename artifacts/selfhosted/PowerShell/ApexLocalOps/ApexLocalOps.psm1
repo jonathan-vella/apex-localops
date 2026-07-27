@@ -1616,6 +1616,14 @@ function Test-ApexEnvironmentReadiness {
   Set-ApexNodeNameResolution -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn
   Set-ApexNodeWinRmTrust -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn
 
+  # Those network sessions authenticate with NTLM, which rejects a bare 'Administrator'
+  # against a workgroup node (SEC_E_UNKNOWN_CREDENTIALS, 0x8009030d): the account has to
+  # be machine-qualified. '.\' resolves on whichever node is being dialled, so one
+  # credential stays valid for all of them, unlike '<nodename>\'. PowerShell Direct is
+  # left on the original credential because it is already proven.
+  $networkAdminCredential = New-Object System.Management.Automation.PSCredential(
+    ".\$(($LocalAdminCredential.UserName -split '\\')[-1])", $LocalAdminCredential.Password)
+
   function Invoke-ValidationStep {
     param(
       [Parameter(Mandatory)] [string]$Name,
@@ -1701,7 +1709,7 @@ function Test-ApexEnvironmentReadiness {
         -ManagementSubnetValue $Config.Network.SubnetPrefix `
         -PSSession $nodeSessions `
         -NodesInCluster ([int16]$Nodes.Count) `
-        -ConnectionLocalAdminCredential $LocalAdminCredential `
+        -ConnectionLocalAdminCredential $networkAdminCredential `
         -OutputPath $reportDirectory `
         -AtcHostIntents $atcHostIntents `
         -ErrorAction Stop | Out-Null

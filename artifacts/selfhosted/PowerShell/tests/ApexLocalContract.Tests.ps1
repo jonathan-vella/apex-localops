@@ -427,6 +427,17 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'machine-qualifies the credential the network validator dials nodes with' {
+    # Proven on the live lab: bare 'Administrator' fails NTLM to a workgroup node with
+    # 0x8009030d, while '.\Administrator' succeeds against every node.
+    $moduleSource.Contains('$networkAdminCredential = New-Object System.Management.Automation.PSCredential(') |
+      Should -BeTrue
+    $moduleSource | Should -Match '-ConnectionLocalAdminCredential \$networkAdminCredential'
+    $moduleSource | Should -Match '0x8009030d'
+    # PowerShell Direct must keep the original credential, which is already proven.
+    $moduleSource | Should -Match '-VMName \$node\.Name -Credential \$LocalAdminCredential|PowerShell Direct is'
+  }
+
   It 'pins node names to management addresses instead of trusting LLMNR' {
     # Workgroup nodes have no DC records, so LLMNR answers with whichever adapter
     # replies first - an APIPA address on a storage adapter - and the validator
@@ -530,7 +541,7 @@ Describe 'Self-hosted orchestration safety' {
   It 'calls each Environment Checker validator with parameters it actually exposes' {
     # Every name below was verified against Get-Command on the pinned module version;
     # a wrong parameter only surfaces mid-deployment, after earlier validators pass.
-    $moduleSource | Should -Match '-ConnectionLocalAdminCredential \$LocalAdminCredential'
+    $moduleSource | Should -Match '-ConnectionLocalAdminCredential \$networkAdminCredential'
     $moduleSource | Should -Not -Match '-SessionCredential'
     $moduleSource | Should -Match 'Invoke-AzStackHciConnectivityValidation -PsSession \$nodeSessions'
     $moduleSource | Should -Match 'Invoke-AzStackHciHardwareValidation -PsSession \$nodeSessions'
