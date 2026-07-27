@@ -323,6 +323,17 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'trusts the nested nodes explicitly so the network validator can dial them' {
+    # The validator opens its own sessions by name; a workgroup host refuses NTLM
+    # to an untrusted target, so passing -PSSession alone is not enough.
+    $moduleSource | Should -Match 'function Set-ApexNodeWinRmTrust'
+    $moduleSource.Contains('WSMan:\localhost\Client\TrustedHosts') | Should -BeTrue
+    $moduleSource.Contains('Set-ApexNodeWinRmTrust -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn') |
+      Should -BeTrue
+    # A wildcard trust list would let the host authenticate to anything.
+    $moduleSource.Contains("-ne '*'") | Should -BeTrue
+  }
+
   It 'can run the whole lab from one command once licences are accepted' {
     # Forgetting the separate staging step strands the build in Wait-ApexStagedIso.
     $deployWrapperSource | Should -Match '--accept-azure-local-license-terms\) ACCEPT_AZURE_LOCAL_TERMS=true'

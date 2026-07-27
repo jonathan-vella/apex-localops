@@ -1483,6 +1483,47 @@ function Get-ApexCriticalValidationResult {
   }
 }
 
+function Set-ApexNodeWinRmTrust {
+  <#
+  .SYNOPSIS Let the workgroup host authenticate to the nested nodes over WinRM.
+  .DESCRIPTION
+    The Environment Checker's network validator opens its own remote sessions to each
+    node by name instead of reusing the PowerShell Direct session it is handed, so
+    passing -PSSession is not enough. The outer host is not domain-joined, so WinRM
+    refuses NTLM to a host that is not trusted. Trust is granted to the exact node
+    names, FQDNs, and addresses only. The '*' wildcard is never used, and is stripped
+    if something else set it, because it would let the host authenticate to anything.
+  #>
+  [CmdletBinding(SupportsShouldProcess)]
+  param(
+    [Parameter(Mandatory)] [array]$Nodes,
+    [Parameter(Mandatory)] [string]$DomainFqdn
+  )
+
+  if ((Get-Service -Name WinRM).Status -ne 'Running') {
+    Start-Service -Name WinRM
+  }
+
+  $wanted = foreach ($node in $Nodes) {
+    $node.Name
+    "$($node.Name).$DomainFqdn"
+    if ($node.IpAddress) { $node.IpAddress }
+  }
+
+  $trustedHostsPath = 'WSMan:\localhost\Client\TrustedHosts'
+  $current = @((Get-Item -Path $trustedHostsPath).Value -split ',' |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -and $_ -ne '*' })
+  $merged = @(@($current) + @($wanted) | Sort-Object -Unique)
+
+  if (Compare-Object -ReferenceObject $current -DifferenceObject $merged) {
+    if ($PSCmdlet.ShouldProcess($trustedHostsPath, 'Trust the nested cluster nodes')) {
+      Set-Item -Path $trustedHostsPath -Value ($merged -join ',') -Force
+    }
+  }
+  Write-ApexLog "WinRM TrustedHosts holds $($merged.Count) explicit nested-node entries."
+}
+
 function Test-ApexEnvironmentReadiness {
   <#
   .SYNOPSIS Run the standalone Azure Local readiness validators before Arc onboarding.
@@ -1524,6 +1565,9 @@ function Test-ApexEnvironmentReadiness {
   $managementAlias = "vEthernet ($($Config.Network.SwitchName))"
   Set-DnsClientServerAddress -InterfaceAlias $managementAlias `
     -ServerAddresses $Config.Domain.DcIpAddress
+
+  # The network validator ignores the session it is given and dials the nodes itself.
+  Set-ApexNodeWinRmTrust -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn
 
   function Invoke-ValidationStep {
     param(
