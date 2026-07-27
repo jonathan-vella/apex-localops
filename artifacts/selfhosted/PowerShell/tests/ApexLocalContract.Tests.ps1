@@ -127,7 +127,7 @@ Describe 'Self-hosted cloud deployment contract' {
     $orchestratorSource | Should -Match 'Clear-ApexBootstrapSecrets'
     $orchestratorSource | Should -Match '(?m)^\s*exit\s+1\s*$'
     $orchestratorSource.IndexOf('Stop-Transcript') |
-      Should -BeLessThan $orchestratorSource.IndexOf('Send-ApexLogsToStorage')
+    Should -BeLessThan $orchestratorSource.IndexOf('Send-ApexLogsToStorage')
     $moduleSource | Should -Match '\$Status\.Length -gt 256'
     $moduleSource | Should -Match '\$Status\.Substring\(0, 256\)'
   }
@@ -294,6 +294,19 @@ Describe 'Self-hosted orchestration safety' {
     # The function must return only the LCM credential.
     $guestScript | Should -Match '\$null = Invoke-Command -Session \$session'
     $guestScript | Should -Match '\$null = New-HciAdObjectsPreCreation'
+  }
+
+  It 'applies IMDS deny ACLs idempotently across every nested adapter' {
+    # Hyper-V rejects a duplicate port ACL with 0x800700B7. Nodes inherit an
+    # already-denied fabric adapter and then add storage adapters.
+    $moduleSource | Should -Match 'function Add-ApexImdsDenyAcl'
+    $moduleSource | Should -Match 'Get-VMNetworkAdapterAcl -VMNetworkAdapter \$VMNetworkAdapter'
+    $moduleSource | Should -Match 'if \(\$alreadyApplied\.Count -eq 0\)'
+    $moduleSource | Should -Match 'Add-ApexImdsDenyAcl -VMNetworkAdapter \$adapter -RemoteIPAddress \$ImdsAddress'
+    $moduleSource | Should -Match 'Add-ApexImdsDenyAcl -VMNetworkAdapter \$nodeAdapter -RemoteIPAddress \$net\.ImdsAddress'
+    # No caller may add the deny rules unconditionally.
+    $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$adapter'
+    $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
   It 'resumes at a named stage instead of forcing a full rebuild' {

@@ -786,6 +786,34 @@ function New-ApexUnattendXml {
   return $xml.OuterXml
 }
 
+function Add-ApexImdsDenyAcl {
+  <#
+  .SYNOPSIS Apply the IMDS deny port ACLs to a nested adapter without duplicating them.
+  .DESCRIPTION
+    Hyper-V rejects an identical port ACL with 0x800700B7 ('Cannot create a file when
+    that file already exists'). A node receives its fabric adapter from New-ApexNestedVM,
+    which already denies IMDS, and then adds storage adapters that must be denied too,
+    so the invariant 'every adapter denies IMDS' has to be applied idempotently.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [object]$VMNetworkAdapter,
+    [Parameter(Mandatory)] [string]$RemoteIPAddress
+  )
+
+  $existing = @(Get-VMNetworkAdapterAcl -VMNetworkAdapter $VMNetworkAdapter -ErrorAction SilentlyContinue)
+  foreach ($direction in @('Inbound', 'Outbound')) {
+    $alreadyApplied = @($existing | Where-Object {
+        $_.Direction -eq $direction -and $_.Action -eq 'Deny' -and
+        [string]$_.RemoteAddress -eq $RemoteIPAddress
+      })
+    if ($alreadyApplied.Count -eq 0) {
+      Add-VMNetworkAdapterAcl -VMNetworkAdapter $VMNetworkAdapter -Action Deny `
+        -Direction $direction -RemoteIPAddress $RemoteIPAddress
+    }
+  }
+}
+
 function New-ApexNestedVM {
   <#
   .SYNOPSIS Create a Generation 2 nested VM from a base VHDX (differencing disk).
@@ -882,8 +910,7 @@ function New-ApexNestedVM {
 
   # OWNED-SCOPE M4: deny the Azure-VM IMDS endpoint on the nested adapter BEFORE boot.
   $adapter = (Get-VMNetworkAdapter -VMName $VmName)[0]
-  Add-VMNetworkAdapterAcl -VMNetworkAdapter $adapter -Action Deny -Direction Inbound  -RemoteIPAddress $ImdsAddress
-  Add-VMNetworkAdapterAcl -VMNetworkAdapter $adapter -Action Deny -Direction Outbound -RemoteIPAddress $ImdsAddress
+  Add-ApexImdsDenyAcl -VMNetworkAdapter $adapter -RemoteIPAddress $ImdsAddress
 
   Write-ApexLog "Nested VM '$VmName' created (Gen2, ${MemoryMB}MB, ${CpuCount} vCPU, TPM=$($EnableTpm.IsPresent))."
   return $VmName
@@ -1234,8 +1261,8 @@ function New-ApexLocalNode {
   $nodeAdapters | Set-VMNetworkAdapter -MacAddressSpoofing On -AllowTeaming On
   $nodeAdapters | Set-VMNetworkAdapterVlan -Trunk -NativeVlanId 0 -AllowedVlanIdList '0-1000'
   foreach ($nodeAdapter in $nodeAdapters) {
-    Add-VMNetworkAdapterAcl -VMNetworkAdapter $nodeAdapter -Action Deny -Direction Inbound -RemoteIPAddress $net.ImdsAddress
-    Add-VMNetworkAdapterAcl -VMNetworkAdapter $nodeAdapter -Action Deny -Direction Outbound -RemoteIPAddress $net.ImdsAddress
+    # The fabric adapter already carries these rules from New-ApexNestedVM.
+    Add-ApexImdsDenyAcl -VMNetworkAdapter $nodeAdapter -RemoteIPAddress $net.ImdsAddress
   }
 
   $attachedDisks = @(Get-VMHardDiskDrive -VMName $name)
