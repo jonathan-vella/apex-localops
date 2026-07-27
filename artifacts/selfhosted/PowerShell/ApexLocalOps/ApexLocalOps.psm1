@@ -1627,18 +1627,22 @@ function Test-ApexEnvironmentReadiness {
   function Invoke-ValidationStep {
     param(
       [Parameter(Mandatory)] [string]$Name,
-      [Parameter(Mandatory)] [scriptblock]$Operation
+      [Parameter(Mandatory)] [scriptblock]$Operation,
+      # Most validators drop their report in the caller's profile. The network validator
+      # honours -OutputPath and writes it there instead, so the report location has to be
+      # told to this helper rather than assumed.
+      [string]$ReportPath = $sourceReport
     )
 
-    Remove-Item -Path $sourceReport -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $ReportPath -Force -ErrorAction SilentlyContinue
     & $Operation
-    if (-not (Test-Path $sourceReport)) {
-      throw "Environment Checker '$Name' did not produce its expected JSON report."
+    if (-not (Test-Path $ReportPath)) {
+      throw "Environment Checker '$Name' did not write its JSON report to '$ReportPath'."
     }
 
     $destination = Join-Path $reportDirectory `
     ("{0}-{1}.json" -f $Name, (Get-Date -Format 'yyyyMMdd-HHmmss'))
-    Copy-Item -Path $sourceReport -Destination $destination -Force
+    Copy-Item -Path $ReportPath -Destination $destination -Force
     $report = ConvertFrom-ApexReportJson -Path $destination
     $criticalResults = @(Get-ApexCriticalValidationResult -InputObject $report)
     $blockedResults = @($criticalResults | Where-Object Name -notin $allowedCriticalTests)
@@ -1728,7 +1732,7 @@ function Test-ApexEnvironmentReadiness {
         VirtualSwitchConfigurationOverrides = $null
       }
     )
-    Invoke-ValidationStep -Name 'Network' -Operation {
+    Invoke-ValidationStep -Name 'Network' -ReportPath (Join-Path $reportDirectory 'AzStackHciEnvironmentReport.json') -Operation {
       # NodesInCluster is mandatory on this parameter set and is a count, not names.
       # Omitting it makes PowerShell prompt, which blocks the build indefinitely.
       Invoke-AzStackHciNetworkValidation -IpPools $ipPools `

@@ -427,6 +427,18 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'reads each validator report from where that validator actually writes it' {
+    # -OutputPath redirects the network report away from the profile location the
+    # other validators use, so the harness must be told, not assume.
+    $moduleSource | Should -Match '\[string\]\$ReportPath = \$sourceReport'
+    $moduleSource.Contains("Invoke-ValidationStep -Name 'Network' -ReportPath (Join-Path `$reportDirectory 'AzStackHciEnvironmentReport.json')") |
+      Should -BeTrue
+    $moduleSource | Should -Match 'Remove-Item -Path \$ReportPath'
+    $moduleSource | Should -Match 'Copy-Item -Path \$ReportPath'
+    # The failure must name the path it looked in.
+    $moduleSource | Should -Match "did not write its JSON report to '\`$ReportPath'"
+  }
+
   It 'gives each ATC intent the override flags the checker hard-casts' {
     # The checker does [Boolean] $x = $intent.OverrideAdapterProperty, so a missing
     # property fails with 'Cannot convert value "" to type System.Boolean'.
