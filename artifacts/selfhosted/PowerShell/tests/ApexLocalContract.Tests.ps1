@@ -427,6 +427,35 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'lets the Azure Local region be chosen and proves it before billing' {
+    # A region the subscription may not use fails Arc onboarding with
+    # RequestDisallowedByAzure 403 ~90 minutes in, and the agent blames credentials.
+    $mainBicep = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/main.bicep') -Raw
+    $bootstrapExt = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/host/bootstrapExtension.bicep') -Raw
+
+    $mainBicep | Should -Match "param azureLocalInstanceLocation string = 'westeurope'"
+    $mainBicep | Should -Match 'azureLocalInstanceLocation: azureLocalInstanceLocation'
+    # The region must no longer be hard-coded into the bootstrap command line.
+    $bootstrapExt | Should -Match '-azureLocalInstanceLocation \$\{azureLocalInstanceLocation\}'
+    $bootstrapExt | Should -Not -Match '-azureLocalInstanceLocation westeurope'
+
+    $deployWrapperSource | Should -Match '--azure-local-location\) AZURE_LOCAL_INSTANCE_LOCATION='
+    $deployWrapperSource | Should -Match 'azureLocalInstanceLocation=\$AZURE_LOCAL_INSTANCE_LOCATION'
+    # Preflight must prove the subscription can actually use the region.
+    $deployWrapperSource | Should -Match 'subscription cannot create resources in'
+    $deployWrapperSource | Should -Match 'apexlocal-regionprobe-'
+
+    # The allowed list must match between bicep and the wrapper. [^\]]* keeps the match
+    # from spanning earlier @allowed blocks in the file.
+    $bicepRegions = @([regex]::Matches(
+        [regex]::Match($mainBicep, "@allowed\(\[([^\]]*)\]\)\s*param azureLocalInstanceLocation").Groups[1].Value,
+        "'([a-z]+)'") | ForEach-Object { $_.Groups[1].Value })
+    $wrapperRegions = @([regex]::Match($deployWrapperSource,
+        'AZURE_LOCAL_REGIONS=\(([^)]*)\)').Groups[1].Value -split '\s+' | Where-Object { $_ })
+    $bicepRegions.Count | Should -BeGreaterThan 5
+    Compare-Object $bicepRegions $wrapperRegions | Should -BeNullOrEmpty
+  }
+
   It 'waives only the criticals nested virtualization makes unavoidable' {
     $waived = @($config.Validation.AllowedCriticalTests)
     # Each entry was observed failing on the live lab and is impossible to remediate

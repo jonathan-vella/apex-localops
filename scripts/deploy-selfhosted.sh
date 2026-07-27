@@ -26,6 +26,10 @@ ACCEPT_WINDOWS_SERVER_TERMS=false
 # Perishable pins, verified in preflight and forwarded to the staging step.
 AZURE_LOCAL_RELEASE_CODE="2607"
 WINDOWS_SERVER_ISO_ALIAS='https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=us'
+# Region the Azure Local instance and its Arc machines are created in. Separate from
+# the infrastructure region because Azure Local supports far fewer regions.
+AZURE_LOCAL_INSTANCE_LOCATION="westeurope"
+AZURE_LOCAL_REGIONS=(australiaeast canadacentral centralindia eastus germanywestcentral japaneast southcentralus southeastasia uksouth ukwest westeurope)
 HCI_RP_APP_ID="1412d89f-b8a8-4111-b4fd-e82905cbd85d"
 HOST_SKU="Standard_E64s_v6"
 HOST_VCPU=64
@@ -68,6 +72,7 @@ usage() {
     '  --accept-azure-local-license-terms' \
     '  --accept-windows-server-evaluation-terms' \
     '  --azure-local-release-code <YYMM>   Pinned Azure Local release; preflight verifies it resolves' \
+    '  --azure-local-location <region>     Region for the Azure Local instance and its Arc machines' \
     '  --help, -h' \
     '' \
     'Pass both --accept-* flags to stage the ISOs automatically once the ARM deployment' \
@@ -243,6 +248,32 @@ preflight() {
   fi
   [[ "$iso_pins_ok" == "true" ]] && echo "  [ok]   both pinned ISO aliases resolve to approved hosts"
 
+  # The Azure Local instance region is separate from the infrastructure region and
+  # supports far fewer locations. A region your subscription is not permitted to use
+  # fails Arc onboarding with RequestDisallowedByAzure 403 about ninety minutes in,
+  # and the agent blames credentials rather than the region, so check it up front.
+  region_supported=false
+  for supported_region in "${AZURE_LOCAL_REGIONS[@]}"; do
+    [[ "$supported_region" == "$AZURE_LOCAL_INSTANCE_LOCATION" ]] && region_supported=true
+  done
+  if [[ "$region_supported" != "true" ]]; then
+    echo "  [FAIL] '$AZURE_LOCAL_INSTANCE_LOCATION' is not an Azure Local region." >&2
+    echo "         Supported: ${AZURE_LOCAL_REGIONS[*]}" >&2
+    failures=$((failures + 1))
+  else
+    probe_rg="apexlocal-regionprobe-$RANDOM"
+    if az group create --name "$probe_rg" --location "$AZURE_LOCAL_INSTANCE_LOCATION" \
+        --output none 2>/dev/null; then
+      az group delete --name "$probe_rg" --yes --no-wait --output none 2>/dev/null || true
+      echo "  [ok]   Azure Local region '$AZURE_LOCAL_INSTANCE_LOCATION' accepted"
+    else
+      echo "  [FAIL] subscription cannot create resources in '$AZURE_LOCAL_INSTANCE_LOCATION'." >&2
+      echo "         Azure restricts some regions per subscription. Choose another with" >&2
+      echo "         --azure-local-location. Supported: ${AZURE_LOCAL_REGIONS[*]}" >&2
+      failures=$((failures + 1))
+    fi
+  fi
+
   if (( failures == 0 )); then
     echo "  [ok]   immutable runtime artifact set reachable"
   else
@@ -263,6 +294,7 @@ while [[ $# -gt 0 ]]; do
     --accept-azure-local-license-terms) ACCEPT_AZURE_LOCAL_TERMS=true; shift ;;
     --accept-windows-server-evaluation-terms) ACCEPT_WINDOWS_SERVER_TERMS=true; shift ;;
     --azure-local-release-code) AZURE_LOCAL_RELEASE_CODE="${2:?missing value}"; shift 2 ;;
+    --azure-local-location) AZURE_LOCAL_INSTANCE_LOCATION="${2:?missing value}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -317,6 +349,7 @@ DEPLOYMENT_PARAMETERS=(
   "clusterName=$CLUSTER_NAME"
   "enableAzureHybridBenefit=$ENABLE_AZURE_HYBRID_BENEFIT"
   "operatorPrincipalId=$OPERATOR_PRINCIPAL_ID"
+  "azureLocalInstanceLocation=$AZURE_LOCAL_INSTANCE_LOCATION"
 )
 
 echo "Running what-if preview..."

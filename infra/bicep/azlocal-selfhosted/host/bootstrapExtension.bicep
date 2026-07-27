@@ -40,6 +40,9 @@ param clusterResourceSuffix string
 @description('Object ID of the Microsoft.AzureStackHCI resource provider service principal.')
 param hciResourceProviderObjectId string
 
+@description('Azure region the Azure Local instance and its Arc machines are created in. Must be an Azure Local supported region AND one your subscription is allowed to use: a restricted region fails Arc onboarding with RequestDisallowedByAzure 403 about ninety minutes into the build.')
+param azureLocalInstanceLocation string = 'westeurope'
+
 var encodedPassword = base64(windowsAdminPassword)
 
 resource hostVm 'Microsoft.Compute/virtualMachines@2025-04-01' existing = {
@@ -60,7 +63,7 @@ resource bootstrap 'Microsoft.Compute/virtualMachines/extensions@2025-04-01' = {
       fileUris: [
         uri(templateBaseUrl, 'artifacts/selfhosted/PowerShell/Bootstrap.ps1')
       ]
-      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -isoContainerName ${isoContainerName} -logsContainerName ${logsContainerName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon true -clusterNodeCount 3 -nodeMemoryMB 98304 -nodeCpuCount 16 -clusterName ${clusterName} -clusterResourceSuffix ${clusterResourceSuffix} -azureLocalInstanceLocation westeurope -hciResourceProviderObjectId ${hciResourceProviderObjectId}'
+      commandToExecute: 'powershell.exe -ExecutionPolicy Bypass -File Bootstrap.ps1 -adminUsername ${windowsAdminUsername} -adminPassword ${encodedPassword} -subscriptionId ${subscription().subscriptionId} -tenantId ${subscription().tenantId} -resourceGroup ${resourceGroup().name} -azureLocation ${location} -stagingStorageAccountName ${stagingStorageAccountName} -isoContainerName ${isoContainerName} -logsContainerName ${logsContainerName} -workspaceName ${workspaceName} -templateBaseUrl ${templateBaseUrl} -vmAutologon true -clusterNodeCount 3 -nodeMemoryMB 98304 -nodeCpuCount 16 -clusterName ${clusterName} -clusterResourceSuffix ${clusterResourceSuffix} -azureLocalInstanceLocation ${azureLocalInstanceLocation} -hciResourceProviderObjectId ${hciResourceProviderObjectId}'
     }
   }
 }

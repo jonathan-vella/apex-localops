@@ -97,7 +97,16 @@ them, rerun with `--disable-azure-hybrid-benefit` for license-included (PAYG) bi
 
 The deployment does not pause for cost or licensing confirmation; technical preflight remains
 mandatory. Sweden Central is primary. Use `--location germanywestcentral` only as the explicit
-capacity fallback. Azure Local registration remains pinned to West Europe.
+capacity fallback.
+
+The **Azure Local instance region is separate** from the infrastructure region and supports far
+fewer locations. It defaults to West Europe and is set with `--azure-local-location`. Azure
+restricts some regions per subscription, so preflight proves your subscription can actually
+create resources there before anything starts billing — otherwise Arc onboarding fails roughly
+ninety minutes into the build, and the agent reports it as a credentials problem rather than a
+region one. If preflight rejects your region, pick another from: `australiaeast`,
+`canadacentral`, `centralindia`, `eastus`, `germanywestcentral`, `japaneast`, `southcentralus`,
+`southeastasia`, `uksouth`, `ukwest`, `westeurope`.
 
 The cluster host then installs Hyper-V, pools its data disks into `V:`, configures the internal
 and NAT-uplink switches, and **waits** for both ISOs to appear in storage. The nested router VM

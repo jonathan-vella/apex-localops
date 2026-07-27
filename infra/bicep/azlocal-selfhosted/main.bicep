@@ -90,6 +90,22 @@ param hciResourceProviderObjectId string = ''
 @description('Add CostControl/SecurityControl tags (Microsoft-internal lab tenants only).')
 param governResourceTags bool = false
 
+@description('Azure region the Azure Local instance and its Arc machines are created in. Only Azure Local supported regions are listed. Your subscription must also be permitted to create resources there: a restricted region fails Arc onboarding with a RequestDisallowedByAzure 403 roughly ninety minutes into the build.')
+@allowed([
+  'australiaeast'
+  'canadacentral'
+  'centralindia'
+  'eastus'
+  'germanywestcentral'
+  'japaneast'
+  'southcentralus'
+  'southeastasia'
+  'uksouth'
+  'ukwest'
+  'westeurope'
+])
+param azureLocalInstanceLocation string = 'westeurope'
+
 @description('Object id of the operator or group allowed to read the stored lab password, so resume and recover need no retyping. Resolved at deploy time by scripts/deploy-selfhosted.sh; empty skips the assignment.')
 param operatorPrincipalId string = ''
 
@@ -294,6 +310,7 @@ module hostBootstrapDeployment 'host/bootstrapExtension.bicep' = {
     artifactRef: artifactRef
     clusterName: clusterName
     clusterResourceSuffix: clusterResourceSuffix
+    azureLocalInstanceLocation: azureLocalInstanceLocation
     hciResourceProviderObjectId: hciResourceProviderObjectId
   }
   dependsOn: [
