@@ -323,6 +323,53 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'passes exactly what the vendored cluster template declares' {
+    # Stage 10 runs after hours of build. A parameter typo or a refreshed vendored
+    # template must fail here, not three hours into a paid run.
+    $template = Get-Content -Path (Join-Path $repoRoot 'artifacts/selfhosted/azlocal.json') -Raw |
+      ConvertFrom-Json
+    $templateParamNames = @($template.parameters.PSObject.Properties.Name)
+
+    $block = [regex]::Match($moduleSource, '(?s)\$common = @\{(.*?)\n  \}').Groups[1].Value
+    $splatKeys = @([regex]::Matches($block, '(?m)^\s{4}(\w+)\s+=') | ForEach-Object { $_.Groups[1].Value })
+    $splatKeys.Count | Should -BeGreaterThan 20
+
+    # deploymentMode is supplied separately on each of the Validate and Deploy calls.
+    $passed = @($splatKeys | Where-Object { $_ -notin @('ResourceGroupName', 'TemplateFile') }) +
+    'deploymentMode'
+    foreach ($name in $passed) {
+      $templateParamNames | Should -Contain $name
+    }
+
+    $required = @($template.parameters.PSObject.Properties |
+      Where-Object { -not $_.Value.PSObject.Properties.Name.Contains('defaultValue') } |
+      ForEach-Object { $_.Name })
+    foreach ($name in $required) {
+      $passed | Should -Contain $name
+    }
+
+    # Every constrained value the deploy hard-codes must be in the allowed set.
+    $template.parameters.witnessType.allowedValues | Should -Contain 'No Witness'
+    $template.parameters.securityLevel.allowedValues | Should -Contain 'Recommended'
+    $template.parameters.configurationMode.allowedValues | Should -Contain 'Express'
+    $template.parameters.networkingType.allowedValues | Should -Contain 'switchedMultiServerDeployment'
+    $template.parameters.deploymentMode.allowedValues | Should -Contain 'Validate'
+    $template.parameters.deploymentMode.allowedValues | Should -Contain 'Deploy'
+  }
+
+  It 'bounds Arc initialization and verifies the guest command surface' {
+    # Arc init falls back to an interactive device-code prompt if the token is rejected,
+    # and that prompt is invisible over PowerShell Direct.
+    $moduleSource | Should -Match 'Invoke-Command -VMName \$VmName -Credential \$Credential -AsJob'
+    $moduleSource | Should -Match 'Wait-Job -Job \$arcJob -Timeout \$TimeoutSeconds'
+    $moduleSource | Should -Match 'Stop-Job -Job \$arcJob'
+    $moduleSource | Should -Match '\[int\]\$TimeoutSeconds = 2700'
+    # The host-side contract gate cannot see a command that only exists on the node.
+    $moduleSource | Should -Match 'Invoke-AzStackHciArcInitialization does not expose'
+    # The token must still be passed, or every run turns into a device-code prompt.
+    $moduleSource | Should -Match 'ArmAccessToken = \$token'
+  }
+
   It 'stores the lab password so a resume never needs it retyped' {
     # The build scrubs the credential on failure; without a vault every resume is manual.
     $mainBicep = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/main.bicep') -Raw

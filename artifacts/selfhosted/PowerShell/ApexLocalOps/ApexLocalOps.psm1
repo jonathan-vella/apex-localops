@@ -1699,7 +1699,12 @@ function Connect-ApexNodeToArc {
     [Parameter(Mandatory)] [string]$SubscriptionId,
     [Parameter(Mandatory)] [string]$ResourceGroup,
     [Parameter(Mandatory)] [string]$TenantId,
-    [Parameter(Mandatory)] [string]$Location
+    [Parameter(Mandatory)] [string]$Location,
+    # Arc initialization normally takes 5-15 minutes. The bound exists because the
+    # command falls back to an interactive device-code prompt if it ever rejects the
+    # token, and that prompt is invisible over PowerShell Direct: without a timeout
+    # the build would block until the whole run command expires.
+    [int]$TimeoutSeconds = 2700
   )
   # Acquire an ARM access token on the HOST using its managed identity. Handle both
   # the legacy plaintext .Token and the newer -AsSecureString Az.Accounts behavior.
@@ -1715,7 +1720,7 @@ function Connect-ApexNodeToArc {
 
   try {
     Write-ApexLog "Running Azure Local Arc initialization on '$VmName' in $ResourceGroup ($Location)."
-    $bootstrapVersion = Invoke-Command -VMName $VmName -Credential $Credential -ScriptBlock {
+    $arcJob = Invoke-Command -VMName $VmName -Credential $Credential -AsJob -ScriptBlock {
       param(
         [string]$subId,
         [string]$rg,
@@ -1734,6 +1739,12 @@ function Connect-ApexNodeToArc {
         Cloud          = 'AzureCloud'
         ArmAccessToken = $token
       }
+      # This command only exists on the Azure Local OS, so the host-side contract gate
+      # cannot see it. Verify the surface here, before spending the Arc onboarding time.
+      $missing = @($parameters.Keys | Where-Object { -not $command.Parameters.ContainsKey($_) })
+      if ($missing) {
+        throw "Invoke-AzStackHciArcInitialization does not expose: $($missing -join ', ')."
+      }
       try {
         Invoke-AzStackHciArcInitialization @parameters -ErrorAction Stop | Out-Null
       }
@@ -1743,6 +1754,16 @@ function Connect-ApexNodeToArc {
       }
       return $version
     } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $accessToken
+
+    if (-not (Wait-Job -Job $arcJob -Timeout $TimeoutSeconds)) {
+      Stop-Job -Job $arcJob -ErrorAction SilentlyContinue
+      Remove-Job -Job $arcJob -Force -ErrorAction SilentlyContinue
+      throw ("Arc initialization on '$VmName' exceeded $TimeoutSeconds seconds. " +
+        'The node is most likely blocked on an invisible device-code prompt because the ' +
+        'ARM token was rejected; confirm the host managed identity can still reach Azure.')
+    }
+    $bootstrapVersion = Receive-Job -Job $arcJob -ErrorAction Stop
+    Remove-Job -Job $arcJob -Force -ErrorAction SilentlyContinue
     Write-ApexLog "Azure Local Arc initialization completed on '$VmName' (command version $bootstrapVersion)."
   }
   finally {
