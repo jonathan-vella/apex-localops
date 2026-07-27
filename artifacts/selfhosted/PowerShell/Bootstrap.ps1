@@ -119,6 +119,25 @@ $moduleVersions = Import-PowerShellDataFile -Path (Join-Path $rootDir 'ModuleVer
 New-Item -ItemType Directory -Force -Path $cfg.Paths.IsoDir, $cfg.Paths.ToolsDir | Out-Null
 
 #######################################################################
+# Extend the OS volume across the provisioned OS disk
+#######################################################################
+# The marketplace image ships a ~127-GB system partition, so the rest of the
+# 1024-GB OS disk stays unallocated and nothing later grows it. That leaves the
+# host paying for capacity it cannot use and risks filling C: during ISO staging.
+$osPartition = Get-Partition -DriveLetter C
+$maxOsSize = (Get-PartitionSupportedSize -DiskNumber $osPartition.DiskNumber `
+    -PartitionNumber $osPartition.PartitionNumber).SizeMax
+if ($osPartition.Size -lt ($maxOsSize - 1GB)) {
+  Write-Output ('Extending C: from {0} GB to {1} GB.' -f `
+      [int]($osPartition.Size / 1GB), [int]($maxOsSize / 1GB))
+  Resize-Partition -DiskNumber $osPartition.DiskNumber `
+    -PartitionNumber $osPartition.PartitionNumber -Size $maxOsSize
+}
+else {
+  Write-Output 'C: already spans the provisioned OS disk.'
+}
+
+#######################################################################
 # Pool the Premium data disks into drive V: (Storage Spaces)
 #######################################################################
 if (-not (Test-Path 'V:\')) {

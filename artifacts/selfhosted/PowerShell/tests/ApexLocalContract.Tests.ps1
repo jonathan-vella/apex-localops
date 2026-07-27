@@ -350,6 +350,16 @@ Describe 'Self-hosted orchestration safety' {
     $orchestratorSource | Should -Match '\$cfg\.Cluster\.NodeStartIp\.Split'
   }
 
+  It 'extends the OS volume across the provisioned OS disk' {
+    # The image partition is ~127 GB while the disk is 1024 GB; nothing else grows it.
+    $bootstrapSource | Should -Match 'Get-PartitionSupportedSize -DiskNumber \$osPartition\.DiskNumber'
+    $bootstrapSource | Should -Match 'Resize-Partition -DiskNumber \$osPartition\.DiskNumber'
+    $resizeIndex = $bootstrapSource.IndexOf('Resize-Partition')
+    $poolIndex = $bootstrapSource.IndexOf('Pooling the data disks')
+    $resizeIndex | Should -BeGreaterThan 0
+    $resizeIndex | Should -BeLessThan $poolIndex
+  }
+
   It 'fails fast without the data volume and allows the full build window' {
     $bootstrapSource | Should -Match '\$expectedDataDiskCount = 12'
     $bootstrapSource | Should -Match '\$expectedDataDiskSize = 256GB'
