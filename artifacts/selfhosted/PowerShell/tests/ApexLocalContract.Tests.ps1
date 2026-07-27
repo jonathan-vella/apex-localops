@@ -319,6 +319,18 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'authenticates the AD validator with a UPN and normalises severity ordinals' {
+    # Kerberos rejects DOMAIN\user on the isolated lab network, and the report
+    # encodes severity/status as enum ordinals in the AD section.
+    $moduleSource | Should -Match '\$adUserName = \(\$DomainAdminCredential\.UserName -split'
+    $moduleSource | Should -Match '-ActiveDirectoryCredentials \$adCredential'
+    $moduleSource | Should -Match ([regex]::Escape("`$criticalSeverities = @('Critical', '2')"))
+    $moduleSource | Should -Match ([regex]::Escape("`$passedStatuses = @('Succeeded', 'Success', 'Passed', '0')"))
+    # Every waiver must be an exact test ID, never a blanket bypass.
+    $config.Validation.AllowedCriticalTests |
+      Should -Contain 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+  }
+
   It 'parses validator reports without case-folding their keys' {
     # Windows PowerShell's ConvertFrom-Json throws when one object carries both
     # 'value' and 'Value', which the Software validator emits.

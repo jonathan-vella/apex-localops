@@ -138,7 +138,12 @@
   Validation = @{
     # Populate only with exact Environment Checker test IDs proven to be
     # unavoidable for this virtual evaluation topology during the golden run.
-    AllowedCriticalTests = @()
+    AllowedCriticalTests = @(
+      # The readiness validators run on the outer workgroup host as SYSTEM, so the
+      # execution context can never be the domain LCM deployment account. Every
+      # other AD organizational-unit test passes.
+      'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+    )
   }
 
   # Resource-group tag keys used to surface in-VM progress to

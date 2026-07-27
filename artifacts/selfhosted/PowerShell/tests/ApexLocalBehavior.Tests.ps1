@@ -126,6 +126,30 @@ Describe 'Get-ApexCriticalValidationResult' {
     }
   }
 
+  It 'treats numeric severity and status ordinals as critical failures' {
+    # The AD section of a real report encodes Severity 2 = Critical and Status 0 =
+    # success. Comparing against the strings alone found nothing, which silently
+    # turned the readiness gate into a no-op.
+    InModuleScope ApexLocalOps {
+      $failed = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $failed['Name'] = 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+      $failed['Severity'] = 2
+      $failed['Status'] = 1
+
+      $passed = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+      $passed['Name'] = 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ConnectivityTest'
+      $passed['Severity'] = 2
+      $passed['Status'] = 0
+
+      $result = @(Get-ApexCriticalValidationResult -InputObject @($passed, $failed))
+
+      $result.Count | Should -Be 1
+      $result[0].Name | Should -BeLike '*ExecutingAsDeploymentUser'
+    }
+  }
+
   It 'names an unidentified dictionary finding rather than dropping it' {
     InModuleScope ApexLocalOps {
       $finding = [System.Collections.Generic.Dictionary[string, object]]::new(

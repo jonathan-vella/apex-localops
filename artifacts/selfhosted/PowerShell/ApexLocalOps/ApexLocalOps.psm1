@@ -1375,6 +1375,12 @@ function Get-ApexCriticalValidationResult {
       return
     }
 
+    # Severity and Status are strings in some report sections and enum ordinals in
+    # others ('2' = Critical, '0' = success). Normalise both shapes, otherwise the
+    # gate silently finds nothing and stops blocking.
+    $criticalSeverities = @('Critical', '2')
+    $passedStatuses = @('Succeeded', 'Success', 'Passed', '0')
+
     # Reports parsed case-sensitively arrive as dictionaries, which are also
     # IEnumerable; handle them before the collection branch so keys are not walked
     # as KeyValuePair objects.
@@ -1382,8 +1388,8 @@ function Get-ApexCriticalValidationResult {
       $keys = @($InputObject.Keys)
       $severityValue = if ($keys -contains 'Severity') { [string]$InputObject['Severity'] } else { $null }
       $statusValue = if ($keys -contains 'Status') { [string]$InputObject['Status'] } else { $null }
-      if ($severityValue -eq 'Critical' -and
-        $statusValue -notin @('Succeeded', 'Success', 'Passed')) {
+      if ($severityValue -in $criticalSeverities -and
+        $statusValue -notin $passedStatuses) {
         $identifier = $null
         foreach ($propertyName in @('Name', 'TestName', 'Title')) {
           if ($keys -contains $propertyName -and $InputObject[$propertyName]) {
@@ -1416,8 +1422,8 @@ function Get-ApexCriticalValidationResult {
     $properties = $InputObject.PSObject.Properties
     $severity = $properties['Severity']
     $status = $properties['Status']
-    if ($severity -and $status -and $severity.Value -eq 'Critical' -and
-      $status.Value -notin @('Succeeded', 'Success', 'Passed')) {
+    if ($severity -and $status -and [string]$severity.Value -in $criticalSeverities -and
+      [string]$status.Value -notin $passedStatuses) {
       $identifier = foreach ($propertyName in @('Name', 'TestName', 'Title')) {
         if ($properties[$propertyName] -and $properties[$propertyName].Value) {
           $properties[$propertyName].Value
@@ -1526,12 +1532,17 @@ function Test-ApexEnvironmentReadiness {
         -Exclude Test-IsNotPartofDomain -ErrorAction Stop | Out-Null
     }
     Invoke-ValidationStep -Name 'ActiveDirectory' -Operation {
+      # The isolated lab has no NetBIOS name resolution, so Kerberos rejects
+      # DOMAIN\user here; the validator must authenticate with a UPN.
+      $adUserName = ($DomainAdminCredential.UserName -split '\\')[-1]
+      $adCredential = New-Object System.Management.Automation.PSCredential(
+        "$adUserName@$($Config.Domain.Fqdn)", $DomainAdminCredential.Password)
       Invoke-AzStackHciExternalActiveDirectoryValidation `
         -ADOUPath $Config.Domain.OuPath `
         -DomainFQDN $Config.Domain.Fqdn `
         -NamingPrefix $Config.Domain.NamingPrefix `
         -ActiveDirectoryServer $Config.Domain.Fqdn `
-        -ActiveDirectoryCredentials $DomainAdminCredential `
+        -ActiveDirectoryCredentials $adCredential `
         -ClusterName $ClusterName `
         -PhysicalMachineNames ($Nodes.Name -join ',') `
         -ErrorAction Stop | Out-Null
