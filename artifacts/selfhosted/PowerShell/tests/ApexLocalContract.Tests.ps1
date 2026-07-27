@@ -427,6 +427,18 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'discovers Arc machines through the provider API, not the generic one' {
+    # Proven on the live lab: az resource list / Get-AzResource do not return
+    # Microsoft.HybridCompute/machines here, so the old lookup reported 0/3 for the
+    # full 30 minute wait while all three nodes were genuinely Connected.
+    $orchestratorSource | Should -Match 'Invoke-AzRestMethod -Method GET -Path'
+    $orchestratorSource | Should -Match 'Microsoft\.HybridCompute/machines/\$\(\$n\.Name\)'
+    $orchestratorSource | Should -Match "api-version=\d{4}-\d{2}-\d{2}"
+    $orchestratorSource | Should -Match "\`$machine\.properties\.status -eq 'Connected'"
+    # The generic resources API must not come back for this lookup.
+    $orchestratorSource | Should -Not -Match "Get-AzResource[^\r\n]*HybridCompute"
+  }
+
   It 'lets the Azure Local region be chosen and proves it before billing' {
     # A region the subscription may not use fails Arc onboarding with
     # RequestDisallowedByAzure 403 ~90 minutes in, and the agent blames credentials.

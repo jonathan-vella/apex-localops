@@ -228,14 +228,27 @@ try {
   Set-ApexProgress -ResourceGroup $rg -Progress 'NodesArcConnected' -Status 'Discovering Arc node resource ids' -Config $cfg
 
   # Wait for all expected Arc resources to report Connected before validation.
+  # Query the HybridCompute provider directly, NOT Get-AzResource: the generic Resources
+  # API does not return Microsoft.HybridCompute/machines here, so the old lookup reported
+  # 0/3 for the full 30 minutes while all three nodes were genuinely Connected.
   $arcDeadline = (Get-Date).AddMinutes(30)
   do {
     $arcIds = @()
     foreach ($n in $nodes) {
-      $res = Get-AzResource -ResourceGroupName $rg -ResourceType 'Microsoft.HybridCompute/machines' `
-        -Name $n.Name -ExpandProperties -ErrorAction SilentlyContinue
-      if ($res -and $res.Properties.status -eq 'Connected') {
-        $arcIds += $res.ResourceId
+      $arcPath = "/subscriptions/$subId/resourceGroups/$rg/providers/Microsoft.HybridCompute/machines/$($n.Name)"
+      try {
+        $response = Invoke-AzRestMethod -Method GET -Path "${arcPath}?api-version=2024-07-10" -ErrorAction Stop
+        if ($response.StatusCode -eq 200) {
+          # Plain ConvertFrom-Json is safe here: unlike the Environment Checker reports
+          # this payload has no keys that differ only by case.
+          $machine = $response.Content | ConvertFrom-Json
+          if ($machine.properties.status -eq 'Connected') {
+            $arcIds += $arcPath
+          }
+        }
+      }
+      catch {
+        Write-ApexLog "Arc lookup for '$($n.Name)' failed: $($_.Exception.Message)" -Level WARN
       }
     }
     if ($arcIds.Count -ne 3) {
