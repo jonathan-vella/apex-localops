@@ -319,6 +319,16 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'calls each Environment Checker validator with parameters it actually exposes' {
+    # Every name below was verified against Get-Command on the pinned module version;
+    # a wrong parameter only surfaces mid-deployment, after earlier validators pass.
+    $moduleSource | Should -Match '-ConnectionLocalAdminCredential \$LocalAdminCredential'
+    $moduleSource | Should -Not -Match '-SessionCredential'
+    $moduleSource | Should -Match 'Invoke-AzStackHciConnectivityValidation -PsSession \$nodeSessions'
+    $moduleSource | Should -Match 'Invoke-AzStackHciHardwareValidation -PsSession \$nodeSessions'
+    $moduleSource | Should -Match 'Invoke-AzStackHciArcIntegrationValidation -SubscriptionID \$SubscriptionId'
+  }
+
   It 'authenticates the AD validator with a UPN and normalises severity ordinals' {
     # Kerberos rejects DOMAIN\user on the isolated lab network, and the report
     # encodes severity/status as enum ordinals in the AD section.

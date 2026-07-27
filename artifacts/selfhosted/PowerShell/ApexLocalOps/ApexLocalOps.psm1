@@ -1569,7 +1569,7 @@ function Test-ApexEnvironmentReadiness {
       Invoke-AzStackHciNetworkValidation -IpPools $ipPools `
         -ManagementSubnetValue $Config.Network.SubnetPrefix `
         -PSSession $nodeSessions `
-        -SessionCredential $LocalAdminCredential `
+        -ConnectionLocalAdminCredential $LocalAdminCredential `
         -OutputPath $reportDirectory `
         -AtcHostIntents $atcHostIntents `
         -ErrorAction Stop | Out-Null
