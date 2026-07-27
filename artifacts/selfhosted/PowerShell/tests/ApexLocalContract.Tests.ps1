@@ -427,6 +427,24 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'runs Arc integration validation on a node, where it is supported' {
+    # Proven on the live lab: run on the outer host every check returns
+    # "ARC Integration validation is only supported on HCI OS", and
+    # Get-AzureStackHCISubscriptionStatus does not exist there.
+    $moduleSource | Should -Match 'only runs on the Azure Local OS'
+    $moduleSource | Should -Match 'Invoke-Command -Session \$arcSession'
+    $moduleSource | Should -Match 'Copy-Item -FromSession \$arcSession'
+    # The node has no Azure identity of its own, so the host must hand it a token.
+    $moduleSource | Should -Match 'ArmAccessToken                = \$token'
+    $moduleSource | Should -Match "Get-AzAccessToken -ResourceUrl 'https://management\.azure\.com/'"
+    # The token must be cleared in both scopes.
+    $moduleSource | Should -Match '\$arguments\.ArmAccessToken = \$null'
+    $moduleSource | Should -Match '\$armToken = \$null'
+    # Region is the Azure Local instance region, threaded from the orchestrator.
+    $moduleSource | Should -Match 'Region                        = \$region'
+    $orchestratorSource | Should -Match '-Phase ''PostArc'' -InstanceLocation \$instanceLoc'
+  }
+
   It 'discovers Arc machines through the provider API, not the generic one' {
     # Proven on the live lab: az resource list / Get-AzResource do not return
     # Microsoft.HybridCompute/machines here, so the old lookup reported 0/3 for the
@@ -489,9 +507,10 @@ Describe 'Self-hosted orchestration safety' {
     # so a session reused across steps is Closed by the time the next validator runs.
     $moduleSource | Should -Match 'function Reset-ApexNodeSession'
     $moduleSource | Should -Match '\$nodeSessions \| Remove-PSSession -ErrorAction SilentlyContinue'
-    # One refresh per session-consuming validator: Connectivity, Software, Network, Hardware.
+    # One refresh per session-consuming step: Connectivity, Software, Network, Hardware,
+    # plus the node session the post-Arc validator runs inside.
     ([regex]::Matches($moduleSource, '\$nodeSessions = Reset-ApexNodeSession')).Count |
-      Should -Be 4
+      Should -Be 5
     # Every -PsSession argument must be the refreshed variable.
     foreach ($validator in 'Invoke-AzStackHciConnectivityValidation',
       'Invoke-AzStackHciSoftwareValidation', 'Invoke-AzStackHciHardwareValidation') {
@@ -678,7 +697,11 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match '-SessionCredential'
     $moduleSource | Should -Match 'Invoke-AzStackHciConnectivityValidation -PsSession \$nodeSessions'
     $moduleSource | Should -Match 'Invoke-AzStackHciHardwareValidation -PsSession \$nodeSessions'
-    $moduleSource | Should -Match 'Invoke-AzStackHciArcIntegrationValidation -SubscriptionID \$SubscriptionId'
+    $moduleSource | Should -Match 'Invoke-AzStackHciArcIntegrationValidation @arguments'
+    foreach ($argument in 'SubscriptionID', 'TenantID', 'ArcResourceGroupName',
+      'RegistrationResourceGroupName', 'Region', 'NodeNames', 'ArmAccessToken', 'OutputPath') {
+      $moduleSource | Should -Match "$argument\s+= \`$"
+    }
   }
 
   It 'authenticates the AD validator with a UPN and normalises severity ordinals' {

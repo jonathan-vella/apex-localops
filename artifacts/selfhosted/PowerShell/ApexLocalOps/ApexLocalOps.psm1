@@ -1592,7 +1592,10 @@ function Test-ApexEnvironmentReadiness {
     # onboarding, so it cannot run in the same pass as the validators that must pass
     # before onboarding. Running it early failed on four criticals for the sole reason
     # that zero Arc machines existed yet.
-    [ValidateSet('PreArc', 'PostArc')] [string]$Phase = 'PreArc'
+    [ValidateSet('PreArc', 'PostArc')] [string]$Phase = 'PreArc',
+    # Only used by the PostArc phase: the Azure Local instance region the Arc machines
+    # and cluster resource live in, which is not the infrastructure region.
+    [string]$InstanceLocation
   )
 
   $moduleVersions = Import-PowerShellDataFile `
@@ -1692,13 +1695,61 @@ function Test-ApexEnvironmentReadiness {
 
   try {
     if ($Phase -eq 'PostArc') {
-      Invoke-ValidationStep -Name 'ArcIntegration' -Operation {
-        Invoke-AzStackHciArcIntegrationValidation -SubscriptionID $SubscriptionId `
-          -RegistrationResourceGroupName $ResourceGroup `
-          -ArcResourceGroupName $ResourceGroup `
-          -NodeNames @($Nodes.Name) `
-          -ErrorAction Stop | Out-Null
+      # This validator only runs on the Azure Local OS. Executed on the outer Windows
+      # Server host every check returns "ARC Integration validation is only supported on
+      # HCI OS", and Get-AzureStackHCISubscriptionStatus does not exist there at all.
+      # Run it inside a node session and copy its report back to the host log tree.
+      Import-Module Az.Accounts -ErrorAction Stop
+      $rawToken = Get-AzAccessToken -ResourceUrl 'https://management.azure.com/' -ErrorAction Stop
+      $armToken = if ($rawToken.Token -is [System.Security.SecureString]) {
+        [System.Net.NetworkCredential]::new('', $rawToken.Token).Password
       }
+      else { [string]$rawToken.Token }
+      $accountId = $null
+      try { $accountId = (Get-AzContext).Account.Id } catch { $accountId = $null }
+      $tenant = [Environment]::GetEnvironmentVariable('APEX_TenantId', 'Machine')
+      $nodeNames = @($Nodes.Name)
+      $arcReportPath = Join-Path $reportDirectory 'ArcIntegration-node.json'
+
+      try {
+        $nodeSessions = Reset-ApexNodeSession
+        $arcSession = $nodeSessions[0]
+        Invoke-ValidationStep -Name 'ArcIntegration' -ReportPath $arcReportPath -Operation {
+          $remoteReport = Invoke-Command -Session $arcSession -ScriptBlock {
+            param($subId, $tenantId, $rg, $region, $names, $token, $account)
+            Import-Module AzStackHci.EnvironmentChecker -Force -ErrorAction Stop
+            $outputDir = Join-Path $env:TEMP 'ApexArcIntegration'
+            New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+            $arguments = @{
+              SubscriptionID                = $subId
+              TenantID                      = $tenantId
+              ArcResourceGroupName          = $rg
+              RegistrationResourceGroupName = $rg
+              Region                        = $region
+              NodeNames                     = $names
+              ArmAccessToken                = $token
+              OutputPath                    = $outputDir
+            }
+            if ($account) { $arguments.AccountId = $account }
+            try {
+              Invoke-AzStackHciArcIntegrationValidation @arguments -ErrorAction Stop | Out-Null
+            }
+            finally {
+              $arguments.ArmAccessToken = $null
+              $token = $null
+            }
+            return (Join-Path $outputDir 'AzStackHciEnvironmentReport.json')
+          } -ArgumentList $SubscriptionId, $tenant, $ResourceGroup, $InstanceLocation,
+          $nodeNames, $armToken, $accountId
+
+          Copy-Item -FromSession $arcSession -Path $remoteReport `
+            -Destination $arcReportPath -Force
+        }
+      }
+      finally {
+        $armToken = $null
+      }
+
       $arcSummaryPath = Join-Path $reportDirectory 'validation-summary-PostArc.json'
       $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $arcSummaryPath -Encoding UTF8
       return

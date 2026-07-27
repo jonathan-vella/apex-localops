@@ -270,7 +270,7 @@ try {
     Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
       -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
       -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred `
-      -Phase 'PostArc'
+      -Phase 'PostArc' -InstanceLocation $instanceLoc
   }
 
   # 10) Validate + deploy the cluster ----------------------------------------
