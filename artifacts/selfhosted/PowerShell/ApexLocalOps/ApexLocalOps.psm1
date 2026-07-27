@@ -1629,6 +1629,31 @@ function Test-ApexEnvironmentReadiness {
   $networkAdminCredential = New-Object System.Management.Automation.PSCredential(
     ".\$(($LocalAdminCredential.UserName -split '\\')[-1])", $LocalAdminCredential.Password)
 
+  function Reset-ApexNodeSession {
+    <#
+      Returns a fresh WinRM session per node.
+
+      These must be WinRM sessions, not PowerShell Direct: the checker's
+      EnvValidatorNwkLibEnsureTestSessionOpen rebuilds every session it is handed from
+      $session.ComputerName plus $session.Runspace.ConnectionInfo.Credential, and a
+      PowerShell Direct session carries no reusable credential there, so the rebuild fell
+      back to the implicit identity - SYSTEM, which holds no network credential - and
+      failed with 0x8009030d after a silent 60x10s retry loop.
+
+      That same helper calls Remove-PSSession on the originals and keeps the replacements
+      for itself, so whatever is handed to one validator is Closed by the time the next
+      one runs. Every step that needs sessions therefore gets a new set.
+    #>
+    param()
+    $nodeSessions | Remove-PSSession -ErrorAction SilentlyContinue
+    $fresh = @()
+    foreach ($node in $Nodes) {
+      $fresh += New-PSSession -ComputerName $node.Name `
+        -Credential $networkAdminCredential -ErrorAction Stop
+    }
+    return $fresh
+  }
+
   function Invoke-ValidationStep {
     param(
       [Parameter(Mandatory)] [string]$Name,
@@ -1679,21 +1704,11 @@ function Test-ApexEnvironmentReadiness {
       return
     }
 
-    foreach ($node in $Nodes) {
-      # These must be WinRM sessions, not PowerShell Direct. The checker's
-      # EnvValidatorNwkLibEnsureTestSessionOpen unconditionally destroys every session
-      # it is handed and rebuilds it from $session.ComputerName plus
-      # $session.Runspace.ConnectionInfo.Credential. A PowerShell Direct session carries
-      # no reusable credential there, so the rebuild fell back to the implicit identity -
-      # SYSTEM, which holds no network credential - and failed with 0x8009030d after a
-      # silent 60x10s retry loop. A WinRM session survives that round trip intact.
-      $nodeSessions += New-PSSession -ComputerName $node.Name `
-        -Credential $networkAdminCredential -ErrorAction Stop
-    }
-
+    $nodeSessions = Reset-ApexNodeSession
     Invoke-ValidationStep -Name 'Connectivity' -Operation {
       Invoke-AzStackHciConnectivityValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
     }
+    $nodeSessions = Reset-ApexNodeSession
     Invoke-ValidationStep -Name 'Software' -Operation {
       Invoke-AzStackHciSoftwareValidation -PsSession $nodeSessions `
         -Exclude Test-IsNotPartofDomain -ErrorAction Stop | Out-Null
@@ -1750,6 +1765,7 @@ function Test-ApexEnvironmentReadiness {
         VirtualSwitchConfigurationOverrides = $null
       }
     )
+    $nodeSessions = Reset-ApexNodeSession
     Invoke-ValidationStep -Name 'Network' -ReportPath (Join-Path $reportDirectory 'AzStackHciEnvironmentReport.json') -Operation {
       # NodesInCluster is mandatory on this parameter set and is a count, not names.
       # Omitting it makes PowerShell prompt, which blocks the build indefinitely.
@@ -1762,6 +1778,7 @@ function Test-ApexEnvironmentReadiness {
         -AtcHostIntents $atcHostIntents `
         -ErrorAction Stop | Out-Null
     }
+    $nodeSessions = Reset-ApexNodeSession
     Invoke-ValidationStep -Name 'Hardware' -Operation {
       Invoke-AzStackHciHardwareValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
     }

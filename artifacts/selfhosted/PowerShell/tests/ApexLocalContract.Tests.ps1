@@ -427,6 +427,21 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'rebuilds node sessions for every validator that consumes them' {
+    # EnsureTestSessionOpen removes the sessions it is handed and keeps the replacements,
+    # so a session reused across steps is Closed by the time the next validator runs.
+    $moduleSource | Should -Match 'function Reset-ApexNodeSession'
+    $moduleSource | Should -Match '\$nodeSessions \| Remove-PSSession -ErrorAction SilentlyContinue'
+    # One refresh per session-consuming validator: Connectivity, Software, Network, Hardware.
+    ([regex]::Matches($moduleSource, '\$nodeSessions = Reset-ApexNodeSession')).Count |
+      Should -Be 4
+    # Every -PsSession argument must be the refreshed variable.
+    foreach ($validator in 'Invoke-AzStackHciConnectivityValidation',
+      'Invoke-AzStackHciSoftwareValidation', 'Invoke-AzStackHciHardwareValidation') {
+      $moduleSource | Should -Match "$validator -PsSession \`$nodeSessions"
+    }
+  }
+
   It 'validates Arc integration only after the Arc machines exist' {
     # Running ArcIntegration before onboarding failed on four criticals for the sole
     # reason that zero Arc machines existed yet.
@@ -481,10 +496,10 @@ Describe 'Self-hosted orchestration safety' {
     # EnvValidatorNwkLibEnsureTestSessionOpen destroys every supplied session and
     # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct
     # carries no reusable credential there, so the rebuild ran as SYSTEM and failed.
-    $moduleSource.Contains('$nodeSessions += New-PSSession -ComputerName $node.Name') |
+    $moduleSource.Contains('$fresh += New-PSSession -ComputerName $node.Name') |
       Should -BeTrue
     $moduleSource | Should -Match '-Credential \$networkAdminCredential -ErrorAction Stop'
-    $moduleSource.Contains('$nodeSessions += New-PSSession -VMName') | Should -BeFalse
+    $moduleSource.Contains('New-PSSession -VMName $node.Name') | Should -BeFalse
     $moduleSource | Should -Match 'EnvValidatorNwkLibEnsureTestSessionOpen'
   }
 
