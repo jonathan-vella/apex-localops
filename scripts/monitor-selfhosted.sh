@@ -75,14 +75,25 @@ snapshot() {
 }
 
 # Success = ApexProgress tag Completed AND cluster Succeeded/Connected.
+# Records WHY polling stopped in DONE_REASON. The caller must NOT re-read the tag:
+# a resume can flip it between the two reads, which previously let the monitor fall
+# through to the success branch and announce a cluster that does not exist.
 is_done() {
   local progress prov conn
+  DONE_REASON=""
   progress=$(az group show -n "$RESOURCE_GROUP" --query "tags.ApexProgress" -o tsv 2>/dev/null || echo "")
-  [[ "$progress" == "Failed" ]] && return 0
+  if [[ "$progress" == "Failed" ]]; then
+    DONE_REASON="failed"
+    return 0
+  fi
   [[ "$progress" != "Completed" ]] && return 1
   prov=$(az stack-hci cluster list -g "$RESOURCE_GROUP" --query "[0].provisioningState" -o tsv 2>/dev/null || echo "")
   conn=$(az stack-hci cluster list -g "$RESOURCE_GROUP" --query "[0].status" -o tsv 2>/dev/null || echo "")
-  [[ "$prov" == "Succeeded" && "$conn" == "Connected" ]]
+  if [[ "$prov" == "Succeeded" && "$conn" == "Connected" ]]; then
+    DONE_REASON="succeeded"
+    return 0
+  fi
+  return 1
 }
 
 if [[ "$ONCE" == "true" ]]; then
@@ -94,9 +105,8 @@ echo "Polling every ${INTERVAL}s. Ctrl-C to stop. (Build can take several hours.
 while true; do
   snapshot
   if is_done; then
-    progress=$(az group show -n "$RESOURCE_GROUP" --query "tags.ApexProgress" -o tsv 2>/dev/null || echo "")
     echo
-    if [[ "$progress" == "Failed" ]]; then
+    if [[ "$DONE_REASON" == "failed" ]]; then
       status=$(az group show -n "$RESOURCE_GROUP" --query "tags.ApexStatus" -o tsv 2>/dev/null || echo "")
       stage=$(sed -n "s/^Stage '\([A-Za-z]*\)' failed:.*/\1/p" <<<"$status")
       echo "Build reported Failed: ${status:-<no status tag>}" >&2

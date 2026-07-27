@@ -106,6 +106,13 @@ az vm run-command create -g "$RESOURCE_GROUP" --vm-name "$HOST_VM" \
   --protected-parameters AdminPassword="$LOCALSELF_ADMIN_PASSWORD" \
   --async-execution true --timeout-in-seconds 21600 --output none
 
+# Clear the previous attempt's terminal 'Failed' tag straight away. The orchestrator
+# claims it too, but not for another minute or so, and a monitor started in that
+# window would otherwise read the stale tag and declare the resumed build dead.
+RG_ID=$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)
+az tag update --resource-id "$RG_ID" --operation merge --output none \
+  --tags ApexProgress=Building ApexStatus="Resume requested at stage ${START_AT_STAGE}"
+
 printf '%s\n' \
   'Resume started asynchronously as an Azure Managed Run Command.' \
   "Status:  az vm run-command show -g ${RESOURCE_GROUP} --vm-name ${HOST_VM} --run-command-name ${RUN_COMMAND_NAME} -o table" \

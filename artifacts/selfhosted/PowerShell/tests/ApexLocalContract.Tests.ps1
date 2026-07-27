@@ -323,6 +323,21 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'never announces success it has not actually observed' {
+    $monitorSource = Get-Content -Path (Join-Path $repoRoot 'scripts/monitor-selfhosted.sh') -Raw
+    # Re-reading the tag after is_done let a resume flip it mid-check, so the monitor
+    # fell through and reported a cluster that did not exist.
+    $monitorSource | Should -Match 'DONE_REASON="failed"'
+    $monitorSource | Should -Match 'DONE_REASON="succeeded"'
+    $monitorSource | Should -Match 'if \[\[ "\$DONE_REASON" == "failed" \]\]'
+    # Success is only ever claimed from the real cluster state.
+    $monitorSource | Should -Match 'provisioningState'
+    $monitorSource | Should -Match '\$prov" == "Succeeded" && "\$conn" == "Connected"'
+    # A resume must clear the previous attempt's terminal tag immediately.
+    $resumeWrapperSource | Should -Match 'az tag update --resource-id "\$RG_ID" --operation merge'
+    $resumeWrapperSource | Should -Match 'ApexProgress=Building'
+  }
+
   It 'resolves both perishable ISO pins before anything starts billing' {
     # A dead pin discovered during staging means the host and its 12 Premium disks
     # have already been billing for ~20 minutes.
