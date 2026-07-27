@@ -1698,16 +1698,34 @@ function Test-ApexEnvironmentReadiness {
         StartingAddress = $Config.Cluster.StartingIp
         EndingAddress   = $Config.Cluster.EndingIp
       })
+    # The checker hard-casts the three override flags, e.g.
+    # [Boolean] $x = $currentIntent.OverrideAdapterProperty, so omitting them fails with
+    # 'Cannot convert value "" to type System.Boolean' rather than anything diagnostic.
+    # All three are $false because Get-NetAdapterRdma reports every nested adapter with
+    # Enabled=False, which is the checker's valid "no RDMA, no override" combination and
+    # matches the intent list the cluster deployment sends.
     $atcHostIntents = @(
       [pscustomobject]@{
-        name        = 'Compute_Management'
-        trafficType = @('Management', 'Compute')
-        adapter     = @($Config.Cluster.FabricAdapter)
+        name                                = 'Compute_Management'
+        trafficType                         = @('Management', 'Compute')
+        adapter                             = @($Config.Cluster.FabricAdapter)
+        OverrideAdapterProperty             = $false
+        AdapterPropertyOverrides            = $null
+        OverrideQoSPolicy                   = $false
+        QoSPolicyOverrides                  = $null
+        OverrideVirtualSwitchConfiguration  = $false
+        VirtualSwitchConfigurationOverrides = $null
       }
       [pscustomobject]@{
-        name        = 'Storage'
-        trafficType = @('Storage')
-        adapter     = @($Config.Cluster.StorageAdapterA, $Config.Cluster.StorageAdapterB)
+        name                                = 'Storage'
+        trafficType                         = @('Storage')
+        adapter                             = @($Config.Cluster.StorageAdapterA, $Config.Cluster.StorageAdapterB)
+        OverrideAdapterProperty             = $false
+        AdapterPropertyOverrides            = $null
+        OverrideQoSPolicy                   = $false
+        QoSPolicyOverrides                  = $null
+        OverrideVirtualSwitchConfiguration  = $false
+        VirtualSwitchConfigurationOverrides = $null
       }
     )
     Invoke-ValidationStep -Name 'Network' -Operation {

@@ -427,6 +427,24 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'gives each ATC intent the override flags the checker hard-casts' {
+    # The checker does [Boolean] $x = $intent.OverrideAdapterProperty, so a missing
+    # property fails with 'Cannot convert value "" to type System.Boolean'.
+    $intentBlock = [regex]::Match($moduleSource, '(?s)\$atcHostIntents = @\((.*?)\n    \)').Groups[1].Value
+    $intentBlock | Should -Not -BeNullOrEmpty
+    foreach ($flag in 'OverrideAdapterProperty', 'OverrideQoSPolicy',
+      'OverrideVirtualSwitchConfiguration') {
+      # Once per intent, and both must be $false to match the no-RDMA nested adapters.
+      ([regex]::Matches($intentBlock, [regex]::Escape($flag) + '\s+= \$false')).Count |
+        Should -Be 2
+    }
+    foreach ($bag in 'AdapterPropertyOverrides', 'QoSPolicyOverrides',
+      'VirtualSwitchConfigurationOverrides') {
+      ([regex]::Matches($intentBlock, [regex]::Escape($bag) + '\s+= \$null')).Count |
+        Should -Be 2
+    }
+  }
+
   It 'hands the checker WinRM sessions it can rebuild, not PowerShell Direct' {
     # EnvValidatorNwkLibEnsureTestSessionOpen destroys every supplied session and
     # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct
