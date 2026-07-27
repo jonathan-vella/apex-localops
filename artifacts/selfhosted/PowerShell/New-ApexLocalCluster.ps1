@@ -94,6 +94,12 @@ $buildFailed = $false
 try {
   Connect-ApexAzure -SubscriptionId $subId | Out-Null
 
+  # Claim the progress tag immediately. Without this a resumed run leaves the
+  # previous attempt's terminal 'Failed' tag in place until the first stage that
+  # reports, so monitoring would declare a healthy build dead.
+  Set-ApexProgress -ResourceGroup $rg -Progress 'Building' `
+    -Status "Build started at stage '$StartAtStage'" -Config $cfg
+
   # 1) Host fabric ------------------------------------------------------------
   if ($startStageIndex -gt 0) {
     Write-ApexLog "Resuming build at stage '$StartAtStage' ($($startStageIndex + 1) of $($stageOrder.Count))."

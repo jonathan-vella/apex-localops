@@ -1324,8 +1324,9 @@ function New-ApexLocalNode {
   )
 
   $firmware = Get-VMFirmware -VMName $name
-  $tpm = Get-VMTPM -VMName $name
-  if ($firmware.SecureBoot -ne 'On' -or -not $tpm.TpmEnabled) {
+  # Hyper-V exposes vTPM state through Get-VMSecurity; there is no Get-VMTPM cmdlet.
+  $security = Get-VMSecurity -VMName $name
+  if ($firmware.SecureBoot -ne 'On' -or -not $security.TpmEnabled) {
     throw "Node '$name' must have Secure Boot and vTPM enabled."
   }
 

@@ -319,6 +319,22 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'verifies node Secure Boot and vTPM with supported Hyper-V cmdlets' {
+    $moduleSource | Should -Match 'Get-VMSecurity -VMName \$name'
+    $moduleSource | Should -Match '-not \$security\.TpmEnabled'
+    # Get-VMTPM does not exist in the Hyper-V module.
+    $moduleSource | Should -Not -Match 'Get-VMTPM'
+  }
+
+  It 'claims the progress tag before any stage reports' {
+    # A resumed run must not inherit the previous attempt's terminal Failed tag.
+    $orchestratorSource | Should -Match "-Progress 'Building'"
+    $claimIndex = $orchestratorSource.IndexOf("-Progress 'Building'")
+    $firstStageIndex = $orchestratorSource.IndexOf("Test-ApexStage 'HostFabric'")
+    $claimIndex | Should -BeGreaterThan 0
+    $claimIndex | Should -BeLessThan $firstStageIndex
+  }
+
   It 'resumes at a named stage instead of forcing a full rebuild' {
     $orchestratorSource | Should -Match '\[string\]\$StartAtStage = ''HostFabric'''
     $orchestratorSource | Should -Match 'function Test-ApexStage'
