@@ -46,7 +46,11 @@ $startStageIndex = [array]::IndexOf($stageOrder, $StartAtStage)
 
 function Test-ApexStage {
   param([Parameter(Mandatory)] [string]$Name)
-  return ([array]::IndexOf($stageOrder, $Name) -ge $startStageIndex)
+  $willRun = ([array]::IndexOf($stageOrder, $Name) -ge $startStageIndex)
+  # Record the stage entered so a failure can name it and hand back a resume point,
+  # instead of making the operator read a transcript over Bastion to find one.
+  if ($willRun) { $script:currentStage = $Name }
+  return $willRun
 }
 
 $rootDir = 'C:\ApexLocal'
@@ -90,6 +94,7 @@ $adminPw = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64St
 $securePw = ConvertTo-SecureString $adminPw -AsPlainText -Force
 $localAdminCred = New-Object System.Management.Automation.PSCredential("Administrator", $securePw)
 $buildFailed = $false
+$script:currentStage = $StartAtStage
 
 try {
   Connect-ApexAzure -SubscriptionId $subId | Out-Null
@@ -260,9 +265,12 @@ try {
 }
 catch {
   $buildFailed = $true
-  Write-ApexLog "BUILD FAILED: $($_.Exception.Message)" -Level ERROR
+  $failedStage = if ($script:currentStage) { $script:currentStage } else { $StartAtStage }
+  Write-ApexLog "BUILD FAILED at stage '$failedStage': $($_.Exception.Message)" -Level ERROR
   Write-ApexLog ($_.ScriptStackTrace) -Level ERROR
-  Set-ApexProgress -ResourceGroup $rg -Progress 'Failed' -Status ($_.Exception.Message) -Config $cfg
+  # The stage name is the actionable part: it is the argument to resume-selfhosted.sh.
+  Set-ApexProgress -ResourceGroup $rg -Progress 'Failed' `
+    -Status "Stage '$failedStage' failed: $($_.Exception.Message)" -Config $cfg
 }
 finally {
   try {

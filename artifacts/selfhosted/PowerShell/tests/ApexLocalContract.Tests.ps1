@@ -323,6 +323,19 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'turns a failure into a named stage the operator can resume from' {
+    # A stranger must not have to read a transcript over Bastion to recover.
+    $orchestratorSource | Should -Match "Stage '\`$failedStage' failed:"
+    $orchestratorSource | Should -Match '\$script:currentStage = \$Name'
+    $monitorSource = Get-Content -Path (Join-Path $repoRoot 'scripts/monitor-selfhosted.sh') -Raw
+    $monitorSource | Should -Match 'resume-selfhosted\.sh --stage'
+
+    # The monitor parses the stage back out of the tag; prove the round trip.
+    $tagValue = "Stage 'Readiness' failed: something broke"
+    ($tagValue -match "^Stage '([A-Za-z]*)' failed:") | Should -BeTrue
+    $Matches[1] | Should -Be 'Readiness'
+  }
+
   It 'supports stage resume without exposing the lab password' {
     # Resume must reuse what the previous attempt built, so a defect costs one stage.
     $resumeWrapperSource | Should -Match '--protected-parameters AdminPassword='

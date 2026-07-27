@@ -97,7 +97,15 @@ while true; do
     progress=$(az group show -n "$RESOURCE_GROUP" --query "tags.ApexProgress" -o tsv 2>/dev/null || echo "")
     echo
     if [[ "$progress" == "Failed" ]]; then
-      echo "Build reported Failed. Inspect with: $0 --once --logs -g $RESOURCE_GROUP" >&2
+      status=$(az group show -n "$RESOURCE_GROUP" --query "tags.ApexStatus" -o tsv 2>/dev/null || echo "")
+      stage=$(sed -n "s/^Stage '\([A-Za-z]*\)' failed:.*/\1/p" <<<"$status")
+      echo "Build reported Failed: ${status:-<no status tag>}" >&2
+      echo "Logs:   $0 --once --logs -g $RESOURCE_GROUP" >&2
+      if [[ -n "$stage" ]]; then
+        # Resume reuses the staged ISOs and base images, so a fix costs one stage.
+        echo "Resume: export LOCALSELF_ADMIN_PASSWORD=... then" >&2
+        echo "        ./scripts/resume-selfhosted.sh --stage $stage --artifact-ref <ref> -g $RESOURCE_GROUP" >&2
+      fi
       exit 1
     fi
     echo "Cluster is Succeeded/Connected. Done."
