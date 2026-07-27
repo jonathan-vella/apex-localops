@@ -427,6 +427,17 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'hands the checker WinRM sessions it can rebuild, not PowerShell Direct' {
+    # EnvValidatorNwkLibEnsureTestSessionOpen destroys every supplied session and
+    # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct
+    # carries no reusable credential there, so the rebuild ran as SYSTEM and failed.
+    $moduleSource.Contains('$nodeSessions += New-PSSession -ComputerName $node.Name') |
+      Should -BeTrue
+    $moduleSource | Should -Match '-Credential \$networkAdminCredential -ErrorAction Stop'
+    $moduleSource.Contains('$nodeSessions += New-PSSession -VMName') | Should -BeFalse
+    $moduleSource | Should -Match 'EnvValidatorNwkLibEnsureTestSessionOpen'
+  }
+
   It 'machine-qualifies the credential the network validator dials nodes with' {
     # Proven on the live lab: bare 'Administrator' fails NTLM to a workgroup node with
     # 0x8009030d, while '.\Administrator' succeeds against every node.

@@ -1658,7 +1658,15 @@ function Test-ApexEnvironmentReadiness {
 
   try {
     foreach ($node in $Nodes) {
-      $nodeSessions += New-PSSession -VMName $node.Name -Credential $LocalAdminCredential -ErrorAction Stop
+      # These must be WinRM sessions, not PowerShell Direct. The checker's
+      # EnvValidatorNwkLibEnsureTestSessionOpen unconditionally destroys every session
+      # it is handed and rebuilds it from $session.ComputerName plus
+      # $session.Runspace.ConnectionInfo.Credential. A PowerShell Direct session carries
+      # no reusable credential there, so the rebuild fell back to the implicit identity -
+      # SYSTEM, which holds no network credential - and failed with 0x8009030d after a
+      # silent 60x10s retry loop. A WinRM session survives that round trip intact.
+      $nodeSessions += New-PSSession -ComputerName $node.Name `
+        -Credential $networkAdminCredential -ErrorAction Stop
     }
 
     Invoke-ValidationStep -Name 'Connectivity' -Operation {
