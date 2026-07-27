@@ -323,6 +323,26 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'resolves both perishable ISO pins before anything starts billing' {
+    # A dead pin discovered during staging means the host and its 12 Premium disks
+    # have already been billing for ~20 minutes.
+    $deployWrapperSource | Should -Match 'aka\.ms/hcireleaseimage/\$\{AZURE_LOCAL_RELEASE_CODE\}'
+    $deployWrapperSource | Should -Match 'WINDOWS_SERVER_ISO_ALIAS'
+    $deployWrapperSource | Should -Match 'both pinned ISO aliases resolve to approved hosts'
+
+    # The approved hosts must not drift between the preflight and the downloaders.
+    foreach ($approvedHost in @('azurestackreleases.download.prss.microsoft.com',
+        'software-static.download.prss.microsoft.com')) {
+      $deployWrapperSource.Contains($approvedHost) | Should -BeTrue
+    }
+    $isoDownloaderSource.Contains('azurestackreleases.download.prss.microsoft.com') | Should -BeTrue
+    $windowsIsoDownloaderSource.Contains('software-static.download.prss.microsoft.com') | Should -BeTrue
+
+    # The release code the preflight checks must be the one staging downloads.
+    $deployWrapperSource | Should -Match 'AZURE_LOCAL_RELEASE_CODE="2607"'
+    $deployWrapperSource | Should -Match '--azure-local-release-code "\$AZURE_LOCAL_RELEASE_CODE"'
+  }
+
   It 'passes exactly what the vendored cluster template declares' {
     # Stage 10 runs after hours of build. A parameter typo or a refreshed vendored
     # template must fail here, not three hours into a paid run.

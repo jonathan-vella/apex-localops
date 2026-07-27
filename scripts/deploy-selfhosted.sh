@@ -23,6 +23,9 @@ STAGE_ISOS="$SCRIPT_DIR/stage-selfhosted-isos.sh"
 # License acceptance stays an explicit operator act, so it is never defaulted on.
 ACCEPT_AZURE_LOCAL_TERMS=false
 ACCEPT_WINDOWS_SERVER_TERMS=false
+# Perishable pins, verified in preflight and forwarded to the staging step.
+AZURE_LOCAL_RELEASE_CODE="2607"
+WINDOWS_SERVER_ISO_ALIAS='https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=us'
 HCI_RP_APP_ID="1412d89f-b8a8-4111-b4fd-e82905cbd85d"
 HOST_SKU="Standard_E64s_v6"
 HOST_VCPU=64
@@ -62,6 +65,7 @@ usage() {
     '  --disable-azure-hybrid-benefit   Bill Windows Server at the license-included (PAYG) rate' \
     '  --accept-azure-local-license-terms' \
     '  --accept-windows-server-evaluation-terms' \
+    '  --azure-local-release-code <YYMM>   Pinned Azure Local release; preflight verifies it resolves' \
     '  --help, -h' \
     '' \
     'Pass both --accept-* flags to stage the ISOs automatically once the ARM deployment' \
@@ -212,6 +216,31 @@ preflight() {
       failures=$((failures + 1))
     fi
   done
+
+  # The ISO aliases are the perishable pins: the Azure Local release alias is
+  # superseded every few months and the Windows Server evaluation is a 180-day
+  # build. Resolve them now, because discovering a dead pin during staging means
+  # the host and its 12 Premium disks have already been billing for ~20 minutes.
+  iso_pins_ok=true
+  azure_local_alias="https://aka.ms/hcireleaseimage/${AZURE_LOCAL_RELEASE_CODE}"
+  resolved_host=$(curl --silent --show-error --location --head --output /dev/null \
+    --write-out '%{url_effective}' "$azure_local_alias" 2>/dev/null | awk -F/ '{print $3}')
+  if [[ "$resolved_host" != "azurestackreleases.download.prss.microsoft.com" ]]; then
+    echo "  [FAIL] Azure Local release alias ${azure_local_alias} resolved to '${resolved_host:-nothing}'." >&2
+    echo "         The pinned release is likely superseded; pick a current --azure-local-release-code." >&2
+    iso_pins_ok=false
+    failures=$((failures + 1))
+  fi
+  resolved_host=$(curl --silent --show-error --location --head --output /dev/null \
+    --write-out '%{url_effective}' "$WINDOWS_SERVER_ISO_ALIAS" 2>/dev/null | awk -F/ '{print $3}')
+  if [[ "$resolved_host" != "software-static.download.prss.microsoft.com" ]]; then
+    echo "  [FAIL] Windows Server evaluation alias resolved to '${resolved_host:-nothing}'." >&2
+    echo "         The 180-day evaluation build has likely rolled; refresh the pinned fwlink." >&2
+    iso_pins_ok=false
+    failures=$((failures + 1))
+  fi
+  [[ "$iso_pins_ok" == "true" ]] && echo "  [ok]   both pinned ISO aliases resolve to approved hosts"
+
   if (( failures == 0 )); then
     echo "  [ok]   immutable runtime artifact set reachable"
   else
@@ -231,6 +260,7 @@ while [[ $# -gt 0 ]]; do
     --disable-azure-hybrid-benefit) ENABLE_AZURE_HYBRID_BENEFIT=false; shift ;;
     --accept-azure-local-license-terms) ACCEPT_AZURE_LOCAL_TERMS=true; shift ;;
     --accept-windows-server-evaluation-terms) ACCEPT_WINDOWS_SERVER_TERMS=true; shift ;;
+    --azure-local-release-code) AZURE_LOCAL_RELEASE_CODE="${2:?missing value}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -319,6 +349,7 @@ if [[ "$ACCEPT_AZURE_LOCAL_TERMS" == "true" && "$ACCEPT_WINDOWS_SERVER_TERMS" ==
   "$STAGE_ISOS" \
     --resource-group "$RESOURCE_GROUP" \
     --artifact-ref "$ARTIFACT_REF" \
+    --azure-local-release-code "$AZURE_LOCAL_RELEASE_CODE" \
     --accept-azure-local-license-terms \
     --accept-windows-server-evaluation-terms
   printf '%s\n' \
