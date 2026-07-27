@@ -427,6 +427,25 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'pins node names to management addresses instead of trusting LLMNR' {
+    # Workgroup nodes have no DC records, so LLMNR answers with whichever adapter
+    # replies first - an APIPA address on a storage adapter - and the validator
+    # then opens its sessions to 169.254.x.x.
+    $moduleSource | Should -Match 'function Set-ApexNodeNameResolution'
+    $moduleSource.Contains("System32\drivers\etc\hosts") | Should -BeTrue
+    $moduleSource | Should -Match '# BEGIN ApexLocal nested nodes'
+    $moduleSource | Should -Match '# END ApexLocal nested nodes'
+    # Rewriting the block in place keeps repeated runs from stacking stale addresses.
+    $moduleSource | Should -Match 'Set-Content -Path \$hostsPath'
+    $moduleSource.Contains('Set-ApexNodeNameResolution -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn') |
+      Should -BeTrue
+    # Resolution must be pinned before trust is granted and the validators run.
+    $resolutionIndex = $moduleSource.IndexOf('Set-ApexNodeNameResolution -Nodes $Nodes')
+    $validatorIndex = $moduleSource.IndexOf('Invoke-AzStackHciNetworkValidation')
+    $resolutionIndex | Should -BeGreaterThan 0
+    $resolutionIndex | Should -BeLessThan $validatorIndex
+  }
+
   It 'trusts the nested nodes explicitly so the network validator can dial them' {
     # The validator opens its own sessions by name; a workgroup host refuses NTLM
     # to an untrusted target, so passing -PSSession alone is not enough.

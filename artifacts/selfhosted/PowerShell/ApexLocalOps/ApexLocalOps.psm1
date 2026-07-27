@@ -1483,6 +1483,52 @@ function Get-ApexCriticalValidationResult {
   }
 }
 
+function Set-ApexNodeNameResolution {
+  <#
+  .SYNOPSIS Pin the nested node names to their management addresses on the host.
+  .DESCRIPTION
+    The nodes are still workgroup machines during readiness, so the nested DC holds
+    no records for them and the host falls back to LLMNR. LLMNR answers with whichever
+    adapter replies first, which is an APIPA address on a storage adapter, so the
+    network validator opens its sessions to 169.254.x.x and fails. Explicit hosts
+    entries make resolution deterministic; the hosts file is consulted before both
+    DNS and LLMNR. The block is rewritten in place so repeated runs cannot stack
+    duplicate or stale addresses.
+  #>
+  [CmdletBinding(SupportsShouldProcess)]
+  param(
+    [Parameter(Mandatory)] [array]$Nodes,
+    [Parameter(Mandatory)] [string]$DomainFqdn
+  )
+
+  $hostsPath = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'
+  $beginMarker = '# BEGIN ApexLocal nested nodes'
+  $endMarker = '# END ApexLocal nested nodes'
+
+  $existing = @(Get-Content -Path $hostsPath -ErrorAction SilentlyContinue)
+  $kept = [System.Collections.Generic.List[string]]::new()
+  $inBlock = $false
+  foreach ($line in $existing) {
+    if ($line -eq $beginMarker) { $inBlock = $true; continue }
+    if ($line -eq $endMarker) { $inBlock = $false; continue }
+    if (-not $inBlock) { $kept.Add($line) }
+  }
+
+  $kept.Add($beginMarker)
+  foreach ($node in $Nodes) {
+    if (-not $node.IpAddress) {
+      throw "Node '$($node.Name)' has no management address to pin."
+    }
+    $kept.Add("$($node.IpAddress)`t$($node.Name) $($node.Name).$DomainFqdn")
+  }
+  $kept.Add($endMarker)
+
+  if ($PSCmdlet.ShouldProcess($hostsPath, 'Pin nested node addresses')) {
+    Set-Content -Path $hostsPath -Value $kept -Encoding ASCII -Force
+  }
+  Write-ApexLog "Pinned $($Nodes.Count) nested node name(s) to their management addresses."
+}
+
 function Set-ApexNodeWinRmTrust {
   <#
   .SYNOPSIS Let the workgroup host authenticate to the nested nodes over WinRM.
@@ -1567,6 +1613,7 @@ function Test-ApexEnvironmentReadiness {
     -ServerAddresses $Config.Domain.DcIpAddress
 
   # The network validator ignores the session it is given and dials the nodes itself.
+  Set-ApexNodeNameResolution -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn
   Set-ApexNodeWinRmTrust -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn
 
   function Invoke-ValidationStep {
