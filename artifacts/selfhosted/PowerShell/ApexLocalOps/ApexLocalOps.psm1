@@ -1604,9 +1604,12 @@ function Test-ApexEnvironmentReadiness {
       }
     )
     Invoke-ValidationStep -Name 'Network' -Operation {
+      # NodesInCluster is mandatory on this parameter set and is a count, not names.
+      # Omitting it makes PowerShell prompt, which blocks the build indefinitely.
       Invoke-AzStackHciNetworkValidation -IpPools $ipPools `
         -ManagementSubnetValue $Config.Network.SubnetPrefix `
         -PSSession $nodeSessions `
+        -NodesInCluster ([int16]$Nodes.Count) `
         -ConnectionLocalAdminCredential $LocalAdminCredential `
         -OutputPath $reportDirectory `
         -AtcHostIntents $atcHostIntents `

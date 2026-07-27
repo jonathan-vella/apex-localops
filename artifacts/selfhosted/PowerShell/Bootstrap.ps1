@@ -227,7 +227,9 @@ if ($vmAutologon -eq 'true') {
 #######################################################################
 $phase2 = Join-Path $rootDir 'New-ApexLocalCluster.ps1'
 $taskName = 'ApexLocalBuild'
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -NoProfile -File `"$phase2`""
+# -NonInteractive is essential: the build runs as SYSTEM with no console, so a missing
+# mandatory parameter would otherwise prompt and block the build forever instead of failing.
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -NoProfile -NonInteractive -File `"$phase2`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -UserId $adminUsername -RunLevel Highest -LogonType Interactive
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 24)
@@ -250,7 +252,7 @@ else {
   Set-ApexProgress -ResourceGroup $resourceGroup -Progress 'HyperVInstalled' -Status 'Hyper-V present; starting Phase 2 (detached)' -Config $cfg
   Write-Output 'Hyper-V already installed; launching Phase 2 as a detached background process (no reboot).'
   Start-Process -FilePath 'powershell.exe' `
-    -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"$phase2`"" `
+    -ArgumentList "-ExecutionPolicy Bypass -NoProfile -NonInteractive -WindowStyle Hidden -File `"$phase2`"" `
     -WindowStyle Hidden
   Write-Output 'Phase 2 launched; the Custom Script Extension is returning now.'
   Stop-Transcript

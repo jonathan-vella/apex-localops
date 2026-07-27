@@ -319,6 +319,14 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'never lets the build block on an invisible prompt' {
+    # The build runs as SYSTEM with no console. A missing mandatory parameter would
+    # prompt and hang forever, which is exactly how network validation stalled.
+    $bootstrapSource | Should -Match '-ExecutionPolicy Bypass -NoProfile -NonInteractive -File'
+    $bootstrapSource | Should -Match '-ExecutionPolicy Bypass -NoProfile -NonInteractive -WindowStyle Hidden -File'
+    $moduleSource | Should -Match '-NodesInCluster \(\[int16\]\$Nodes\.Count\)'
+  }
+
   It 'verifies external command signatures before building anything' {
     $moduleSource | Should -Match 'function Test-ApexCommandContract'
     $orchestratorSource | Should -Match 'Test-ApexCommandContract -Contract'

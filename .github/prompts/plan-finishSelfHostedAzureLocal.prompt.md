@@ -146,13 +146,14 @@ Turn the existing self-hosted profile into a **reproducible evaluation lab** for
 
 23. **Prove repeatability, not a single success.**
     - Run **at least two consecutive fully unassisted deployments** on one unchanged immutable ref, each from a clean resource group, with **no manual in-VM steps** — no Bastion session, no RDP, no hand-uploaded ISO.
-    - At least one run must be executed by an **independent operator in a different subscription**, following only the published quickstart with no help from the authors. Anything that blocks them is a release-blocking defect, not user error.
+    - At least two runs must complete unassisted from the published quickstart. An independent operator in a different subscription is **not** available for this release, so cross-tenant and cross-subscription portability stay **unproven**; step 24 must state that limitation rather than implying broader validation.
     - Try `swedencentral` first. If preflight blocks on SKU/quota, stop before RG creation and explicitly rerun in `germanywestcentral`; evidence names whichever infrastructure region actually ran. Always register the instance in `westeurope`.
     - Capture per run: manifest hashes/builds; VM image/module/template versions; Bicep outputs/RBAC; private-network posture; V: capacity; all nested VM disk/NIC/security/time postconditions; official AD tool result; Environment Checker summaries; three Arc-connected nodes; Validate and Deploy results; cluster/node/extension health; Azure Monitor telemetry; private build logs; and secret-cleanup assertions.
     - After evidence is secured for each run, execute `cleanup-selfhosted.sh` and verify the RG is gone. Abandoned labs are expensive — the host, its 12 Premium disks, Bastion, and the NAT Gateway bill continuously — and independent operators will forget, so teardown must be prominent in the quickstart.
 
 24. **Publish the stable ref that operators consume.**
     - Create annotated tag and GitHub prerelease `v1.3.0-rc.1` on the proven SHA; include redacted results, exact ISO/build hashes, region pair, module/template/image versions, known virtual-lab warnings, and private evidence retention location in release notes.
+    - State plainly that validation covered one subscription and one infrastructure region, that cross-subscription and cross-tenant portability are untested, and that Microsoft does not support virtual Azure Local deployments for production.
     - The tag is **packaging, not the deliverable**: it exists so external operators deploy without knowing any commit SHA. Verify raw artifact URLs at the tag and run a post-tag what-if/static smoke check with the default ref (no SHA override).
     - Make a follow-up `main` documentation-only commit that links `docs/selfhosted/validation.md`, roadmap, and changelog to the GitHub release evidence; do not move the tag.
 
@@ -186,7 +187,7 @@ Turn the existing self-hosted profile into a **reproducible evaluation lab** for
 - LCM identity: a distinct AD account created by Microsoft’s tool, reusing the lab admin password as approved.
 - Dependencies: zero Jumpstart means no prebaked Jumpstart VHDs, `Azure.Arc.Jumpstart.*` modules, or vendored Jumpstart scripts; supported Microsoft Azure Local AD/Arc/readiness modules are allowed and pinned.
 - Artifact model: hardening iterations may resume an existing lab in place; the repeatability runs and the published release use one unchanged immutable ref. `v1.3.0-rc.1` becomes the **stable default artifact ref** external operators consume, so the normal path requires no commit SHA.
-- Reproducibility gate: the release requires **≥2 consecutive unassisted successful deployments**, at least one by an independent operator in a different subscription. One successful run is not sufficient evidence.
+- Reproducibility gate: the release requires **≥2 consecutive unassisted successful deployments** from clean resource groups on one unchanged ref. Independent-operator validation in a different subscription and tenant is deferred, and the release notes must record that gap so the evidence is not overstated. One successful run is never sufficient.
 - Guest dependencies: nested guests never reach PSGallery. All pinned modules are acquired on the outer host and side-loaded over PowerShell Direct.
 - Dependency durability: all pins are perishable and manifest-driven, preflight resolves them before billing starts, and a documented refresh procedure keeps the lab working as upstream media, images, and modules rotate.
 - Execution authorization: the paid Azure deployment and its execution window are pre-authorized for this project’s own runs; neither is an approval checkpoint. Technical readiness checks still gate execution.
