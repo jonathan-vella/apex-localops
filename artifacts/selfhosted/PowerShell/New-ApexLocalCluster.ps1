@@ -100,6 +100,24 @@ try {
   Set-ApexProgress -ResourceGroup $rg -Progress 'Building' `
     -Status "Build started at stage '$StartAtStage'" -Config $cfg
 
+  # Fail in seconds if an external command or parameter does not exist, rather than
+  # after tens of minutes of nested VM construction.
+  Test-ApexCommandContract -Contract @{
+    'New-VM'                                             = @('Path', 'Generation', 'MemoryStartupBytes', 'VHDPath', 'SwitchName')
+    'Set-VM'                                             = @('SmartPagingFilePath', 'SnapshotFileLocation')
+    'Get-VMSecurity'                                     = @('VMName')
+    'Get-VMFirmware'                                     = @('VMName')
+    'Add-VMNetworkAdapterAcl'                            = @('VMNetworkAdapter', 'Action', 'Direction', 'RemoteIPAddress')
+    'Get-VMNetworkAdapterAcl'                            = @('VMNetworkAdapter')
+    'Set-VMNetworkAdapterVlan'                           = @('Trunk', 'NativeVlanId', 'AllowedVlanIdList')
+    'Invoke-AzStackHciConnectivityValidation'            = @('PsSession')
+    'Invoke-AzStackHciSoftwareValidation'                = @('PsSession', 'Exclude')
+    'Invoke-AzStackHciExternalActiveDirectoryValidation' = @('ADOUPath', 'DomainFQDN', 'NamingPrefix', 'ActiveDirectoryServer', 'ActiveDirectoryCredentials', 'ClusterName', 'PhysicalMachineNames')
+    'Invoke-AzStackHciNetworkValidation'                 = @('IpPools', 'ManagementSubnetValue', 'PSSession', 'ConnectionLocalAdminCredential', 'OutputPath', 'AtcHostIntents')
+    'Invoke-AzStackHciArcIntegrationValidation'          = @('SubscriptionID', 'RegistrationResourceGroupName', 'ArcResourceGroupName', 'NodeNames')
+    'Invoke-AzStackHciHardwareValidation'                = @('PsSession')
+  }
+
   # 1) Host fabric ------------------------------------------------------------
   if ($startStageIndex -gt 0) {
     Write-ApexLog "Resuming build at stage '$StartAtStage' ($($startStageIndex + 1) of $($stageOrder.Count))."

@@ -319,6 +319,21 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'verifies external command signatures before building anything' {
+    $moduleSource | Should -Match 'function Test-ApexCommandContract'
+    $orchestratorSource | Should -Match 'Test-ApexCommandContract -Contract'
+    # Must run before the first stage, so a bad signature costs seconds not minutes.
+    $contractIndex = $orchestratorSource.IndexOf('Test-ApexCommandContract -Contract')
+    $firstStageIndex = $orchestratorSource.IndexOf("Test-ApexStage 'HostFabric'")
+    $contractIndex | Should -BeGreaterThan 0
+    $contractIndex | Should -BeLessThan $firstStageIndex
+    # The four signatures that previously failed mid-build must be covered.
+    $orchestratorSource | Should -Match "'Get-VMSecurity'"
+    $orchestratorSource | Should -Match 'SnapshotFileLocation'
+    $orchestratorSource | Should -Match 'ConnectionLocalAdminCredential'
+    $orchestratorSource | Should -Match "'New-VM'"
+  }
+
   It 'calls each Environment Checker validator with parameters it actually exposes' {
     # Every name below was verified against Get-Command on the pinned module version;
     # a wrong parameter only surfaces mid-deployment, after earlier validators pass.

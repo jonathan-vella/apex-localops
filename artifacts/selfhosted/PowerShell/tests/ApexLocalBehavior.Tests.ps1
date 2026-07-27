@@ -19,6 +19,45 @@ AfterAll {
   Remove-Module ApexLocalOps -Force -ErrorAction SilentlyContinue
 }
 
+Describe 'Test-ApexCommandContract' {
+  It 'accepts commands and parameters that exist' {
+    InModuleScope ApexLocalOps {
+      { Test-ApexCommandContract -Contract @{ 'Get-ChildItem' = @('Path', 'Recurse') } } |
+        Should -Not -Throw
+    }
+  }
+
+  It 'reports the exact missing parameter' {
+    InModuleScope ApexLocalOps {
+      { Test-ApexCommandContract -Contract @{ 'Get-ChildItem' = @('NotARealParameter') } } |
+        Should -Throw -ExpectedMessage '*NotARealParameter*'
+    }
+  }
+
+  It 'reports a missing command' {
+    InModuleScope ApexLocalOps {
+      { Test-ApexCommandContract -Contract @{ 'Get-ApexDefinitelyNotACommand' = @() } } |
+        Should -Throw -ExpectedMessage '*Get-ApexDefinitelyNotACommand*'
+    }
+  }
+
+  It 'reports every failure at once rather than stopping at the first' {
+    InModuleScope ApexLocalOps {
+      $message = $null
+      try {
+        Test-ApexCommandContract -Contract @{
+          'Get-ChildItem'               = @('AlsoNotReal')
+          'Get-ApexAnotherMissingThing' = @()
+        }
+      }
+      catch { $message = $_.Exception.Message }
+
+      $message | Should -Match 'AlsoNotReal'
+      $message | Should -Match 'Get-ApexAnotherMissingThing'
+    }
+  }
+}
+
 Describe 'Get-ApexCriticalValidationResult' {
   It 'terminates on a report that embeds a timestamp' {
     # Regression: [datetime].Date returns a [datetime], so walking value-type

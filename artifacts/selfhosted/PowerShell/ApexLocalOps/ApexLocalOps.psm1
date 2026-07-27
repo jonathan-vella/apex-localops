@@ -1040,6 +1040,44 @@ function New-ApexDomainController {
   return $domainCred
 }
 
+function Test-ApexCommandContract {
+  <#
+  .SYNOPSIS Verify every external command and parameter this build depends on exists.
+  .DESCRIPTION
+    Several release defects were plausible-looking commands or parameters that simply
+    do not exist: a fabricated vTPM getter, a wrong checkpoint-location parameter, a
+    missing VM configuration path, and a wrong network-validation credential name.
+    Parsing, linting and source-text contracts cannot detect any of them, and each
+    surfaced only after the build had already run for many minutes. Checking the real
+    command metadata costs seconds and fails before the first nested VM is created.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [hashtable]$Contract
+  )
+
+  $failures = @()
+  foreach ($commandName in ($Contract.Keys | Sort-Object)) {
+    # Get-Command triggers module auto-loading, so pinned modules installed during
+    # bootstrap are discovered without importing them here.
+    $command = Get-Command -Name $commandName -ErrorAction SilentlyContinue
+    if (-not $command) {
+      $failures += "missing command '$commandName'"
+      continue
+    }
+    foreach ($parameterName in $Contract[$commandName]) {
+      if (-not $command.Parameters.ContainsKey($parameterName)) {
+        $failures += "'$commandName' has no parameter '-$parameterName'"
+      }
+    }
+  }
+
+  if ($failures.Count -gt 0) {
+    throw "Command contract check failed: $($failures -join '; ')."
+  }
+  Write-ApexLog "Command contract verified for $($Contract.Count) command(s)."
+}
+
 function Install-ApexGuestModule {
   <#
   .SYNOPSIS Side-load a pinned PowerShell module from the outer host into a nested guest.
@@ -1832,7 +1870,7 @@ Export-ModuleMember -Function @(
   'Wait-ApexStagedIso', 'Get-ApexStagedIso', 'Convert-ApexIsoToVhdx',
   'New-ApexHostSwitch', 'New-ApexRouterVM',
   'New-ApexUnattendXml', 'New-ApexNestedVM', 'Wait-ApexVMReady', 'New-ApexDomainController',
-  'Install-ApexGuestModule',
+  'Test-ApexCommandContract', 'Install-ApexGuestModule',
   'Initialize-ApexActiveDirectory', 'New-ApexLocalNode', 'Test-ApexEnvironmentReadiness',
   'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
   'Start-ApexLocalClusterDeployment'
