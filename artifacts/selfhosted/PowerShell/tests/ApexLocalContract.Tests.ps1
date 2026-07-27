@@ -341,6 +341,10 @@ Describe 'Self-hosted orchestration safety' {
     # The release code the preflight checks must be the one staging downloads.
     $deployWrapperSource | Should -Match 'AZURE_LOCAL_RELEASE_CODE="2607"'
     $deployWrapperSource | Should -Match '--azure-local-release-code "\$AZURE_LOCAL_RELEASE_CODE"'
+    # Preflight must prove the recovery surface exists at the ref too, or a stranger
+    # discovers a missing resume script only after a failure.
+    $deployWrapperSource | Should -Match 'Resume-ApexLocalCluster\.ps1'
+    $deployWrapperSource | Should -Match 'Recover-ApexLocalCluster\.ps1'
   }
 
   It 'passes exactly what the vendored cluster template declares' {

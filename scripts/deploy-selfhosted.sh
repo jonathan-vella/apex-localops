@@ -46,6 +46,8 @@ RUNTIME_ARTIFACTS=(
   artifacts/selfhosted/PowerShell/Get-ApexAzureLocalIso.ps1
   artifacts/selfhosted/PowerShell/Get-ApexWindowsServerIso.ps1
   artifacts/selfhosted/PowerShell/New-ApexLocalCluster.ps1
+  artifacts/selfhosted/PowerShell/Resume-ApexLocalCluster.ps1
+  artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1
   artifacts/selfhosted/PowerShell/Stage-ApexIsos.ps1
   artifacts/selfhosted/PowerShell/Upload-Isos.ps1
   artifacts/selfhosted/PowerShell/ApexLocalOps/ApexLocalOps.psd1
