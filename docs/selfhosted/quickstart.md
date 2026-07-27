@@ -72,10 +72,15 @@ script runs mandatory preflight before reading the password or creating the reso
 then runs what-if and deploys the hardened storage account, network, Bastion, NAT Gateway, Log
 Analytics, jumpbox, and cluster host. ARM finishes in about 15–20 minutes.
 
-Azure Hybrid Benefit, paid deployment, and the half-day execution window are pre-authorized for
-this evaluation. They are not interactive approval gates; technical preflight remains mandatory.
-Sweden Central is primary. Use `--location germanywestcentral` only as the explicit capacity
-fallback. Azure Local registration remains pinned to West Europe.
+**Azure Hybrid Benefit is enabled by default.** Both Azure VMs deploy with
+`licenseType = Windows_Server`, billing Windows Server at the Hybrid Benefit rate instead of the
+license-included rate. Enabling it self-attests that you hold qualifying Windows Server licenses —
+read [Azure Hybrid Benefit](sizing.md#azure-hybrid-benefit) before you deploy. If you do not hold
+them, rerun with `--disable-azure-hybrid-benefit` for license-included (PAYG) billing.
+
+The deployment does not pause for cost or licensing confirmation; technical preflight remains
+mandatory. Sweden Central is primary. Use `--location germanywestcentral` only as the explicit
+capacity fallback. Azure Local registration remains pinned to West Europe.
 
 The cluster host then installs Hyper-V, pools its data disks into `V:`, configures the internal
 and NAT-uplink switches, and **waits** for both ISOs to appear in storage. The nested router VM
@@ -160,8 +165,8 @@ az stack-hci cluster list -g rg-apexlocal \
 
 The release topology is fixed to three nodes, no witness, an `E64s_v6` host, and 96 GB/16 vCPU
 per node. Unsupported shape parameters are intentionally not exposed. Select only the approved
-infrastructure region, immutable artifact ref, cluster name, and Azure Hybrid Benefit mode through
-`deploy-selfhosted.sh`.
+infrastructure region, immutable artifact ref, cluster name, and
+[Azure Hybrid Benefit](sizing.md#azure-hybrid-benefit) mode through `deploy-selfhosted.sh`.
 
 ## Tear down
 

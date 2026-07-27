@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Deploy the fixed three-node self-hosted Azure Local evaluation profile.
-# Technical preflight is mandatory; cost, AHB, and execution are pre-authorized.
+# Technical preflight is mandatory. Azure Hybrid Benefit is on by default and self-attests that
+# the deploying organization holds qualifying Windows Server licenses; pass
+# --disable-azure-hybrid-benefit for license-included (PAYG) billing.
 
 RESOURCE_GROUP="rg-apexlocal"
 LOCATION="swedencentral"
@@ -53,10 +55,12 @@ usage() {
     '  --location, -l <swedencentral|germanywestcentral>' \
     '  --artifact-ref <immutable-sha-or-tag>' \
     '  --cluster-name <name>' \
-    '  --disable-azure-hybrid-benefit' \
+    '  --disable-azure-hybrid-benefit   Bill Windows Server at the license-included (PAYG) rate' \
     '  --help, -h' \
     '' \
-    'Set LOCALSELF_ADMIN_PASSWORD before running; it is never written to disk.'
+    'Set LOCALSELF_ADMIN_PASSWORD before running; it is never written to disk.' \
+    'Azure Hybrid Benefit is ON by default; enabling it self-attests that you hold qualifying' \
+    'Windows Server licenses. See docs/selfhosted/sizing.md#azure-hybrid-benefit.'
 }
 
 validate_password() {
@@ -233,7 +237,13 @@ printf '%s\n' \
   "Infrastructure region: $LOCATION" \
   "Cluster name         : $CLUSTER_NAME" \
   "Artifact ref         : $ARTIFACT_REF" \
-  "Azure Hybrid Benefit: $ENABLE_AZURE_HYBRID_BENEFIT (pre-authorized)"
+  "Azure Hybrid Benefit : $ENABLE_AZURE_HYBRID_BENEFIT"
+if [[ "$ENABLE_AZURE_HYBRID_BENEFIT" == "true" ]]; then
+  # Entitlement is per deploying organization; Azure does not verify it at deployment time.
+  printf '%s\n' \
+    '  Windows Server bills at the Hybrid Benefit rate. Enabling it self-attests that you hold' \
+    '  qualifying Windows Server licenses. Use --disable-azure-hybrid-benefit for PAYG billing.'
+fi
 preflight
 
 if [[ -z "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
@@ -263,7 +273,7 @@ if [[ "$WHAT_IF_ONLY" == "true" ]]; then
 fi
 
 DEPLOYMENT_NAME="apexlocal-$(date +%Y%m%d-%H%M%S)"
-echo "Deploying pre-authorized evaluation as '$DEPLOYMENT_NAME'..."
+echo "Deploying evaluation as '$DEPLOYMENT_NAME'..."
 az deployment group create --resource-group "$RESOURCE_GROUP" --template-file "$TEMPLATE" \
   --parameters "${DEPLOYMENT_PARAMETERS[@]}" --name "$DEPLOYMENT_NAME" --output none
 DEPLOYMENT_STATE=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NAME" \

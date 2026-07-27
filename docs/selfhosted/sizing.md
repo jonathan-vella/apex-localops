@@ -19,6 +19,7 @@ VM, with a separate small jumpbox for ISO staging. To deploy, see the
 - [Host SKU allow-list](#host-sku-allow-list)
 - [Quota](#quota)
 - [Regions](#regions)
+- [Azure Hybrid Benefit](#azure-hybrid-benefit)
 - [Cost control](#cost-control)
 - [Time budget](#time-budget)
 
@@ -75,6 +76,27 @@ fails fast; request an increase if you are short.
 - **Azure Local instance** (`azureLocalInstanceLocation`) is separate because not every region
   supports the instance — the default is `westeurope`. Keep these two distinct, matching the
   LocalBox profile.
+
+## Azure Hybrid Benefit
+
+Azure Hybrid Benefit (AHB) is **enabled by default** in this profile. Both Azure VMs — the cluster
+host and the jumpbox — deploy with `licenseType = Windows_Server`, set in
+[host.bicep](../../infra/bicep/azlocal-selfhosted/host/host.bicep) and
+[mgmtVm.bicep](../../infra/bicep/azlocal-selfhosted/mgmt/mgmtVm.bicep).
+
+| Question | Answer |
+| --- | --- |
+| What it changes | Windows Server is billed at the Hybrid Benefit rate instead of the license-included rate. Compute, storage, Bastion, and NAT Gateway charges are unaffected. |
+| What it requires | Windows Server Datacenter or Standard licenses with active Software Assurance, or qualifying subscription licenses. |
+| Who attests | You do. Setting `licenseType` is a self-attestation that you hold the licenses; Azure does not verify entitlement at deployment time. |
+| Scope | The two Azure VMs only. The nested router, domain controller, and Azure Local nodes run evaluation media and are not licensed by AHB. |
+| How to opt out | Deploy with `--disable-azure-hybrid-benefit` for license-included (PAYG) billing. |
+
+Because every operator deploys into their own subscription, entitlement is **per deployer** — it is
+not inherited from this repository or from anyone else's run. If you are unsure whether your
+organization holds qualifying licenses, deploy with `--disable-azure-hybrid-benefit` and confirm
+entitlement before enabling it. Reference:
+[Azure Hybrid Benefit for Windows Server](https://learn.microsoft.com/azure/virtual-machines/windows/hybrid-use-benefit-licensing).
 
 ## Cost control
 

@@ -1007,14 +1007,86 @@ function New-ApexDomainController {
   return $domainCred
 }
 
+function Install-ApexGuestModule {
+  <#
+  .SYNOPSIS Side-load a pinned PowerShell module from the outer host into a nested guest.
+  .DESCRIPTION
+    Nested guests are freshly applied offline Windows images: PSGallery is not a
+    registered repository, the NuGet provider is absent, and their only egress path
+    runs through the lab's own nested router. Acquiring modules inside a guest is
+    therefore fragile and has failed in practice. The outer host already has proven
+    egress and installs its pinned modules during bootstrap, so this resolves the
+    module once on the host and copies it into the guest over an existing PowerShell
+    Direct session.
+  #>
+  [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseUsingScopeModifierInNewRunspaces',
+    '',
+    Justification = 'Each remote scriptblock declares its own param() block and receives values through -ArgumentList; $using: does not apply to that pattern.'
+  )]
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)] [string]$Name,
+    [Parameter(Mandatory)] [string]$RequiredVersion,
+    [Parameter(Mandatory)] [System.Management.Automation.Runspaces.PSSession]$Session,
+    [Parameter(Mandatory)] [string]$StagingPath
+  )
+
+  $versionPath = Join-Path (Join-Path $StagingPath $Name) $RequiredVersion
+  $manifestPath = Join-Path $versionPath "$Name.psd1"
+  if (-not (Test-Path -LiteralPath $manifestPath)) {
+    if (-not (Test-Path -LiteralPath $StagingPath)) {
+      New-Item -ItemType Directory -Force -Path $StagingPath | Out-Null
+    }
+    # A host image that never ran Register-PSRepository has no PSGallery either.
+    if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+      Register-PSRepository -Default -ErrorAction Stop
+    }
+    Write-ApexLog "Downloading '$Name' $RequiredVersion on the host for guest side-load."
+    Save-Module -Name $Name -RequiredVersion $RequiredVersion -Path $StagingPath `
+      -Repository PSGallery -Force -ErrorAction Stop
+  }
+  if (-not (Test-Path -LiteralPath $manifestPath)) {
+    throw "Host staging for '$Name' $RequiredVersion produced no manifest at '$manifestPath'."
+  }
+
+  $guestModuleRoot = Invoke-Command -Session $Session -ErrorAction Stop -ScriptBlock {
+    param([string]$moduleName)
+    $root = Join-Path $env:ProgramFiles "WindowsPowerShell\Modules\$moduleName"
+    New-Item -ItemType Directory -Force -Path $root | Out-Null
+    $root
+  } -ArgumentList $Name
+
+  Copy-Item -Path $versionPath -Destination $guestModuleRoot -ToSession $Session `
+    -Recurse -Force -ErrorAction Stop
+
+  $importedVersion = Invoke-Command -Session $Session -ErrorAction Stop -ScriptBlock {
+    param([string]$moduleName, [string]$moduleVersion)
+    $null = Import-Module -Name $moduleName -RequiredVersion $moduleVersion -Force -ErrorAction Stop
+    (Get-Module -Name $moduleName | Select-Object -First 1).Version.ToString()
+  } -ArgumentList $Name, $RequiredVersion
+
+  if ($importedVersion -ne $RequiredVersion) {
+    throw "Guest import of '$Name' resolved version '$importedVersion' instead of '$RequiredVersion'."
+  }
+  Write-ApexLog "Side-loaded '$Name' $RequiredVersion into the guest; no gallery access was required."
+}
+
 function Initialize-ApexActiveDirectory {
   <#
   .SYNOPSIS Prepare the Azure Local OU and dedicated LCM deployment account.
   .DESCRIPTION
     Runs Microsoft's pinned AsHciADArtifactsPreCreationTool on the nested domain
-    controller. The LCM account is distinct from the local administrator, while
-    this evaluation profile intentionally reuses the approved lab password.
+    controller. The tool is acquired on the outer host and side-loaded into the
+    guest because a freshly promoted DC has no registered PSGallery. The LCM
+    account is distinct from the local administrator, while this evaluation
+    profile intentionally reuses the approved lab password.
   #>
+  [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseUsingScopeModifierInNewRunspaces',
+    '',
+    Justification = 'The remote scriptblock declares its own param() block and receives values through -ArgumentList; $using: does not apply to that pattern.'
+  )]
   [CmdletBinding()]
   param(
     [Parameter(Mandatory)] [hashtable]$Config,
@@ -1025,37 +1097,41 @@ function Initialize-ApexActiveDirectory {
   $dom = $Config.Domain
   $versionsPath = Join-Path $Config.Paths.RootDir 'ModuleVersions.psd1'
   $moduleVersions = Import-PowerShellDataFile -Path $versionsPath
+  $toolVersion = $moduleVersions.AsHciADArtifactsPreCreationTool
 
   Write-ApexLog "Preparing Azure Local AD objects in '$($dom.OuPath)' with Microsoft's supported tool."
-  Invoke-Command -VMName $dom.DcHostName -Credential $DomainAdminCredential -ScriptBlock {
-    param(
-      [string]$moduleVersion,
-      [string]$lcmUserName,
-      [securestring]$lcmPassword,
-      [string]$ouPath
-    )
+  $session = New-PSSession -VMName $dom.DcHostName -Credential $DomainAdminCredential -ErrorAction Stop
+  try {
+    Install-ApexGuestModule -Name 'AsHciADArtifactsPreCreationTool' -RequiredVersion $toolVersion `
+      -Session $session -StagingPath (Join-Path $Config.Paths.RootDir 'GuestModules')
 
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-    if (-not (Get-Module -ListAvailable -Name AsHciADArtifactsPreCreationTool |
-        Where-Object Version -eq ([version]$moduleVersion))) {
-      Install-Module -Name AsHciADArtifactsPreCreationTool -RequiredVersion $moduleVersion `
-        -Repository PSGallery -Scope AllUsers -Force
-    }
-    Import-Module AsHciADArtifactsPreCreationTool -RequiredVersion $moduleVersion -Force
+    # Suppress the remote success stream: this function must return only the LCM credential.
+    $null = Invoke-Command -Session $session -ErrorAction Stop -ScriptBlock {
+      param(
+        [string]$moduleVersion,
+        [string]$lcmUserName,
+        [securestring]$lcmPassword,
+        [string]$ouPath
+      )
 
-    $lcmCredential = New-Object System.Management.Automation.PSCredential($lcmUserName, $lcmPassword)
-    New-HciAdObjectsPreCreation -AzureStackLCMUserCredential $lcmCredential -AsHciOUName $ouPath
+      Import-Module AsHciADArtifactsPreCreationTool -RequiredVersion $moduleVersion -Force
 
-    Import-Module ActiveDirectory
-    Import-Module GroupPolicy
-    $null = Get-ADOrganizationalUnit -Identity $ouPath -ErrorAction Stop
-    $null = Get-ADUser -Identity $lcmUserName -ErrorAction Stop
-    $inheritance = Get-GPInheritance -Target $ouPath
-    if (-not $inheritance.GpoInheritanceBlocked) {
-      throw "Group Policy inheritance is not blocked on '$ouPath'."
-    }
-  } -ArgumentList $moduleVersions.AsHciADArtifactsPreCreationTool, $dom.LcmUserName, $LcmPassword, $dom.OuPath
+      $lcmCredential = New-Object System.Management.Automation.PSCredential($lcmUserName, $lcmPassword)
+      $null = New-HciAdObjectsPreCreation -AzureStackLCMUserCredential $lcmCredential -AsHciOUName $ouPath
+
+      Import-Module ActiveDirectory
+      Import-Module GroupPolicy
+      $null = Get-ADOrganizationalUnit -Identity $ouPath -ErrorAction Stop
+      $null = Get-ADUser -Identity $lcmUserName -ErrorAction Stop
+      $inheritance = Get-GPInheritance -Target $ouPath
+      if (-not $inheritance.GpoInheritanceBlocked) {
+        throw "Group Policy inheritance is not blocked on '$ouPath'."
+      }
+    } -ArgumentList $toolVersion, $dom.LcmUserName, $LcmPassword, $dom.OuPath
+  }
+  finally {
+    Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+  }
 
   Write-ApexLog "Azure Local AD preparation completed for LCM user '$($dom.LcmUserName)'."
   return New-Object System.Management.Automation.PSCredential(
@@ -1653,6 +1729,7 @@ Export-ModuleMember -Function @(
   'Wait-ApexStagedIso', 'Get-ApexStagedIso', 'Convert-ApexIsoToVhdx',
   'New-ApexHostSwitch', 'New-ApexRouterVM',
   'New-ApexUnattendXml', 'New-ApexNestedVM', 'Wait-ApexVMReady', 'New-ApexDomainController',
+  'Install-ApexGuestModule',
   'Initialize-ApexActiveDirectory', 'New-ApexLocalNode', 'Test-ApexEnvironmentReadiness',
   'Connect-ApexNodeToArc', 'Set-ApexNodeTimeSync',
   'Start-ApexLocalClusterDeployment'

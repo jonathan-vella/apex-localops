@@ -249,7 +249,9 @@ Describe 'Self-hosted ISO integrity contract' {
 
   It 'builds and validates VHDX images transactionally with explicit image selection' {
     $moduleSource | Should -Match "ParameterSetName = 'ByIndex'"
-    $orchestratorSource | Should -Match 'Convert-ApexIsoToVhdx[^\r\n]+azurelocal-base\.vhdx[^\r\n]*\)?\s*`?[\r\n]+\s*-ImageIndex 1'
+    $orchestratorSource | Should -Match "\`$azlBase = Join-Path \`$cfg\.Paths\.BaseVhdDir 'azurelocal-base\.vhdx'"
+    $orchestratorSource | Should -Match "\`$wsBase = Join-Path \`$cfg\.Paths\.BaseVhdDir 'windowsserver-base\.vhdx'"
+    $orchestratorSource | Should -Match 'Convert-ApexIsoToVhdx -IsoPath \$azlIso -VhdxPath \$azlBase[^\r\n]*`?[\r\n]+\s*-ImageIndex 1'
     $moduleSource | Should -Match '\.partial\.vhdx'
     $moduleSource | Should -Match 'bcdboot failed with exit code'
     $moduleSource | Should -Match 'EFI\\Microsoft\\Boot\\BCD'
@@ -273,6 +275,40 @@ Describe 'Self-hosted orchestration safety' {
     $orchestratorSource | Should -Match ([regex]::Escape("System.Threading.Mutex(`$false, 'Global\ApexLocalBuild')"))
     $orchestratorSource | Should -Match '\$buildMutex\.WaitOne\(0\)'
     $orchestratorSource | Should -Match '\$buildMutex\.ReleaseMutex\(\)'
+  }
+
+  It 'never acquires PowerShell modules inside a nested guest' {
+    # Freshly applied offline images have no registered PSGallery and no NuGet
+    # provider, and their only egress runs through the lab's own nested router.
+    $moduleSource | Should -Match 'function Install-ApexGuestModule'
+    $moduleSource | Should -Match 'Save-Module -Name \$Name -RequiredVersion \$RequiredVersion'
+    $moduleSource | Should -Match 'Copy-Item -Path \$versionPath -Destination \$guestModuleRoot -ToSession \$Session'
+    $moduleSource | Should -Match "Install-ApexGuestModule -Name 'AsHciADArtifactsPreCreationTool'"
+    $moduleSource | Should -Match 'Guest import of'
+    $guestScript = [regex]::Match(
+      $moduleSource,
+      '(?s)function Initialize-ApexActiveDirectory.*?\n\}').Value
+    $guestScript | Should -Not -Match 'Install-PackageProvider'
+    $guestScript | Should -Not -Match 'Set-PSRepository'
+    $guestScript | Should -Not -Match 'Install-Module'
+    # The function must return only the LCM credential.
+    $guestScript | Should -Match '\$null = Invoke-Command -Session \$session'
+    $guestScript | Should -Match '\$null = New-HciAdObjectsPreCreation'
+  }
+
+  It 'resumes at a named stage instead of forcing a full rebuild' {
+    $orchestratorSource | Should -Match '\[string\]\$StartAtStage = ''HostFabric'''
+    $orchestratorSource | Should -Match 'function Test-ApexStage'
+    foreach ($stage in @('HostFabric', 'Isos', 'BaseImages', 'Router', 'DomainController',
+        'ActiveDirectory', 'Nodes', 'Readiness', 'Arc', 'ClusterDeploy')) {
+      $orchestratorSource | Should -Match ([regex]::Escape("Test-ApexStage '$stage'"))
+    }
+    # Skipped stages must reconstruct their outputs rather than leaving them empty.
+    $orchestratorSource | Should -Match 'Cannot resume at .\$StartAtStage.: staged ISOs are missing'
+    $orchestratorSource | Should -Match 'Cannot resume at .\$StartAtStage.: base VHDX images are missing'
+    $orchestratorSource | Should -Match '\$domainAdminCred = New-Object System\.Management\.Automation\.PSCredential'
+    $orchestratorSource | Should -Match '\$lcmCredential = New-Object System\.Management\.Automation\.PSCredential'
+    $orchestratorSource | Should -Match '\$cfg\.Cluster\.NodeStartIp\.Split'
   }
 
   It 'fails fast without the data volume and allows the full build window' {
