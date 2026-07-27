@@ -288,16 +288,21 @@ MANAGEMENT_VM=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOYMENT_NA
   --query properties.outputs.managementVmName.value -o tsv)
 printf '%s\n' \
   '' \
-  'ARM resources are deployed. The host waits for both ISOs and iso-manifest.json.' \
-  "Use Bastion to reach ${RESOURCE_GROUP}/${MANAGEMENT_VM}, download both ISOs, then run:" \
+  'ARM resources are deployed. The host now waits for both ISOs and iso-manifest.json.' \
   '' \
-  '  Connect-AzAccount -Identity' \
-  "  C:\\ApexLocal\\Upload-Isos.ps1 -StorageAccountName ${STAGING_ACCOUNT} \`" \
-  '    -AzureLocalIsoPath <azurelocal>.iso \`' \
-  '    -WindowsServerIsoPath <windowsserver>.iso' \
+  'Next step - stage both ISOs unattended (no VM sign-in required):' \
   '' \
-  "The tool uploads to '${ISO_CONTAINER}', verifies both files, and publishes the manifest last." \
+  "  $SCRIPT_DIR/stage-selfhosted-isos.sh \\" \
+  "    --resource-group $RESOURCE_GROUP \\" \
+  "    --artifact-ref $ARTIFACT_REF \\" \
+  '    --accept-azure-local-license-terms \' \
+  '    --accept-windows-server-evaluation-terms' \
+  '' \
+  "It runs on ${MANAGEMENT_VM} under its managed identity, downloads the pinned Azure Local" \
+  "and Windows Server ISOs, verifies each one, uploads them to '${ISO_CONTAINER}' on" \
+  "${STAGING_ACCOUNT}, and publishes the manifest last." \
   'Raw az storage blob uploads are unsupported because they omit the integrity manifest.' \
+  '' \
   "Monitor: $MONITOR --resource-group $RESOURCE_GROUP" \
   "Cleanup: $SCRIPT_DIR/cleanup-selfhosted.sh"
 if [[ "$RUN_MONITOR" == "true" && -x "$MONITOR" ]]; then
