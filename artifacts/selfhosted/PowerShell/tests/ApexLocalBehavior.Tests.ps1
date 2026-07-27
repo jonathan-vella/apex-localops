@@ -19,6 +19,34 @@ AfterAll {
   Remove-Module ApexLocalOps -Force -ErrorAction SilentlyContinue
 }
 
+Describe 'Module export surface' {
+  It 'exports the same functions from the module and its manifest' {
+    # A function added only to Export-ModuleMember stays invisible to callers, because
+    # the manifest filters exports. That shipped once and failed the build at runtime.
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../../..')).Path
+    $moduleDir = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/ApexLocalOps'
+    $moduleText = Get-Content (Join-Path $moduleDir 'ApexLocalOps.psm1') -Raw
+    $manifest = Import-PowerShellDataFile (Join-Path $moduleDir 'ApexLocalOps.psd1')
+
+    $exportBlock = [regex]::Match($moduleText, 'Export-ModuleMember -Function @\(([\s\S]*?)\)').Groups[1].Value
+    $moduleExports = @([regex]::Matches($exportBlock, "'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+    $manifestExports = @($manifest.FunctionsToExport)
+
+    $moduleExports.Count | Should -BeGreaterThan 0
+    @($moduleExports | Where-Object { $_ -notin $manifestExports }) | Should -BeNullOrEmpty
+    @($manifestExports | Where-Object { $_ -notin $moduleExports }) | Should -BeNullOrEmpty
+  }
+
+  It 'actually exposes the functions the orchestrator calls' {
+    $exported = @((Get-Module ApexLocalOps).ExportedFunctions.Keys)
+    foreach ($name in @('Test-ApexCommandContract', 'Get-ApexConfig', 'Set-ApexProgress',
+        'New-ApexDomainController', 'Initialize-ApexActiveDirectory', 'New-ApexLocalNode',
+        'Test-ApexEnvironmentReadiness', 'Connect-ApexNodeToArc', 'Start-ApexLocalClusterDeployment')) {
+      $exported | Should -Contain $name
+    }
+  }
+}
+
 Describe 'Test-ApexCommandContract' {
   It 'accepts commands and parameters that exist' {
     InModuleScope ApexLocalOps {

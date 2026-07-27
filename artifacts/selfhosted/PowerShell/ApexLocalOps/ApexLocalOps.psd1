@@ -37,6 +37,8 @@
     'New-ApexHostSwitch'
     'New-ApexRouterVM'
     # Nested build
+    'Test-ApexCommandContract'
+    'Install-ApexGuestModule'
     'New-ApexUnattendXml'
     'New-ApexNestedVM'
     'Wait-ApexVMReady'
