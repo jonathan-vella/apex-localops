@@ -51,21 +51,21 @@ Describe 'Test-ApexCommandContract' {
   It 'accepts commands and parameters that exist' {
     InModuleScope ApexLocalOps {
       { Test-ApexCommandContract -Contract @{ 'Get-ChildItem' = @('Path', 'Recurse') } } |
-        Should -Not -Throw
+      Should -Not -Throw
     }
   }
 
   It 'reports the exact missing parameter' {
     InModuleScope ApexLocalOps {
       { Test-ApexCommandContract -Contract @{ 'Get-ChildItem' = @('NotARealParameter') } } |
-        Should -Throw -ExpectedMessage '*NotARealParameter*'
+      Should -Throw -ExpectedMessage '*NotARealParameter*'
     }
   }
 
   It 'reports a missing command' {
     InModuleScope ApexLocalOps {
       { Test-ApexCommandContract -Contract @{ 'Get-ApexDefinitelyNotACommand' = @() } } |
-        Should -Throw -ExpectedMessage '*Get-ApexDefinitelyNotACommand*'
+      Should -Throw -ExpectedMessage '*Get-ApexDefinitelyNotACommand*'
     }
   }
 

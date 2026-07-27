@@ -21,6 +21,8 @@ BeforeAll {
   $jumpboxSetupPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Setup-Jumpbox.ps1'
   $recoveryPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1'
   $recoveryWrapperPath = Join-Path $repoRoot 'scripts/recover-selfhosted.sh'
+  $resumePath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Resume-ApexLocalCluster.ps1'
+  $resumeWrapperPath = Join-Path $repoRoot 'scripts/resume-selfhosted.sh'
   $deployWrapperPath = Join-Path $repoRoot 'scripts/deploy-selfhosted.sh'
   $providerCheckPath = Join-Path $repoRoot 'scripts/check-providers-selfhosted.sh'
   $isoStagingWrapperPath = Join-Path $repoRoot 'scripts/stage-selfhosted-isos.sh'
@@ -43,6 +45,8 @@ BeforeAll {
   $jumpboxSetupSource = Get-Content -Path $jumpboxSetupPath -Raw
   $recoverySource = Get-Content -Path $recoveryPath -Raw
   $recoveryWrapperSource = Get-Content -Path $recoveryWrapperPath -Raw
+  $resumeSource = Get-Content -Path $resumePath -Raw
+  $resumeWrapperSource = Get-Content -Path $resumeWrapperPath -Raw
   $deployWrapperSource = Get-Content -Path $deployWrapperPath -Raw
   $providerCheckSource = Get-Content -Path $providerCheckPath -Raw
   $isoStagingWrapperSource = Get-Content -Path $isoStagingWrapperPath -Raw
@@ -317,6 +321,30 @@ Describe 'Self-hosted orchestration safety' {
     # No caller may add the deny rules unconditionally.
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$adapter'
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
+  }
+
+  It 'supports stage resume without exposing the lab password' {
+    # Resume must reuse what the previous attempt built, so a defect costs one stage.
+    $resumeWrapperSource | Should -Match '--protected-parameters AdminPassword='
+    $resumeWrapperSource | Should -Match '--async-execution true'
+    $resumeWrapperSource | Should -Match 'ARTIFACT_REF'
+    # Never embed the credential in the script body or command line.
+    $resumeSource | Should -Not -Match 'ToBase64String\(\[Text\.Encoding\]::UTF8\.GetBytes\(.Pass'
+    $resumeSource | Should -Match '\[Parameter\(Mandatory\)\] \[string\]\$AdminPassword'
+    $resumeSource | Should -Match "Remove-Variable -Name AdminPassword"
+    # A resumed build must be non-interactive and must refresh the manifest too.
+    $resumeSource | Should -Match "'-NonInteractive'"
+    $resumeSource | Should -Match 'ApexLocalOps/ApexLocalOps\.psd1'
+    $resumeSource | Should -Match 'A build or recovery process is already running'
+
+    # The wrapper and the orchestrator must agree on the stage list exactly.
+    $stageBlock = [regex]::Match($orchestratorSource, '(?s)\$stageOrder = @\((.*?)\)').Groups[1].Value
+    $orchestratorStages = @([regex]::Matches($stageBlock, "'([^']+)'") |
+      ForEach-Object { $_.Groups[1].Value })
+    $wrapperStages = @([regex]::Match($resumeWrapperSource,
+        'STAGES=\(([^)]*)\)').Groups[1].Value -split '\s+' | Where-Object { $_ })
+    $orchestratorStages.Count | Should -BeGreaterThan 0
+    Compare-Object $orchestratorStages $wrapperStages | Should -BeNullOrEmpty
   }
 
   It 'never lets the build block on an invisible prompt' {
