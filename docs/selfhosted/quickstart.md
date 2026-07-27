@@ -202,10 +202,15 @@ ISOs, converted base images, router, domain controller, and nodes the previous a
 built, so a fix costs one stage instead of a full rebuild:
 
 ```bash
-export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
 ./scripts/resume-selfhosted.sh --stage Readiness \
   --artifact-ref <candidate-commit-sha> --resource-group rg-apexlocal
 ```
+
+The build scrubs the lab credential from the host every time it fails, so resume reads it back
+from the lab Key Vault created by the deployment. That needs no retyping as long as you deployed
+the lab yourself; another operator needs **Key Vault Secrets User** on the vault, or can set
+`LOCALSELF_ADMIN_PASSWORD` explicitly. Deleting the resource group destroys the stored password
+along with everything else.
 
 Stages run in this order: `HostFabric`, `Isos`, `BaseImages`, `Router`, `DomainController`,
 `ActiveDirectory`, `Nodes`, `Readiness`, `Arc`, `ClusterDeploy`. Resume refreshes the runtime

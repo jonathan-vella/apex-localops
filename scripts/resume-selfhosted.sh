@@ -52,8 +52,24 @@ fi
   echo "ERROR: --artifact-ref must be an immutable candidate SHA or release tag." >&2
   exit 2
 }
+command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI not found." >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found." >&2; exit 1; }
+az account show >/dev/null 2>&1 || { echo "ERROR: not logged in to Azure." >&2; exit 1; }
+
+# The build scrubs the credential from the host whenever it fails, so recover it from
+# the lab vault rather than making the operator retype it.
+if [[ -z "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
+  VAULT_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)
+  if [[ -n "$VAULT_NAME" ]]; then
+    echo "Reading the lab password from ${VAULT_NAME}..."
+    LOCALSELF_ADMIN_PASSWORD=$(az keyvault secret show --vault-name "$VAULT_NAME" \
+      --name lab-admin-password --query value -o tsv 2>/dev/null || true)
+    export LOCALSELF_ADMIN_PASSWORD
+  fi
+fi
+
 [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]] || {
-  echo "ERROR: set LOCALSELF_ADMIN_PASSWORD before resuming." >&2
+  echo "ERROR: set LOCALSELF_ADMIN_PASSWORD, or grant yourself Key Vault Secrets User on the lab vault." >&2
   exit 1
 }
 (( ${#LOCALSELF_ADMIN_PASSWORD} >= 12 && ${#LOCALSELF_ADMIN_PASSWORD} <= 123 )) || {
@@ -61,10 +77,6 @@ fi
   exit 1
 }
 trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT
-
-command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI not found." >&2; exit 1; }
-command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found." >&2; exit 1; }
-az account show >/dev/null 2>&1 || { echo "ERROR: not logged in to Azure." >&2; exit 1; }
 
 RAW_BASE="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell"
 SCRIPT_URI="${RAW_BASE}/Resume-ApexLocalCluster.ps1"

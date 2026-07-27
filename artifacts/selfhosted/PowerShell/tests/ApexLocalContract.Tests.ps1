@@ -323,6 +323,24 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Not -Match 'Add-VMNetworkAdapterAcl -VMNetworkAdapter \$nodeAdapter'
   }
 
+  It 'stores the lab password so a resume never needs it retyped' {
+    # The build scrubs the credential on failure; without a vault every resume is manual.
+    $mainBicep = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/main.bicep') -Raw
+    $labSecrets = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/labSecrets.bicep') -Raw
+    $mainBicep | Should -Match "module labSecretsDeployment 'mgmt/labSecrets\.bicep'"
+    $mainBicep | Should -Match 'adminPassword: windowsAdminPassword'
+    $labSecrets | Should -Match "name: 'lab-admin-password'"
+    $labSecrets | Should -Match 'enableRbacAuthorization: true'
+    # Reading it back must require an explicit data-plane grant, not just RG ownership.
+    $labSecrets | Should -Match '4633458b-17de-408a-b874-0445c86b69e6'
+    $resumeWrapperSource | Should -Match 'az keyvault secret show --vault-name'
+    $resumeWrapperSource | Should -Match '--name lab-admin-password'
+    $deployWrapperSource | Should -Match 'operatorPrincipalId=\$OPERATOR_PRINCIPAL_ID'
+    # Soft delete reserves the name, so cleanup must purge or redeploy collides.
+    $cleanupSource = Get-Content -Path (Join-Path $repoRoot 'scripts/cleanup-selfhosted.sh') -Raw
+    $cleanupSource | Should -Match 'az keyvault purge --name'
+  }
+
   It 'trusts the nested nodes explicitly so the network validator can dial them' {
     # The validator opens its own sessions by name; a workgroup host refuses NTLM
     # to an untrusted target, so passing -PSSession alone is not enough.

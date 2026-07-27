@@ -268,12 +268,23 @@ trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT
 if ! az group show --name "$RESOURCE_GROUP" >/dev/null 2>&1; then
   az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 fi
+# Grant the deploying identity read access to the stored lab password, so resume and
+# recover can fetch it instead of making the operator retype it.
+ACCOUNT_TYPE=$(az account show --query user.type -o tsv)
+ACCOUNT_NAME=$(az account show --query user.name -o tsv)
+if [[ "$ACCOUNT_TYPE" == "user" ]]; then
+  OPERATOR_PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)
+else
+  OPERATOR_PRINCIPAL_ID=$(az ad sp show --id "$ACCOUNT_NAME" --query id -o tsv 2>/dev/null || true)
+fi
+
 DEPLOYMENT_PARAMETERS=(
   "$PARAMS"
   "location=$LOCATION"
   "artifactRef=$ARTIFACT_REF"
   "clusterName=$CLUSTER_NAME"
   "enableAzureHybridBenefit=$ENABLE_AZURE_HYBRID_BENEFIT"
+  "operatorPrincipalId=$OPERATOR_PRINCIPAL_ID"
 )
 
 echo "Running what-if preview..."

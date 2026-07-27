@@ -52,10 +52,22 @@ if [[ "$ASSUME_YES" != "true" ]]; then
 fi
 
 echo "Deleting resource group '$RESOURCE_GROUP' ..."
+# Capture the vault name first: it is unrecoverable once the group is gone, and a
+# soft-deleted vault keeps its name reserved, blocking a redeploy into the same group.
+LAB_VAULT=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)
 if [[ "$NO_WAIT" == "true" ]]; then
   az group delete --name "$RESOURCE_GROUP" --yes --no-wait
   echo "Delete started (async). Track with: az group show -n $RESOURCE_GROUP"
+  if [[ -n "$LAB_VAULT" ]]; then
+    echo "After it finishes, purge the lab vault so the name is free to redeploy:"
+    echo "  az keyvault purge --name $LAB_VAULT"
+  fi
 else
   az group delete --name "$RESOURCE_GROUP" --yes
   echo "Resource group '$RESOURCE_GROUP' deleted."
+  if [[ -n "$LAB_VAULT" ]]; then
+    echo "Purging soft-deleted lab vault '$LAB_VAULT' so the name is free to redeploy..."
+    az keyvault purge --name "$LAB_VAULT" --output none 2>/dev/null ||
+      echo "  (purge skipped; run 'az keyvault purge --name $LAB_VAULT' if a redeploy reports a name conflict)"
+  fi
 fi

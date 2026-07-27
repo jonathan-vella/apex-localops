@@ -90,6 +90,9 @@ param hciResourceProviderObjectId string = ''
 @description('Add CostControl/SecurityControl tags (Microsoft-internal lab tenants only).')
 param governResourceTags bool = false
 
+@description('Object id of the operator or group allowed to read the stored lab password, so resume and recover need no retyping. Resolved at deploy time by scripts/deploy-selfhosted.sh; empty skips the assignment.')
+param operatorPrincipalId string = ''
+
 @description('Tags applied to all resources.')
 param tags object = {
   Project: 'apex_localselfhosted'
@@ -146,6 +149,16 @@ module networkDeployment 'network/network.bicep' = {
     deployBastion: deployBastion
     location: location
     resourceTags: resourceTags
+  }
+}
+
+module labSecretsDeployment 'mgmt/labSecrets.bicep' = {
+  name: 'labSecretsDeployment'
+  params: {
+    location: location
+    resourceTags: resourceTags
+    adminPassword: windowsAdminPassword
+    operatorPrincipalId: operatorPrincipalId
   }
 }
 
@@ -312,3 +325,4 @@ output logsContainerName string = logsContainerName
 output workspaceName string = mgmtArtifactsDeployment.outputs.workspaceName
 output managementVmName string = deployManagementVm ? managementVmDeployment!.outputs.managementVmName : ''
 output clusterResourceSuffix string = clusterResourceSuffix
+output keyVaultName string = labSecretsDeployment.outputs.keyVaultName
