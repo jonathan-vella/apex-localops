@@ -28,6 +28,7 @@ module.
 - [4. Watch the build](#4-watch-the-build)
 - [5. Confirm success](#5-confirm-success)
 - [Customization](#customization)
+- [What this lab does not validate](#what-this-lab-does-not-validate)
 - [Refresh the pinned images](#refresh-the-pinned-images)
 - [Tear down](#tear-down)
 - [Resume a failed build at its stage](#resume-a-failed-build-at-its-stage)
@@ -185,6 +186,24 @@ The release topology is fixed to three nodes, no witness, an `E64s_v6` host, and
 per node. Unsupported shape parameters are intentionally not exposed. Select only the approved
 infrastructure region, immutable artifact ref, cluster name, and
 [Azure Hybrid Benefit](sizing.md#azure-hybrid-benefit) mode through `deploy-selfhosted.sh`.
+
+## What this lab does not validate
+
+The build runs Microsoft's Environment Checker before deploying, and a critical finding stops
+the build. Four findings are waived because they cannot pass on nested hardware, listed by
+exact test id in
+[ApexLocal-Config.psd1](../../artifacts/selfhosted/PowerShell/ApexLocal-Config.psd1):
+
+| Waived test | Why it cannot pass here |
+| --- | --- |
+| `AzStackHci_Hardware_MemoryProperties` | A nested guest exposes no physical DIMM inventory. |
+| `AzStackHci_Hardware_PhysicalDisk` | Virtual disks are not vendor-qualified physical drives. |
+| `AzStackHci_Hardware_Test_NetAdapter` | Synthetic adapters lack the hardware attributes read. |
+| `AzStackHci_ExternalActiveDirectory_..._ExecutingAsDeploymentUser` | Readiness runs on the workgroup host as SYSTEM, never as the domain LCM account. |
+
+This means the lab proves the **deployment workflow**, not hardware suitability. On real
+qualified hardware all four are expected to pass and must not be waived. The list is exact test
+ids with no wildcards, so any finding outside it still stops the build.
 
 ## Refresh the pinned images
 

@@ -427,6 +427,22 @@ Describe 'Self-hosted orchestration safety' {
     $cleanupSource | Should -Match 'az keyvault purge --name'
   }
 
+  It 'waives only the criticals nested virtualization makes unavoidable' {
+    $waived = @($config.Validation.AllowedCriticalTests)
+    # Each entry was observed failing on the live lab and is impossible to remediate
+    # in a nested topology. The list must stay closed so new criticals still block.
+    $waived | Should -HaveCount 4
+    $waived | Should -Contain 'AzStackHci_Hardware_MemoryProperties'
+    $waived | Should -Contain 'AzStackHci_Hardware_PhysicalDisk'
+    $waived | Should -Contain 'AzStackHci_Hardware_Test_NetAdapter'
+    $waived | Should -Contain 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+    # No wildcards: a waiver must name one exact test id.
+    foreach ($entry in $waived) {
+      $entry | Should -Not -Match '[\*\?]'
+      $entry | Should -Match '^AzStackHci_'
+    }
+  }
+
   It 'rebuilds node sessions for every validator that consumes them' {
     # EnsureTestSessionOpen removes the sessions it is handed and keeps the replacements,
     # so a session reused across steps is Closed by the time the next validator runs.

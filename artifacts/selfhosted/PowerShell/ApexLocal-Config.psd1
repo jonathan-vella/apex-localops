@@ -143,6 +143,17 @@
       # execution context can never be the domain LCM deployment account. Every
       # other AD organizational-unit test passes.
       'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+
+      # The three hardware findings below are inherent to running Azure Local nested
+      # inside a VM and cannot be remediated in this topology. They are the only
+      # hardware criticals observed, and every other hardware test passes. On real
+      # qualified hardware all three pass, so they must NOT be waived there.
+      #   Nested guests expose no physical DIMM inventory.
+      'AzStackHci_Hardware_MemoryProperties'
+      #   Virtual disks are not vendor-qualified physical drives.
+      'AzStackHci_Hardware_PhysicalDisk'
+      #   Synthetic adapters lack the hardware attributes the check reads (one per node).
+      'AzStackHci_Hardware_Test_NetAdapter'
     )
   }
 
