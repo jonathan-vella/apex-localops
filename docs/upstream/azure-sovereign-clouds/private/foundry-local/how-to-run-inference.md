@@ -283,6 +283,8 @@ spec:
     host: <YOUR_GATEWAY_ADDRESS>
 ```
 
+For large models that exceed the 100-GiB default model cache, increase the cache size on vLLM deployments. See [Configure model cache storage](reference-model-deployment-operator.md#configure-model-cache-storage).
+
 Apply the manifest:
 
 ```bash

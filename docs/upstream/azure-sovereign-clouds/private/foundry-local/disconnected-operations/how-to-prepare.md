@@ -87,4 +87,6 @@ Get-ApplianceExpansionPackDetails
 
 ## Related content
 
+* [Deployment overview for Foundry Local on Azure Local](../deploy-overview.md)
+* [Requirements for Foundry Local on Azure Local](../concept-requirements.md)
 * [Troubleshoot Foundry Local on Azure Local in disconnected environments](how-to-troubleshoot.md)

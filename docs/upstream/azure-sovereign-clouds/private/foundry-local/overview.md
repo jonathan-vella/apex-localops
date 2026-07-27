@@ -129,10 +129,12 @@ Use Foundry Local on Azure Local when you need to:
 - Standardize AI serving with Kubernetes-native operations in existing platform workflows.
 - Use Azure-connected management patterns while running inference on local infrastructure.
 - Scale AI inference across multiple nodes in a Kubernetes cluster for concurrent access and larger models.
-- Run AI inference in disconnected or air-gapped environments without internet connectivity.
+- Run AI inference in disconnected environments without internet connectivity.
 
 ## Related content
 
+- [Deployment overview for Foundry Local on Azure Local](deploy-overview.md)
+- [Requirements for Foundry Local on Azure Local](concept-requirements.md)
 - [Deploy Foundry Local as an Azure Arc extension](deploy-foundry-local-arc-extension.md)
 - [Multi-node Kubernetes deployment](concept-multi-node-deployment.md)
 - [Disconnected environments overview](disconnected-operations/concept-overview.md)

@@ -19,6 +19,10 @@ items:
       href: deploy-run-first-model.md
   - name: Deploy platform
     items:
+    - name: Overview
+      href: deploy-overview.md
+    - name: Requirements
+      href: concept-requirements.md
     - name: Authentication and authorization
       href: concept-authentication-authorization.md
     - name: Configure TLS

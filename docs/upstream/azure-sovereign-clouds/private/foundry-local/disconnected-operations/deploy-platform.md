@@ -225,6 +225,7 @@ Expected result:
 
 ## Related content
 
+* [Deployment overview for Foundry Local on Azure Local](../deploy-overview.md)
 * [Troubleshoot Foundry Local on Azure Local in disconnected environments](how-to-troubleshoot.md)
 * [Deploy your first model in a disconnected environment](how-to-deploy-first-model.md)
 * [Configure authentication and authorization for Foundry Local on Azure Local in disconnected environments](how-to-authenticate.md)

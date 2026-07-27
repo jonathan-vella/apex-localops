@@ -47,7 +47,7 @@ Use Foundry Local when you need low-latency AI inference on local infrastructure
 - Deploy predictive models for classification, scoring, and real-time decisions on the factory floor.
 - Manage AI model serving with Kubernetes-native workflows that fit your existing platform operations.
 - Scale AI inference across multiple nodes in a Kubernetes cluster for concurrent access and larger models.
-- Run AI inference in disconnected or air-gapped environments without internet connectivity.
+- Run AI inference in disconnected environments without internet connectivity.
 
 For more information, see:
 
@@ -156,7 +156,7 @@ Use the following table to match each AI scenario to the best-fit workload on Az
 | Connect AI agents to external data sources via MCP servers | Agentic Retrieval in Foundry Local (preview) |
 | Analyze video or audio content in real time or from archives | Azure AI Video Indexer enabled by Azure Arc |
 | Process sensitive data that can't leave your premises | Any of the three, depending on your data type |
-| Operate fully disconnected or air-gapped | Foundry Local on Azure Local (preview) |
+| Operate fully disconnected | Foundry Local on Azure Local (preview) |
 
 ## Related content
 

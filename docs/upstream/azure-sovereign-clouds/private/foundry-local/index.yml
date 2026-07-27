@@ -52,6 +52,10 @@ landingContent:
             url: deploy-run-first-model.md
       - linkListType: deploy
         links:
+          - text: Requirements
+            url: concept-requirements.md
+          - text: Deployment overview
+            url: deploy-overview.md
           - text: Configure TLS 
             url: how-to-configure-tls-authentication.md
           - text: Deploy Foundry Local as an Azure Arc extension

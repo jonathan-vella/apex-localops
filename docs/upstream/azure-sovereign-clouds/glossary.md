@@ -30,7 +30,7 @@ Use this glossary to align on common terminology across sovereignty concepts, ca
 | Attestation | Cryptographic verification of a TEE's identity and measured launch state before releasing secrets. |
 | SKR (Secure Key Release) | Mechanism tying key release from Key Vault / Managed HSM to attestation policies for confidential workloads. |
 | L1 / L2 / L3 | Sovereign policy levels: L1 (data residency and service scope), L2 (encryption at rest with CMK/HSM), L3 (confidential compute / in‑use encryption). |
-| REM (Regulated Environment Management) | Unified orchestration and monitoring layer for sovereign operations. |
+| SCP (Sovereign Control Panel) | Unified Azure portal experience to monitor sovereignty posture across the Azure estate. |
 | Data Guardian | Capability providing supervised, approved, and logged provider operational access with a tamper evident ledger. |
 | Advanced Data Residency in Microsoft 365 | A Microsoft 365 feature ensuring specified data categories remain within designated geography. |
 | Model provenance | Traceability of AI model lineage including source model, fine‑tuning data, versions, and integrity hashes. |
@@ -49,4 +49,3 @@ Use this glossary to align on common terminology across sovereignty concepts, ca
 - [Confidential computing](public/confidential-computing.md)
 - [External key management](public/external-key-management.md)
 - [Design sovereign policies](public/design-sovereign-policies.md)
-

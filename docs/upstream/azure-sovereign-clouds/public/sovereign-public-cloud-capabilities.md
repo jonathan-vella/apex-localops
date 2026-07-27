@@ -52,17 +52,11 @@ Confidential Computing:
 
 For more information, see [Confidential Computing](confidential-computing.md) and [Sovereign Landing Zone](overview-sovereign-landing-zone.md).
 
-## Regulated Environment Management (REM)
+## Sovereign Control Panel (SCP)
 
-Regulated Environment Management (REM) provides a unified experience to configure, deploy, and monitor workloads in support of sovereign operations in the public cloud.
+Sovereign Control Panel (SCP) is a unified Azure portal experience for viewing, managing, and evaluating sovereignty posture across tenant resources. It aggregates sovereignty signals into a centralized and intuitive console for end users and reviewers to view and verify sovereignty requirements.
 
-Regulated Environment Management:
-
-- Centralizes sovereignty controls and operational visibility.
-- Applies policy‑as‑code guardrails consistently at scale.
-- Complements EKM, Data Guardian, and Confidential Computing.
-
-For more information, see [Regulated Environment Management](regulated-environment-management.md).
+For more information, see [Sovereign Control Panel](regulated-environment-management.md).
 
 ## Choose the right capability for your goal
 
@@ -73,7 +67,7 @@ The following table summarizes how these capabilities help address common sovere
 | Ensure local oversight and tamper‑evident logging of provider operations | Data Guardian |
 | Keep encryption keys under exclusive customer control | External Key Management (EKM) |
 | Protect data in use during processing | Confidential Computing |
-| Configure, deploy, and monitor sovereign workloads centrally | Regulated Environment Management (REM) |
+| Monitor sovereign workloads centrally | Sovereign Control Panel (SCP) |
 
 ## How these capabilities work together for sovereign workloads
 
@@ -84,6 +78,6 @@ Sovereign Public Cloud capabilities are most effective when used with policy‑a
 - [External Key Management](external-key-management.md)  
 - [Data Guardian](data-guardian.md)  
 - [Confidential Computing](confidential-computing.md)  
-- [Regulated Environment Management](regulated-environment-management.md)
+- [Sovereign Control Panel](regulated-environment-management.md)
 - [Discover Microsoft Sovereign Cloud (product overview and EU focus)](../microsoft-sovereign-cloud.md)
 - [Sovereign Landing Zone overview](overview-sovereign-landing-zone.md)

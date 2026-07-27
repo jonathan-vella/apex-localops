@@ -17,6 +17,8 @@ customer intent: As a platform engineer, I want to deploy Foundry Local as an Az
 
 This article shows you how to set up Foundry Local as an extension on your Azure Kubernetes Service (AKS) cluster enabled by Azure Arc. Use the Azure portal or the Azure CLI to deploy Foundry Local as an extension on your Azure Arc-enabled Kubernetes cluster. Helm is also a supported deployment option, and installation instructions are provided during preview access onboarding.
 
+For an overview of the install options, architecture, and end-to-end deployment process, see [Deployment overview for Foundry Local on Azure Local](deploy-overview.md).
+
 If you plan to use models with [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview), Entra ID authentication must remain enabled (the default) during this extension installation.
 
 [!INCLUDE [foundry-local-preview](includes/foundry-local-preview.md)]
@@ -337,6 +339,8 @@ kubectl describe model <name>
 
 ## Related content
 
+- [Deployment overview for Foundry Local on Azure Local](deploy-overview.md)
+- [Requirements for Foundry Local on Azure Local](concept-requirements.md)
 - [Package and deploy a bring-your-own model on Foundry Local](how-to-deploy-custom-model.md)
 - [Run inference on Foundry Local on Azure Local](how-to-run-inference.md)
 - [Update the Foundry Local Azure Arc extension in connected environments](how-to-update-arc-extension.md)

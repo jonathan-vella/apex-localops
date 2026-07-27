@@ -41,7 +41,7 @@ This article is a reference for the `ModelDeployment` CRD spec and status fields
 | `runtime` | string | No | onnx-genai | Inference runtime: `onnx-genai` or `vllm`. vLLM requires `compute: gpu`. |
 | `vllm` | object | No | - | vLLM-specific configuration. Only used when `runtime: vllm`. |
 | `vllm.preferences` | object | No | - | vLLM engine argument overrides (open schema). See vLLM planner documentation |
-| `Vllm.modelCacheStorageGi` | integer | No | 100 | Size of the model cache PVC in GiB (minimum 1). |
+| `vllm.modelCacheStorageGi` | integer | No | 100 | Size of the model cache PVC in GiB (minimum 1). Increase this value for large models that exceed the 100-GiB default. See [Configure model cache storage](#configure-model-cache-storage). |
 | `nodeSelector` | object | No | — | Node selector labels for pod scheduling. |
 | `skipGpuResource` | boolean | No | `false` | Skip the `nvidia.com/gpu` limit. Requires `nodeSelector` when set to `true`. |
 | `tolerations` | array | No | — | Pod tolerations. |
@@ -97,6 +97,18 @@ spec:
     - key: nvidia.com/gpu
       operator: Exists
       effect: NoSchedule
+```
+
+### Configure model cache storage
+
+The model cache persistent volume claim (PVC) defaults to 100 GiB. Large models, such as `magistral`, can exceed this size, so set `spec.vllm.modelCacheStorageGi` to a higher value when you deploy them. This field applies only to deployments that use `runtime: vllm`.
+
+```yaml
+spec:
+  compute: gpu
+  runtime: vllm
+  vllm:
+    modelCacheStorageGi: 200
 ```
 
 ## ModelDeployment status fields

@@ -1,75 +1,54 @@
 ---
-title: "Regulated Environment Management (REM) overview"
-description: "Overview of REM for managing regulated workloads in the Sovereign Public Cloud."
-author: lavanyapg
+title: "Sovereign Control Panel (SCP) overview"
+description: "Overview of Sovereign Control Panel (SCP) for viewing, monitoring, and reporting on sovereignty posture in the Sovereign Public Cloud."
+author: surbhidey
 ms.topic: overview
-ms.date: 10/07/2025
-ms.author: kerabun
-ms.reviewer: lsuresh
+ms.date: 07/24/2026
+ms.author: surbhidey
+ms.reviewer: sharanyavemu
 ms.subservice: sovereign-public-clouds
 ms.collection: 
     - microsoftcloud-sovereignty
     - microsoftcloud-seo-priority
 ---
 
-# What is Regulated Environment Management (REM)?
+# Sovereign Control Panel (SCP)
 
-> [!NOTE]
-> This article is a stub with minimal information. It primarily serves as a navigation anchor within the documentation. Its role is to provide a concise description of REM and help users understand the context of this article while maintaining a clear structure for related content.
+> [!IMPORTANT]
+> Regulated Environment Management (REM) is now Sovereign Control Panel (SCP).
 
-Regulated Environment Management (REM) provides a unified customer experience to configure, deploy, and monitor workloads in support of sovereign operations in Microsoft’s public cloud. 
+Sovereign Control Panel (SCP) is the integration point for sovereignty in Microsoft's public cloud. It's one place to **Discover, Control, and Act** on your sovereignty posture across Azure environments. It provides a unified Azure portal experience for viewing, managing, and evaluating sovereignty posture across tenant resources. It aggregates sovereignty signals into a centralized and intuitive console for users to view and verify sovereignty requirements.
 
-## Key features
+## Discover, Control, and Act
 
-- **Unified experience for sovereign operations**: Provides a single place to orchestrate configuration, deployment, and monitoring of workloads with sovereignty in mind.
-- **Works with policy‑as‑code guardrails**: Complements Microsoft’s Sovereign Landing Zone (SLZ) patterns to enforce location, encryption, and configuration policies at scale.
-- **Integrates with sovereignty frameworks**: Designed to work within Microsoft’s sovereignty approach, ensuring compliance and governance across regions.
-- **Complements other Sovereign Public Cloud capabilities**: Operationally unifies [External Key Management](external-key-management.md), [Data Guardian](data-guardian.md), and [Confidential Computing](confidential-computing.md) with SLZ policy portfolios to help organizations apply sovereignty controls consistently at scale while retaining hyperscale cloud benefits.
+SCP is organized around a single operating model that spans the sovereignty lifecycle:
 
-## Who should use REM?
+- **Discover** - Measure and prove your posture with a read-only, evidence-based view across residency, confidentiality, operational sovereignty, and continuity.
+- **Control** - Set and enforce the controls your organization requires, including your own sovereignty rules.
+- **Act** - Prioritize sovereign risk and remediate resources that drift from the expected state.
 
-REM is intended for governments and regulated industries that need to operate in Microsoft’s Sovereign Public Cloud and maintain strong alignment with local laws, policies, and regulatory frameworks—all while accessing public‑cloud innovation, resiliency, and security.
+## Why it matters
 
-## Prerequisites
+For regulated organizations, proving sovereignty is often harder than implementing it. Teams spend far more effort assembling evidence than enabling controls. The following reasons explain why SCP is important for customers seeking sovereignty in the public cloud:
 
-Before adopting REM, ensure the following prerequisites are in place:
+- **Single view of posture**: SCP replaces fragmented, tool-by-tool checks with one authoritative sovereignty view across the tenant, management group, subscription, and resource hierarchy.
+- **Evidence, not policy assertion**: SCP combines Azure Policy evaluations with direct resource configuration reads, so coverage isn't limited to where a policy alias happens to exist.
+- **Trust and assurance**: Reinforces Microsoft's commitment to digital sovereignty by giving customers a defensible answer to "where do I stand?"
 
-- Azure tenant and subscriptions aligned to an Azure Landing Zone or Sovereign Landing Zone hierarchy.
-- Documented data classification model and associated sovereign control mapping (L1–L3).
-- Key management approach (Managed HSM / CMK / optional External Key Management) defined.
-- Initial policy initiatives stored in source control and assignable at management group scope.
-- Logging destinations for policy compliance, key operations, and access events defined.
+## Who should use SCP?
 
-## Architecture and integration
+Use SCP if your organization runs workloads on Azure and needs to show strong alignment with local laws and policy frameworks while continuing to benefit from public-cloud innovation, resiliency, and security.
 
-REM sits on top of the Sovereign Landing Zone (SLZ) foundation and consumes existing policy initiatives (L1–L3) for region, encryption, and confidential compute controls. Conceptually:
+Typical users of SCP include organizations that want to host some or most of their workloads and resources in accordance with regulatory requirements, such as the [SEAL framework](https://commission.europa.eu/document/download/09579818-64a6-4dd5-9577-446ab6219113_en).
 
-1. SLZ provides policy‑as‑code guardrails and management group segmentation.
-1. REM supplies an orchestration and monitoring layer to apply, validate, and report on those guardrails.
-1. Operational capabilities (Data Guardian sessions, key usage telemetry, confidential compute attestation signals) surface as part of compliance and readiness dashboards.
-
-> [!TIP]
-> When designing REM adoption, define a minimal evidence model early (region compliance %, CMK coverage %, confidential compute adoption %, supervised access sessions) so dashboards evolve with actual stakeholder reporting needs.
-
-## Common scenarios
-
-Use REM to manage regulated workloads through the following scenarios:
-
-- Configure sovereign guardrails before workload onboarding (regions, encryption, identity, networking).
-- Deploy and validate workloads against policy baselines and architectural guidance.
-- Monitor operational posture for alignment with sovereignty objectives (dashboards and alerting).
-- Collect evidence for regulatory or internal assurance reviews.
-- Centralize exception tracking workflow for region or service deviations.
+- National and federal government and public sector agencies.
+- Regulated industries such as financial, healthcare, defense, energy, and critical infrastructure services.
+- National and sovereign cloud operators.
 
 ## Related content
 
 - [What is Microsoft Sovereign Cloud?](../microsoft-sovereign-cloud.md)
 - [Sovereign Landing Zone overview](overview-sovereign-landing-zone.md)
-
-
-## See also
-
-- [External Key Management](external-key-management.md)
 - [Data Guardian](data-guardian.md)
+- [External Key Management](external-key-management.md)
 - [Confidential Computing](confidential-computing.md)
-- [Sovereign Landing Zone](overview-sovereign-landing-zone.md)
