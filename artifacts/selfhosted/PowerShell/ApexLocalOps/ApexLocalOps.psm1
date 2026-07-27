@@ -900,7 +900,7 @@ function New-ApexNestedVM {
   if (-not (Test-Path $VmConfigDir)) { New-Item -ItemType Directory -Force -Path $VmConfigDir | Out-Null }
   New-VM -Name $VmName -Generation 2 -MemoryStartupBytes ($MemoryMB * 1MB) `
     -VHDPath $diff -SwitchName $SwitchName -Path $VmConfigDir | Out-Null
-  Set-VM -Name $VmName -SmartPagingFilePath $VmConfigDir -SnapshotFilePath $VmConfigDir
+  Set-VM -Name $VmName -SmartPagingFilePath $VmConfigDir -SnapshotFileLocation $VmConfigDir
   Set-VMMemory -VMName $VmName -DynamicMemoryEnabled $false
   Set-VMProcessor -VMName $VmName -Count $CpuCount -ExposeVirtualizationExtensions $true
 

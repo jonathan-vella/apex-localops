@@ -301,7 +301,7 @@ Describe 'Self-hosted orchestration safety' {
     # so a 96-GB node cannot be configured on the small OS disk.
     $moduleSource | Should -Match '\[Parameter\(Mandatory\)\] \[string\]\$VmConfigDir'
     $moduleSource | Should -Match '-VHDPath \$diff -SwitchName \$SwitchName -Path \$VmConfigDir'
-    $moduleSource | Should -Match 'Set-VM -Name \$VmName -SmartPagingFilePath \$VmConfigDir -SnapshotFilePath \$VmConfigDir'
+    $moduleSource | Should -Match 'Set-VM -Name \$VmName -SmartPagingFilePath \$VmConfigDir -SnapshotFileLocation \$VmConfigDir'
     $config.Paths.VmDir | Should -Match '^V:'
     ([regex]::Matches($moduleSource, '-VmConfigDir \$paths\.VmDir')).Count | Should -Be 3
   }
