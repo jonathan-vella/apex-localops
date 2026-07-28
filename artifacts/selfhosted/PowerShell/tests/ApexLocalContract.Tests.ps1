@@ -362,6 +362,16 @@ Describe 'Self-hosted orchestration safety' {
     $deployWrapperSource | Should -Match 'Recover-ApexLocalCluster\.ps1'
   }
 
+  It 'clears the stale Arc machine when a node is rebuilt' {
+    # Rebuilding the VM leaves the Azure-side Arc resource behind, and the Arc
+    # pre-registration check then fails with "already exists in the Resource Group",
+    # which reads like a configuration fault rather than stale state.
+    $moduleSource | Should -Match 'Removed stale Arc machine'
+    $moduleSource | Should -Match 'Invoke-AzRestMethod -Method DELETE -Path'
+    # Cleanup must not be able to abort an otherwise healthy rebuild.
+    $moduleSource | Should -Match 'Could not clean the Arc machine for'
+  }
+
   It 'waits for every node clock before running any validator' {
     # Proven on the live lab: readiness started while 2 of 3 nodes were still on
     # 'Local CMOS Clock' and the third had converged, so NtpServer-Sync failed as a

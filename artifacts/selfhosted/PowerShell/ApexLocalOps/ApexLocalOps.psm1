@@ -843,6 +843,28 @@ function New-ApexNestedVM {
     Write-ApexLog "Removing existing VM '$VmName' for a clean rebuild." -Level WARN
     if ($existing.State -ne 'Off') { Stop-VM -Name $VmName -TurnOff -Force -ErrorAction SilentlyContinue }
     Remove-VM -Name $VmName -Force -ErrorAction SilentlyContinue
+
+    # Rebuilding the VM does not remove its Azure-side Arc machine. Left behind, the
+    # Arc pre-registration check fails with "Arc machine(s) ... already exists in the
+    # Resource Group", which reads like a configuration fault rather than stale state.
+    $subscriptionId = [Environment]::GetEnvironmentVariable('APEX_SubscriptionId', 'Machine')
+    $resourceGroup = [Environment]::GetEnvironmentVariable('APEX_ResourceGroup', 'Machine')
+    if ($subscriptionId -and $resourceGroup) {
+      $arcPath = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup" +
+      "/providers/Microsoft.HybridCompute/machines/$VmName"
+      try {
+        $existingArc = Invoke-AzRestMethod -Method GET -Path "${arcPath}?api-version=2024-07-10" `
+          -ErrorAction Stop
+        if ($existingArc.StatusCode -eq 200) {
+          $null = Invoke-AzRestMethod -Method DELETE -Path "${arcPath}?api-version=2024-07-10" `
+            -ErrorAction Stop
+          Write-ApexLog "Removed stale Arc machine '$VmName' left by the previous build."
+        }
+      }
+      catch {
+        Write-ApexLog "Could not clean the Arc machine for '$VmName': $($_.Exception.Message)" -Level WARN
+      }
+    }
   }
   if (-not (Test-Path $VmDiffDiskDir)) { New-Item -ItemType Directory -Force -Path $VmDiffDiskDir | Out-Null }
   $diff = Join-Path $VmDiffDiskDir "$VmName.vhdx"
@@ -1253,7 +1275,7 @@ function Set-ApexNodeTimeSync {
       $source = (w32tm /query /source 2>&1).Trim()
       $sourceValid = $source -notin @('Local CMOS Clock', 'VM IC Time Synchronization Provider')
       $everSynced = ($status -match 'Last Successful Sync Time:') -and
-                    ($status -notmatch 'Last Successful Sync Time:\s*unspecified')
+      ($status -notmatch 'Last Successful Sync Time:\s*unspecified')
       $synced = $sourceValid -and $everSynced
     } while (-not $synced -and (Get-Date) -lt $deadline)
 
@@ -1680,7 +1702,7 @@ function Test-ApexEnvironmentReadiness {
         catch { $state = '' }
         $sourceOk = $state -match 'Source:\s*(?!Local CMOS Clock)\S'
         $syncOk = ($state -match 'Last Successful Sync Time:') -and
-                  ($state -notmatch 'Last Successful Sync Time:\s*unspecified')
+        ($state -notmatch 'Last Successful Sync Time:\s*unspecified')
         if (-not ($sourceOk -and $syncOk)) { $pending += $node.Name }
       }
       if ($pending.Count -gt 0) {
@@ -2040,7 +2062,7 @@ function Connect-ApexNodeToArc {
       # Resolve the binary explicitly: a fresh remote session does not always carry the
       # installer's PATH update, so a bare 'azcmagent' can fail as command-not-found.
       $azcmagent = Get-Command azcmagent -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty Source -First 1
+      Select-Object -ExpandProperty Source -First 1
       if (-not $azcmagent) {
         $azcmagent = Join-Path $env:ProgramFiles 'AzureConnectedMachineAgent\azcmagent.exe'
       }
