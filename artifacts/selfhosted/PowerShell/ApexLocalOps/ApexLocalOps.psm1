@@ -2225,6 +2225,28 @@ function Start-ApexLocalClusterDeployment {
     New-AzResourceGroupDeployment @common -deploymentMode 'Validate' `
       -Name "apexlocal-validate-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop | Out-Null
     Write-ApexLog 'Validation succeeded.'
+
+    # An ARM Validate deployment returning success only means the request was accepted.
+    # The validation itself runs asynchronously on the cluster and reports through the
+    # deploymentSettings resource, so deploying on the strength of the ARM result alone
+    # is rejected with "Deploy Operation is not allowed in Current State[ValidationFailed]".
+    $validationDeadline = (Get-Date).AddMinutes(90)
+    $clusterState = ''
+    do {
+      Start-Sleep -Seconds 60
+      $clusterResource = Get-AzResource -ResourceGroupName $ResourceGroup `
+        -ResourceType 'Microsoft.AzureStackHCI/clusters' -Name $ClusterName `
+        -ExpandProperties -ErrorAction SilentlyContinue
+      $clusterState = "$($clusterResource.Properties.status)"
+      Write-ApexLog "Cluster validation state: $clusterState"
+    } while ($clusterState -like '*InProgress*' -and (Get-Date) -lt $validationDeadline)
+
+    if ($clusterState -like '*Failed*' -or $clusterState -like '*InProgress*') {
+      throw ("Cluster validation did not succeed (state '$clusterState'). Read " +
+        'properties.reportedProperties.validationStatus.steps on the deploymentSettings ' +
+        'resource for the failing step, then rebuild from the Nodes stage: validation is ' +
+        'not idempotent and cannot be retried in place.')
+    }
   }
 
   Set-ApexProgress -ResourceGroup $ResourceGroup -Progress 'ClusterDeploying' `

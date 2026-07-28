@@ -362,6 +362,22 @@ Describe 'Self-hosted orchestration safety' {
     $deployWrapperSource | Should -Match 'Recover-ApexLocalCluster\.ps1'
   }
 
+  It 'confirms cluster validation on the resource, not the ARM result' {
+    # Proven on the live lab: the ARM Validate deployment returned success while the
+    # cluster sat in ValidationFailed, so Deploy was rejected 29 seconds later with
+    # "Deploy Operation is not allowed in Current State[ValidationFailed]".
+    $moduleSource | Should -Match 'Cluster validation state:'
+    $moduleSource | Should -Match 'Cluster validation did not succeed'
+    $moduleSource | Should -Match "\`$clusterState -like '\*Failed\*'"
+    # The wait must sit between the Validate call and the Deploy call.
+    $validateIndex = $moduleSource.IndexOf("Write-ApexLog 'Validation succeeded.'")
+    $stateIndex = $moduleSource.IndexOf('Cluster validation state:')
+    $deployIndex = $moduleSource.IndexOf("deploymentMode=Deploy")
+    $validateIndex | Should -BeGreaterThan 0
+    $stateIndex | Should -BeGreaterThan $validateIndex
+    $stateIndex | Should -BeLessThan $deployIndex
+  }
+
   It 'clears the stale Arc machine when a node is rebuilt' {
     # Rebuilding the VM leaves the Azure-side Arc resource behind, and the Arc
     # pre-registration check then fails with "already exists in the Resource Group",
