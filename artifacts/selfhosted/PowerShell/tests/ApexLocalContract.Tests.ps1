@@ -443,6 +443,16 @@ Describe 'Self-hosted orchestration safety' {
     # Region is the Azure Local instance region, threaded from the orchestrator.
     $moduleSource | Should -Match 'Region                        = \$region'
     $orchestratorSource | Should -Match '-Phase ''PostArc'' -InstanceLocation \$instanceLoc'
+
+    # Passing ArmAccessToken selects the ARMToken parameter set, whose mandatory
+    # members include AzureEnvironment and AccountId. Missing either one prompts, and
+    # a prompt inside a remote session is invisible.
+    $moduleSource | Should -Match "AzureEnvironment              = 'AzureCloud'"
+    $moduleSource | Should -Match 'AccountId                     = \$account'
+    $moduleSource | Should -Match "ARMToken set also requires"
+    $moduleSource | Should -Match '\$_\.IsMandatory -and -not \$arguments\.ContainsKey'
+    # A missing account id must fail loudly instead of silently dropping the parameter.
+    $moduleSource | Should -Match 'Could not resolve the host account id'
   }
 
   It 'discovers Arc machines through the provider API, not the generic one' {

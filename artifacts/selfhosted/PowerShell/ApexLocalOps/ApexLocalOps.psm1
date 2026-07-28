@@ -1707,6 +1707,9 @@ function Test-ApexEnvironmentReadiness {
       else { [string]$rawToken.Token }
       $accountId = $null
       try { $accountId = (Get-AzContext).Account.Id } catch { $accountId = $null }
+      if (-not $accountId) {
+        throw 'Could not resolve the host account id; the Arc integration validator requires it.'
+      }
       $tenant = [Environment]::GetEnvironmentVariable('APEX_TenantId', 'Machine')
       $nodeNames = @($Nodes.Name)
       $arcReportPath = Join-Path $reportDirectory 'ArcIntegration-node.json'
@@ -1720,9 +1723,14 @@ function Test-ApexEnvironmentReadiness {
             Import-Module AzStackHci.EnvironmentChecker -Force -ErrorAction Stop
             $outputDir = Join-Path $env:TEMP 'ApexArcIntegration'
             New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+            # Supplying ArmAccessToken selects the ARMToken parameter set, which also
+            # makes AzureEnvironment and AccountId mandatory. Omitting either prompts,
+            # and a prompt inside a remote session is invisible.
             $arguments = @{
+              AzureEnvironment              = 'AzureCloud'
               SubscriptionID                = $subId
               TenantID                      = $tenantId
+              AccountId                     = $account
               ArcResourceGroupName          = $rg
               RegistrationResourceGroupName = $rg
               Region                        = $region
@@ -1730,7 +1738,16 @@ function Test-ApexEnvironmentReadiness {
               ArmAccessToken                = $token
               OutputPath                    = $outputDir
             }
-            if ($account) { $arguments.AccountId = $account }
+            # Fail loudly rather than let PowerShell prompt for anything still missing.
+            $command = Get-Command Invoke-AzStackHciArcIntegrationValidation -ErrorAction Stop
+            $armTokenSet = $command.ParameterSets | Where-Object { $_.Name -eq 'ARMToken' }
+            $missing = @($armTokenSet.Parameters |
+              Where-Object { $_.IsMandatory -and -not $arguments.ContainsKey($_.Name) } |
+              ForEach-Object { $_.Name })
+            if ($missing) {
+              throw ("Invoke-AzStackHciArcIntegrationValidation ARMToken set also requires: " +
+                ($missing -join ', '))
+            }
             try {
               Invoke-AzStackHciArcIntegrationValidation @arguments -ErrorAction Stop | Out-Null
             }
