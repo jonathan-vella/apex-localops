@@ -216,6 +216,14 @@ try {
     Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
       -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
       -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred
+
+    # Arc integration is a PRE-registration check: it verifies the resource group holds
+    # no machines with these names yet, so it must run before stage 9 creates them.
+    # It also only works on the Azure Local OS, so it runs inside a node session.
+    Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
+      -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
+      -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred `
+      -Phase 'ArcIntegration' -InstanceLocation $instanceLoc
   }
 
   # 9) Arc-register the nodes -------------------------------------------------
@@ -262,15 +270,6 @@ try {
   }
   if ($arcIds.Count -ne 3) {
     throw "Expected exactly 3 Arc machines before cluster deployment; discovered $($arcIds.Count)."
-  }
-
-  # ArcIntegration can only be validated now that the Arc machines exist. Running it
-  # alongside the pre-Arc validators failed on four criticals purely because none did.
-  if (Test-ApexStage 'Arc') {
-    Test-ApexEnvironmentReadiness -Config $cfg -SubscriptionId $subId `
-      -ResourceGroup $rg -ClusterName $clusterName -Nodes $nodes `
-      -LocalAdminCredential $localAdminCred -DomainAdminCredential $domainAdminCred `
-      -Phase 'PostArc' -InstanceLocation $instanceLoc
   }
 
   # 10) Validate + deploy the cluster ----------------------------------------

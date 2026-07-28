@@ -1592,7 +1592,11 @@ function Test-ApexEnvironmentReadiness {
     # onboarding, so it cannot run in the same pass as the validators that must pass
     # before onboarding. Running it early failed on four criticals for the sole reason
     # that zero Arc machines existed yet.
-    [ValidateSet('PreArc', 'PostArc')] [string]$Phase = 'PreArc',
+    # The split is about WHERE a validator runs, not when. ArcIntegration only works on
+    # the Azure Local OS, so it runs in a node session; everything else runs on the host.
+    # It is a PRE-registration check: it verifies the resource group is clean, so it must
+    # run before Arc onboarding, not after.
+    [ValidateSet('HostChecks', 'ArcIntegration')] [string]$Phase = 'HostChecks',
     # Only used by the PostArc phase: the Azure Local instance region the Arc machines
     # and cluster resource live in, which is not the infrastructure region.
     [string]$InstanceLocation
@@ -1694,7 +1698,7 @@ function Test-ApexEnvironmentReadiness {
   }
 
   try {
-    if ($Phase -eq 'PostArc') {
+    if ($Phase -eq 'ArcIntegration') {
       # This validator only runs on the Azure Local OS. Executed on the outer Windows
       # Server host every check returns "ARC Integration validation is only supported on
       # HCI OS", and Get-AzureStackHCISubscriptionStatus does not exist there at all.
@@ -1781,7 +1785,7 @@ function Test-ApexEnvironmentReadiness {
         $armToken = $null
       }
 
-      $arcSummaryPath = Join-Path $reportDirectory 'validation-summary-PostArc.json'
+      $arcSummaryPath = Join-Path $reportDirectory 'validation-summary-ArcIntegration.json'
       $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $arcSummaryPath -Encoding UTF8
       return
     }
@@ -1865,7 +1869,7 @@ function Test-ApexEnvironmentReadiness {
       Invoke-AzStackHciHardwareValidation -PsSession $nodeSessions -ErrorAction Stop | Out-Null
     }
 
-    $summaryPath = Join-Path $reportDirectory 'validation-summary-PreArc.json'
+    $summaryPath = Join-Path $reportDirectory 'validation-summary-HostChecks.json'
     $validationSummary | ConvertTo-Json -Depth 5 | Set-Content -Path $summaryPath -Encoding UTF8
   }
   finally {

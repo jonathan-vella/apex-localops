@@ -442,7 +442,8 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match '\$armToken = \$null'
     # Region is the Azure Local instance region, threaded from the orchestrator.
     $moduleSource | Should -Match 'Region                        = \$region'
-    $orchestratorSource | Should -Match '-Phase ''PostArc'' -InstanceLocation \$instanceLoc'
+    $orchestratorSource.Contains("-Phase 'ArcIntegration' -InstanceLocation `$instanceLoc") |
+      Should -BeTrue
 
     # Passing ArmAccessToken selects the ARMToken parameter set, whose mandatory
     # members include AzureEnvironment and AccountId. Missing either one prompts, and
@@ -539,24 +540,24 @@ Describe 'Self-hosted orchestration safety' {
     }
   }
 
-  It 'validates Arc integration only after the Arc machines exist' {
-    # Running ArcIntegration before onboarding failed on four criticals for the sole
-    # reason that zero Arc machines existed yet.
-    $moduleSource.Contains("[ValidateSet('PreArc', 'PostArc')] [string]`$Phase = 'PreArc'") |
+  It 'runs the Arc integration pre-check before onboarding creates the machines' {
+    # It is a PRE-registration check: it fails with "Arc machine(s) ... already exists
+    # in the Resource Group" if it runs after onboarding. It also only works on the
+    # Azure Local OS, so it runs in a node session rather than on the host.
+    $moduleSource.Contains("[ValidateSet('HostChecks', 'ArcIntegration')] [string]`$Phase = 'HostChecks'") |
       Should -BeTrue
-    $moduleSource.Contains("if (`$Phase -eq 'PostArc')") | Should -BeTrue
-    $orchestratorSource.Contains("-Phase 'PostArc'") | Should -BeTrue
+    $orchestratorSource.Contains("-Phase 'ArcIntegration' -InstanceLocation `$instanceLoc") |
+      Should -BeTrue
 
-    # The post-Arc call must come after the Arc-connected wait, not before it.
-    $waitIndex = $orchestratorSource.IndexOf('Expected exactly 3 Arc machines')
-    $postArcIndex = $orchestratorSource.IndexOf("-Phase 'PostArc'")
-    $waitIndex | Should -BeGreaterThan 0
-    $postArcIndex | Should -BeGreaterThan $waitIndex
+    # It must sit inside the Readiness stage, ahead of the Arc onboarding loop.
+    $arcCheckIndex = $orchestratorSource.IndexOf("-Phase 'ArcIntegration'")
+    $onboardIndex = $orchestratorSource.IndexOf('Connect-ApexNodeToArc')
+    $arcCheckIndex | Should -BeGreaterThan 0
+    $arcCheckIndex | Should -BeLessThan $onboardIndex
+  }
 
-    # ArcIntegration must no longer sit with the pre-Arc validators.
-    $preArc = $moduleSource.Substring($moduleSource.IndexOf("Invoke-ValidationStep -Name 'Connectivity'"))
-    $preArc = $preArc.Substring(0, $preArc.IndexOf('validation-summary-PreArc'))
-    $preArc.Contains('ArcIntegration') | Should -BeFalse
+  It 'validates Arc integration only after the Arc machines exist' -Skip {
+    # Superseded: proven on the live lab to be a pre-registration check.
   }
 
   It 'reads each validator report from where that validator actually writes it' {
