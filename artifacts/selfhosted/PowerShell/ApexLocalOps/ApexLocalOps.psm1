@@ -1228,12 +1228,26 @@ function Set-ApexNodeTimeSync {
     param($dc)
     w32tm /config /manualpeerlist:"$dc,0x9" /syncfromflags:manual /update | Out-Null
     Restart-Service w32time -ErrorAction SilentlyContinue
-    w32tm /resync /force | Out-Null
-    w32tm /query /status | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Windows Time status query failed for DC '$dc'." }
-    $source = (w32tm /query /source).Trim()
-    if ($LASTEXITCODE -ne 0 -or $source -in @('Local CMOS Clock', 'VM IC Time Synchronization Provider')) {
-      throw "Node is using an invalid time source: '$source'."
+
+    # Setting the source is not the same as being in sync. A freshly built node needs a
+    # few resync attempts before the service reports a successful sync, and the Software
+    # validator fails AzStackHci_Software_NtpServer-Sync until it does.
+    $deadline = (Get-Date).AddMinutes(10)
+    $source = ''
+    $synced = $false
+    do {
+      w32tm /resync /force | Out-Null
+      Start-Sleep -Seconds 15
+      $status = (w32tm /query /status 2>&1) -join "`n"
+      $source = (w32tm /query /source 2>&1).Trim()
+      $sourceValid = $source -notin @('Local CMOS Clock', 'VM IC Time Synchronization Provider')
+      $everSynced = ($status -match 'Last Successful Sync Time:') -and
+                    ($status -notmatch 'Last Successful Sync Time:\s*unspecified')
+      $synced = $sourceValid -and $everSynced
+    } while (-not $synced -and (Get-Date) -lt $deadline)
+
+    if (-not $synced) {
+      throw "Node did not synchronize time with DC '$dc' within 10 minutes (source '$source')."
     }
   } -ArgumentList $DcIpAddress
   $timeIntegration = Get-VMIntegrationService -VMName $VmName -Name 'Time Synchronization' -ErrorAction Stop

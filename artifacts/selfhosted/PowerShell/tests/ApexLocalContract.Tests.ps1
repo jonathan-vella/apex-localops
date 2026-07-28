@@ -833,7 +833,11 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match '\$null = Invoke-Command -VMName \$dom\.DcHostName -Credential \$domainCred'
     $moduleSource | Should -Match 'return \$domainCred'
     $moduleSource | Should -Match 'Resolve-DnsName -Name \$fqdn'
-    $moduleSource | Should -Match 'Node is using an invalid time source'
+    # Setting the time source is not the same as being in sync: a freshly built node
+    # needs several resync attempts before AzStackHci_Software_NtpServer-Sync passes.
+    $moduleSource | Should -Match 'did not synchronize time with DC'
+    $moduleSource.Contains('Last Successful Sync Time:\s*unspecified') | Should -BeTrue
+    $moduleSource | Should -Match '\$deadline = \(Get-Date\)\.AddMinutes\(10\)'
     $moduleSource | Should -Match 'Hyper-V time synchronization is still enabled'
   }
 
