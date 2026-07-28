@@ -690,6 +690,18 @@ function New-ApexRouterVM {
     if (-not $nat -or -not $defaultRoute -or $forwardingInterfaces.Count -ne 2) {
       throw 'Router forwarding, NAT, or default-route verification failed.'
     }
+    # Azure Local's infra IP readiness check assigns each pool address to a temporary
+    # test adapter and pings the gateway. Routing alone is not enough: Windows blocks
+    # inbound ICMP echo by default, so the gateway routes traffic fine while appearing
+    # dead to that check. Answering echo is a hard requirement for deployment.
+    New-NetFirewallRule -Name 'ApexLocal-ICMP4-Echo-In' -DisplayName 'ApexLocal ICMPv4 Echo Request (In)' `
+      -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow -Profile Any `
+      -ErrorAction SilentlyContinue | Out-Null
+    Enable-NetFirewallRule -Name 'ApexLocal-ICMP4-Echo-In' -ErrorAction SilentlyContinue
+    $echoRule = Get-NetFirewallRule -Name 'ApexLocal-ICMP4-Echo-In' -ErrorAction SilentlyContinue
+    if (-not $echoRule -or $echoRule.Enabled -ne 'True') {
+      throw 'Router ICMPv4 echo firewall rule is missing or disabled; the Azure Local infra IP readiness check will fail.'
+    }
   } -ArgumentList $mgmtMac, $natMac, $r.MgmtIp, $net.PrefixLength, $net.DnsServers[0], $r.NatIp, $net.PrefixLength, $net.NatHostIp, $net.SubnetPrefix
 
   Write-ApexLog "Router '$($r.Name)' ready (management gateway $($r.MgmtIp))."
@@ -2248,22 +2260,32 @@ function Start-ApexLocalClusterDeployment {
     # The validation itself runs asynchronously on the cluster and reports through the
     # deploymentSettings resource, so deploying on the strength of the ARM result alone
     # is rejected with "Deploy Operation is not allowed in Current State[ValidationFailed]".
+    # Poll the deploymentSettings resource, which carries the authoritative result and
+    # the per-step detail. The cluster resource's own 'status' is not reliably populated
+    # and read back empty here, which a wildcard failure test silently accepts. This
+    # gate is therefore fail-closed: only an explicit success is allowed through.
+    $successStates = @('Success', 'Succeeded')
+    $terminalStates = $successStates + @('Error', 'Failed')
     $validationDeadline = (Get-Date).AddMinutes(90)
-    $clusterState = ''
+    $validationState = ''
+    $failedSteps = @()
     do {
       Start-Sleep -Seconds 60
-      $clusterResource = Get-AzResource -ResourceGroupName $ResourceGroup `
-        -ResourceType 'Microsoft.AzureStackHCI/clusters' -Name $ClusterName `
-        -ExpandProperties -ErrorAction SilentlyContinue
-      $clusterState = "$($clusterResource.Properties.status)"
-      Write-ApexLog "Cluster validation state: $clusterState"
-    } while ($clusterState -like '*InProgress*' -and (Get-Date) -lt $validationDeadline)
+      $settings = Get-AzResource -ResourceId $settingsId -ApiVersion '2024-04-01' -ErrorAction SilentlyContinue
+      $validation = $settings.Properties.reportedProperties.validationStatus
+      $validationState = "$($validation.status)"
+      $failedSteps = @($validation.steps |
+          Where-Object { "$($_.status)" -notin $successStates } |
+          ForEach-Object { "$($_.name) [$(if ($_.status) { $_.status } else { 'did not run' })]" })
+      Write-ApexLog "Cluster validation state: '$validationState'; $($failedSteps.Count) step(s) not successful."
+    } while ($validationState -notin $terminalStates -and (Get-Date) -lt $validationDeadline)
 
-    if ($clusterState -like '*Failed*' -or $clusterState -like '*InProgress*') {
-      throw ("Cluster validation did not succeed (state '$clusterState'). Read " +
-        'properties.reportedProperties.validationStatus.steps on the deploymentSettings ' +
-        'resource for the failing step, then rebuild from the Nodes stage: validation is ' +
-        'not idempotent and cannot be retried in place.')
+    if ($validationState -notin $successStates) {
+      throw ("Cluster validation did not succeed (state '$validationState'). Steps not " +
+        "successful: $($failedSteps -join '; '). The first non-successful step is the real " +
+        'failure; read its exception under C:\MASLogs\LCM_Controller_Validate_Exception*.xml ' +
+        'on the first node for the remediation text. Then rebuild from the Nodes stage: ' +
+        'validation is not idempotent and cannot be retried in place.')
     }
   }
 

@@ -368,7 +368,7 @@ Describe 'Self-hosted orchestration safety' {
     # "Deploy Operation is not allowed in Current State[ValidationFailed]".
     $moduleSource | Should -Match 'Cluster validation state:'
     $moduleSource | Should -Match 'Cluster validation did not succeed'
-    $moduleSource | Should -Match "\`$clusterState -like '\*Failed\*'"
+    $moduleSource.Contains('Get-AzResource -ResourceId $settingsId -ApiVersion ''2024-04-01''') | Should -BeTrue
     # The wait must sit between the Validate call and the Deploy call.
     $validateIndex = $moduleSource.IndexOf("Write-ApexLog 'Validation succeeded.'")
     $stateIndex = $moduleSource.IndexOf('Cluster validation state:')
@@ -657,6 +657,22 @@ Describe 'Self-hosted orchestration safety' {
     ([regex]::Matches($deployIntents, "networkDirect = 'Disabled'")).Count |
       Should -Be 2
     $deployIntents.Contains('overrideAdapterProperty             = $false') | Should -BeFalse
+  }
+
+  It 'opens ICMP echo on the router so the infra IP readiness check can pass' {
+    # The gateway routes traffic fine while silently failing the ping-based check.
+    $moduleSource.Contains('ApexLocal-ICMP4-Echo-In') | Should -BeTrue
+    $moduleSource.Contains('-Protocol ICMPv4 -IcmpType 8 -Direction Inbound') | Should -BeTrue
+    # And it must be verified, not fired and forgotten.
+    $moduleSource.Contains('Router ICMPv4 echo firewall rule is missing or disabled') | Should -BeTrue
+  }
+
+  It 'fails the validation gate closed when the state cannot be read' {
+    # An unreadable state came back as an empty string and was accepted as success,
+    # letting Deploy run against a cluster that had actually failed validation.
+    $moduleSource.Contains('$validationState -notin $successStates') | Should -BeTrue
+    $moduleSource.Contains("-like '*InProgress*'") | Should -BeFalse
+    $moduleSource.Contains("-like '*Failed*'") | Should -BeFalse
   }
 
   It 'hands the checker WinRM sessions it can rebuild, not PowerShell Direct' {
