@@ -362,6 +362,15 @@ Describe 'Self-hosted orchestration safety' {
     $deployWrapperSource | Should -Match 'Recover-ApexLocalCluster\.ps1'
   }
 
+  It 'passes the LCM account as a bare SAM name' {
+    # Proven on the live lab: 'DOMAIN\user' fails ARM Validate with "Domain user
+    # credential object cannot contain domain name as part of Username", and only
+    # after every component validator has already passed.
+    $moduleSource.Contains("AzureStackLCMAdminUsername    = (`$DomainAdminCredential.UserName -split '\\')[-1]") |
+      Should -BeTrue
+    $moduleSource | Should -Not -Match 'AzureStackLCMAdminUsername\s+= \$DomainAdminCredential\.UserName\s*$'
+  }
+
   It 'passes exactly what the vendored cluster template declares' {
     # Stage 10 runs after hours of build. A parameter typo or a refreshed vendored
     # template must fail here, not three hours into a paid run.

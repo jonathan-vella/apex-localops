@@ -2140,7 +2140,10 @@ function Start-ApexLocalClusterDeployment {
     namingPrefix                  = 'apexloc'
     localAdminUserName            = $LocalAdminCredential.UserName
     localAdminPassword            = $LocalAdminCredential.Password
-    AzureStackLCMAdminUsername    = $DomainAdminCredential.UserName
+    # The LCM account must be the bare SAM name. Passing 'DOMAIN\user' fails validation
+    # with "Domain user credential object cannot contain domain name as part of Username"
+    # after every component validator has already passed.
+    AzureStackLCMAdminUsername    = ($DomainAdminCredential.UserName -split '\\')[-1]
     AzureStackLCMAdminPassword    = $DomainAdminCredential.Password
     keyVaultName                  = $keyVaultName
     diagnosticStorageAccountName  = $diagSa
