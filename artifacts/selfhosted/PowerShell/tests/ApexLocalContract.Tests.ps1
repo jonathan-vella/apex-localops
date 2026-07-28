@@ -453,6 +453,17 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match '\$_\.IsMandatory -and -not \$arguments\.ContainsKey'
     # A missing account id must fail loudly instead of silently dropping the parameter.
     $moduleSource | Should -Match 'Could not resolve the host account id'
+
+    # The validator calls Get-AzResource internally and the Azure Local image ships
+    # Az.Accounts but not Az.Resources, so both are side-loaded from the host.
+    $moduleSource | Should -Match "@\{ Name = 'Az\.Accounts'; Version = \`$moduleVersions\.AzAccounts \}"
+    $moduleSource | Should -Match "@\{ Name = 'Az\.Resources'; Version = \`$moduleVersions\.AzResources \}"
+    $moduleSource | Should -Match 'Install-ApexGuestModule -Name \$guestModule\.Name'
+    # Those pins must exist, since the node has no PSGallery to fall back on.
+    $moduleVersionsPath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/ModuleVersions.psd1'
+    $pins = Import-PowerShellDataFile -Path $moduleVersionsPath
+    $pins.AzAccounts | Should -Not -BeNullOrEmpty
+    $pins.AzResources | Should -Not -BeNullOrEmpty
   }
 
   It 'discovers Arc machines through the provider API, not the generic one' {

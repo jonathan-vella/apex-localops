@@ -1717,6 +1717,20 @@ function Test-ApexEnvironmentReadiness {
       try {
         $nodeSessions = Reset-ApexNodeSession
         $arcSession = $nodeSessions[0]
+
+        # The validator calls Get-AzResource internally, and the Azure Local image ships
+        # Az.Accounts but not Az.Resources, so it fails with CommandNotFoundException.
+        # Side-load the pinned pair from the host: the node has no PSGallery, and these
+        # two versions are the combination the host itself runs.
+        $guestStaging = Join-Path $Config.Paths.RootDir 'GuestModules'
+        foreach ($guestModule in @(
+            @{ Name = 'Az.Accounts'; Version = $moduleVersions.AzAccounts }
+            @{ Name = 'Az.Resources'; Version = $moduleVersions.AzResources }
+          )) {
+          Install-ApexGuestModule -Name $guestModule.Name -RequiredVersion $guestModule.Version `
+            -Session $arcSession -StagingPath $guestStaging
+        }
+
         Invoke-ValidationStep -Name 'ArcIntegration' -ReportPath $arcReportPath -Operation {
           $remoteReport = Invoke-Command -Session $arcSession -ScriptBlock {
             param($subId, $tenantId, $rg, $region, $names, $token, $account)
