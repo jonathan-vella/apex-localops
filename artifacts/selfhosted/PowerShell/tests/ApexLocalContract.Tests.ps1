@@ -407,6 +407,9 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match 'Invoke-AzStackHciArcInitialization does not expose'
     # The token must still be passed, or every run turns into a device-code prompt.
     $moduleSource | Should -Match 'ArmAccessToken = \$token'
+    # Exit code alone is not proof: the command can succeed while onboarding nothing.
+    $moduleSource.Contains('Agent Status\s*:\s*Connected') | Should -BeTrue
+    $moduleSource | Should -Match 'reported success but the agent is not Connected'
   }
 
   It 'stores the lab password so a resume never needs it retyped' {

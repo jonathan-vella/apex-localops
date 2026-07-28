@@ -1951,6 +1951,16 @@ function Connect-ApexNodeToArc {
         $parameters.ArmAccessToken = $null
         $token = $null
       }
+
+      # The command can exit successfully without onboarding anything, observed when
+      # residual agent state survives a disconnect. Trusting its exit code turned that
+      # into a silent no-op that only surfaced 30 minutes later as "discovered 0".
+      $agentState = (& azcmagent show 2>&1 | Out-String)
+      if ($agentState -notmatch 'Agent Status\s*:\s*Connected') {
+        throw ('Arc initialization reported success but the agent is not Connected. ' +
+          'Residual agent state makes the command a silent no-op; disconnect the agent ' +
+          'and retry, or rebuild the node.')
+      }
       return $version
     } -ArgumentList $SubscriptionId, $ResourceGroup, $TenantId, $Location, $accessToken
 
