@@ -598,10 +598,14 @@ Describe 'Self-hosted orchestration safety' {
     # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct
     # carries no reusable credential there, so the rebuild ran as SYSTEM and failed.
     $moduleSource.Contains('$fresh += New-PSSession -ComputerName $node.Name') |
-      Should -BeTrue
+      Should -BeFalse
+    $moduleSource | Should -Match '\$candidate = New-PSSession -ComputerName \$node\.Name'
     $moduleSource | Should -Match '-Credential \$networkAdminCredential -ErrorAction Stop'
     $moduleSource.Contains('New-PSSession -VMName $node.Name') | Should -BeFalse
     $moduleSource | Should -Match 'EnvValidatorNwkLibEnsureTestSessionOpen'
+    # A rebuilt node can reboot mid-specialize, leaving a Broken session.
+    $moduleSource | Should -Match "if \(\`$candidate\.State -ne 'Opened'\)"
+    $moduleSource | Should -Match 'Could not open a usable WinRM session'
   }
 
   It 'machine-qualifies the credential the network validator dials nodes with' {

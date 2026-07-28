@@ -1655,8 +1655,31 @@ function Test-ApexEnvironmentReadiness {
     $nodeSessions | Remove-PSSession -ErrorAction SilentlyContinue
     $fresh = @()
     foreach ($node in $Nodes) {
-      $fresh += New-PSSession -ComputerName $node.Name `
-        -Credential $networkAdminCredential -ErrorAction Stop
+      # A freshly rebuilt node can still reboot while specializing, which leaves a session
+      # in the Broken state and fails the next validator with a confusing session error.
+      # Open the session, prove it actually executes, and retry if it does not.
+      $session = $null
+      for ($attempt = 1; $attempt -le 10; $attempt++) {
+        try {
+          $candidate = New-PSSession -ComputerName $node.Name `
+            -Credential $networkAdminCredential -ErrorAction Stop
+          $null = Invoke-Command -Session $candidate -ScriptBlock { $env:COMPUTERNAME } -ErrorAction Stop
+          if ($candidate.State -ne 'Opened') {
+            throw "session state is $($candidate.State)"
+          }
+          $session = $candidate
+          break
+        }
+        catch {
+          if ($candidate) { Remove-PSSession -Session $candidate -ErrorAction SilentlyContinue }
+          Write-ApexLog "Session to '$($node.Name)' not usable yet ($attempt/10): $($_.Exception.Message)" -Level WARN
+          Start-Sleep -Seconds 30
+        }
+      }
+      if (-not $session) {
+        throw "Could not open a usable WinRM session to '$($node.Name)' after 10 attempts."
+      }
+      $fresh += $session
     }
     return $fresh
   }
