@@ -1003,6 +1003,11 @@ function New-ApexDomainController {
 
   # Configure authoritative time (M5). The supported Microsoft AD preparation
   # tool owns OU and deployment-account creation in the next orchestration stage.
+  # The integration service must be off first: while it is enabled the VM IC provider
+  # outranks the configured peer, the DC never becomes a reliable source, and every node
+  # then fails AzStackHci_Software_NtpServer-Sync even though it can reach the DC.
+  Disable-VMIntegrationService -VMName $dom.DcHostName -Name 'Time Synchronization' `
+    -ErrorAction SilentlyContinue
   $healthDeadline = (Get-Date).AddMinutes(15)
   $healthError = $null
   while ((Get-Date) -lt $healthDeadline) {
@@ -1012,6 +1017,7 @@ function New-ApexDomainController {
         # Authoritative NTP from the PDC emulator; do not sync from the (paused) host clock.
         w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /reliable:yes /update | Out-Null
         Restart-Service w32time -ErrorAction SilentlyContinue
+        w32tm /resync /force | Out-Null
         Import-Module ActiveDirectory -ErrorAction Stop
         $domain = Get-ADDomain -Identity $fqdn -ErrorAction Stop
         $dnsRecord = Resolve-DnsName -Name $fqdn -Server '127.0.0.1' -ErrorAction Stop
@@ -1022,6 +1028,11 @@ function New-ApexDomainController {
         }
         w32tm /query /status | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Domain controller time-service verification failed for '$fqdn'." }
+        # A DC still on the VM IC provider is not a usable upstream for the nodes.
+        $dcSource = (w32tm /query /source).Trim()
+        if ($dcSource -in @('Local CMOS Clock', 'VM IC Time Synchronization Provider')) {
+          throw "Domain controller is not an authoritative time source (source '$dcSource')."
+        }
       } -ArgumentList $dom.Fqdn
       $healthError = $null
       break

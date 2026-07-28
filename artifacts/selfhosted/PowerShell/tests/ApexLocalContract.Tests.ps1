@@ -835,6 +835,12 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match 'Resolve-DnsName -Name \$fqdn'
     # Setting the time source is not the same as being in sync: a freshly built node
     # needs several resync attempts before AzStackHci_Software_NtpServer-Sync passes.
+    # While the Hyper-V integration service is on, the VM IC provider outranks the
+    # configured peer, the DC never becomes reliable, and every node then fails
+    # AzStackHci_Software_NtpServer-Sync despite reaching the DC fine.
+    $moduleSource.Contains("Disable-VMIntegrationService -VMName `$dom.DcHostName -Name 'Time Synchronization'") |
+      Should -BeTrue
+    $moduleSource | Should -Match 'Domain controller is not an authoritative time source'
     $moduleSource | Should -Match 'did not synchronize time with DC'
     $moduleSource.Contains('Last Successful Sync Time:\s*unspecified') | Should -BeTrue
     $moduleSource | Should -Match '\$deadline = \(Get-Date\)\.AddMinutes\(10\)'
