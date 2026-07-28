@@ -645,6 +645,20 @@ Describe 'Self-hosted orchestration safety' {
     }
   }
 
+  It 'makes the deployment intents actually disable RDMA' {
+    # Nested adapters advertise RDMA but report OperationalState=False, failing
+    # AzStackHci_Network_Test_NetAdapter_RDMA_Operational. Network ATC ignores
+    # adapterPropertyOverrides unless overrideAdapterProperty is $true, so
+    # networkDirect='Disabled' alone silently does nothing.
+    $deployIntents = [regex]::Match($moduleSource, '(?s)\$intentList = @\((.*?)\n  \)').Groups[1].Value
+    $deployIntents | Should -Not -BeNullOrEmpty
+    ([regex]::Matches($deployIntents, 'overrideAdapterProperty\s+= \$true')).Count |
+      Should -Be 2
+    ([regex]::Matches($deployIntents, "networkDirect = 'Disabled'")).Count |
+      Should -Be 2
+    $deployIntents.Contains('overrideAdapterProperty             = $false') | Should -BeFalse
+  }
+
   It 'hands the checker WinRM sessions it can rebuild, not PowerShell Direct' {
     # EnvValidatorNwkLibEnsureTestSessionOpen destroys every supplied session and
     # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct

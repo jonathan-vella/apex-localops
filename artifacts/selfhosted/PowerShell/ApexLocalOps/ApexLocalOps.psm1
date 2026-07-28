@@ -2144,6 +2144,11 @@ function Start-ApexLocalClusterDeployment {
     })
 
   # --- intentList: converged management/compute + storage (nested lab) ---
+  # Nested Hyper-V adapters advertise RDMA capability but the platform reports
+  # OperationalState=False, so 'AzStackHci_Network_Test_NetAdapter_RDMA_Operational'
+  # fails unless RDMA is explicitly disabled. Setting networkDirect='Disabled' is
+  # NOT enough on its own: Network ATC ignores adapterPropertyOverrides entirely
+  # unless overrideAdapterProperty is $true.
   $intentList = @(
     @{
       name                                = 'Compute_Management'
@@ -2153,7 +2158,7 @@ function Start-ApexLocalClusterDeployment {
       virtualSwitchConfigurationOverrides = @{ enableIov = ''; loadBalancingAlgorithm = '' }
       overrideQosPolicy                   = $false
       qosPolicyOverrides                  = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
-      overrideAdapterProperty             = $false
+      overrideAdapterProperty             = $true
       adapterPropertyOverrides            = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
     },
     @{
@@ -2164,7 +2169,7 @@ function Start-ApexLocalClusterDeployment {
       virtualSwitchConfigurationOverrides = @{ enableIov = ''; loadBalancingAlgorithm = '' }
       overrideQosPolicy                   = $false
       qosPolicyOverrides                  = @{ priorityValue8021Action_Cluster = '7'; priorityValue8021Action_SMB = '3'; bandwidthPercentage_SMB = '50' }
-      overrideAdapterProperty             = $false
+      overrideAdapterProperty             = $true
       adapterPropertyOverrides            = @{ jumboPacket = '9014'; networkDirect = 'Disabled'; networkDirectTechnology = '' }
     }
   )
@@ -2221,6 +2226,19 @@ function Start-ApexLocalClusterDeployment {
   }
 
   if (-not $SkipValidation) {
+    # A deploymentSettings resource left behind by a failed validation latches the
+    # cluster into ValidationFailed and makes every later attempt fail the same way,
+    # regardless of whether the underlying problem was fixed. Clear it first so a
+    # re-run actually re-validates instead of replaying the previous verdict.
+    $settingsId = ("/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroup" +
+      "/providers/Microsoft.AzureStackHCI/clusters/$ClusterName/deploymentSettings/default")
+    $existingSettings = Get-AzResource -ResourceId $settingsId -ApiVersion '2024-04-01' -ErrorAction SilentlyContinue
+    if ($existingSettings) {
+      Write-ApexLog "Removing stale deploymentSettings (provisioningState=$($existingSettings.Properties.provisioningState))."
+      Remove-AzResource -ResourceId $settingsId -ApiVersion '2024-04-01' -Force -ErrorAction Stop | Out-Null
+      Start-Sleep -Seconds 30
+    }
+
     Write-ApexLog "Validating cluster '$ClusterName' (deploymentMode=Validate)..."
     New-AzResourceGroupDeployment @common -deploymentMode 'Validate' `
       -Name "apexlocal-validate-$((Get-Date).ToString('yyyyMMddHHmmss'))" -Verbose -ErrorAction Stop | Out-Null
