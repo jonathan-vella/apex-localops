@@ -410,6 +410,9 @@ Describe 'Self-hosted orchestration safety' {
     # Exit code alone is not proof: the command can succeed while onboarding nothing.
     $moduleSource.Contains('Agent Status\s*:\s*Connected') | Should -BeTrue
     $moduleSource | Should -Match 'reported success but the agent is not Connected'
+    # A fresh remote session may not carry the installer's PATH update.
+    $moduleSource.Contains('AzureConnectedMachineAgent\azcmagent.exe') | Should -BeTrue
+    $moduleSource | Should -Match 'Cannot locate azcmagent'
   }
 
   It 'stores the lab password so a resume never needs it retyped' {

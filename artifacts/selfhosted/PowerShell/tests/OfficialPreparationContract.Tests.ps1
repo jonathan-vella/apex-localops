@@ -48,7 +48,11 @@ Describe 'Pinned Microsoft Azure Local preparation' {
 
   It 'uses only the OS-bundled Azure Local Arc initialization command' {
     $moduleSource | Should -Match 'Invoke-AzStackHciArcInitialization'
-    $moduleSource | Should -Not -Match 'AzureConnectedMachineAgent|azcmagent\s+connect'
+    # Bare azcmagent must never perform onboarding or teardown: it skips the Azure Local
+    # bootstrap state. Read-only 'azcmagent show' is allowed, and is how the module
+    # confirms the agent really reached Connected.
+    $moduleSource | Should -Not -Match 'azcmagent\s+(connect|disconnect)'
+    $moduleSource | Should -Not -Match '\$azcmagent\s+(connect|disconnect)'
     $moduleSource | Should -Match 'ArmAccessToken\s*=\s*\$null'
   }
 }

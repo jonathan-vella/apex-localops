@@ -2003,7 +2003,17 @@ function Connect-ApexNodeToArc {
       # The command can exit successfully without onboarding anything, observed when
       # residual agent state survives a disconnect. Trusting its exit code turned that
       # into a silent no-op that only surfaced 30 minutes later as "discovered 0".
-      $agentState = (& azcmagent show 2>&1 | Out-String)
+      # Resolve the binary explicitly: a fresh remote session does not always carry the
+      # installer's PATH update, so a bare 'azcmagent' can fail as command-not-found.
+      $azcmagent = Get-Command azcmagent -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Source -First 1
+      if (-not $azcmagent) {
+        $azcmagent = Join-Path $env:ProgramFiles 'AzureConnectedMachineAgent\azcmagent.exe'
+      }
+      if (-not (Test-Path -LiteralPath $azcmagent)) {
+        throw "Cannot locate azcmagent to confirm the Arc connection state ('$azcmagent')."
+      }
+      $agentState = (& $azcmagent show 2>&1 | Out-String)
       if ($agentState -notmatch 'Agent Status\s*:\s*Connected') {
         throw ('Arc initialization reported success but the agent is not Connected. ' +
           'Residual agent state makes the command a silent no-op; disconnect the agent ' +
