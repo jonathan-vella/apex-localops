@@ -1661,6 +1661,40 @@ function Test-ApexEnvironmentReadiness {
   $networkAdminCredential = New-Object System.Management.Automation.PSCredential(
     ".\$(($LocalAdminCredential.UserName -split '\\')[-1])", $LocalAdminCredential.Password)
 
+  # Readiness can begin before every freshly built node has converged on the DC clock.
+  # AzStackHci_Software_NtpServer-Sync then reports "NTP Response not received from
+  # 'Local CMOS Clock'" for the laggards while the already-converged node passes, which
+  # reads like a configuration fault but is purely a race: the stragglers correct
+  # themselves minutes later. Wait for all of them before any validator runs.
+  if ($Phase -eq 'HostChecks') {
+    $timeDeadline = (Get-Date).AddMinutes(15)
+    $pending = @()
+    do {
+      $pending = @()
+      foreach ($node in $Nodes) {
+        $state = ''
+        try {
+          $state = Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
+            -ScriptBlock { (w32tm /query /status 2>&1) | Out-String } -ErrorAction Stop
+        }
+        catch { $state = '' }
+        $sourceOk = $state -match 'Source:\s*(?!Local CMOS Clock)\S'
+        $syncOk = ($state -match 'Last Successful Sync Time:') -and
+                  ($state -notmatch 'Last Successful Sync Time:\s*unspecified')
+        if (-not ($sourceOk -and $syncOk)) { $pending += $node.Name }
+      }
+      if ($pending.Count -gt 0) {
+        Write-ApexLog "Waiting for node clock sync: $($pending -join ', ')." -Level WARN
+        Start-Sleep -Seconds 30
+      }
+    } while ($pending.Count -gt 0 -and (Get-Date) -lt $timeDeadline)
+
+    if ($pending.Count -gt 0) {
+      throw "Nodes did not converge on the domain clock within 15 minutes: $($pending -join ', ')."
+    }
+    Write-ApexLog 'All nodes report a successful time sync against the domain controller.'
+  }
+
   function Reset-ApexNodeSession {
     <#
       Returns a fresh WinRM session per node.

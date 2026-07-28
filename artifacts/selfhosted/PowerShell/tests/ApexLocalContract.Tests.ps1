@@ -362,6 +362,20 @@ Describe 'Self-hosted orchestration safety' {
     $deployWrapperSource | Should -Match 'Recover-ApexLocalCluster\.ps1'
   }
 
+  It 'waits for every node clock before running any validator' {
+    # Proven on the live lab: readiness started while 2 of 3 nodes were still on
+    # 'Local CMOS Clock' and the third had converged, so NtpServer-Sync failed as a
+    # race. The stragglers corrected themselves minutes later.
+    $moduleSource | Should -Match 'Waiting for node clock sync'
+    $moduleSource | Should -Match 'did not converge on the domain clock within 15 minutes'
+    $moduleSource.Contains("'Source:\s*(?!Local CMOS Clock)\S'") | Should -BeTrue
+    # The wait must precede the first validator.
+    $waitIndex = $moduleSource.IndexOf('Waiting for node clock sync')
+    $firstValidator = $moduleSource.IndexOf("Invoke-ValidationStep -Name 'Connectivity'")
+    $waitIndex | Should -BeGreaterThan 0
+    $waitIndex | Should -BeLessThan $firstValidator
+  }
+
   It 'passes the LCM account as a bare SAM name' {
     # Proven on the live lab: 'DOMAIN\user' fails ARM Validate with "Domain user
     # credential object cannot contain domain name as part of Username", and only
