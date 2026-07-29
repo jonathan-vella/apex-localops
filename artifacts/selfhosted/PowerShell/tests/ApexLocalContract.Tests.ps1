@@ -793,6 +793,16 @@ Describe 'Self-hosted orchestration safety' {
     $mainBicep | Should -Match '4633458b-17de-408a-b874-0445c86b69e6'
   }
 
+  It 'accepts the connection states a healthy cluster actually reports' {
+    # Proven on the live lab: the cluster deployed (deploymentStatus Success,
+    # provisioningState Succeeded) and reported 'ConnectedRecently', while the type/name
+    # form of Get-AzResource returned empty properties - logged as "provisioning= status=".
+    $moduleSource | Should -Match "@\('Connected', 'ConnectedRecently'\)"
+    $moduleSource | Should -Match 'Get-AzResource -ResourceId \$clusterId -ApiVersion'
+    # The unreliable lookup must not come back.
+    $moduleSource | Should -Not -Match "ResourceType 'Microsoft.AzureStackHCI/clusters'"
+  }
+
   It 'supports stage resume without exposing the lab password' {
     # Resume must reuse what the previous attempt built, so a defect costs one stage.
     $resumeWrapperSource | Should -Match '--protected-parameters AdminPassword='

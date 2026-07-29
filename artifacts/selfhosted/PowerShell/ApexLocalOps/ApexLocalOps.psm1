@@ -2345,24 +2345,29 @@ function Start-ApexLocalClusterDeployment {
     throw "Cluster ARM deployment finished in state '$($deployment.ProvisioningState)'."
   }
 
+  # Read the cluster through an explicit resource id and api-version: the type/name
+  # form returns empty properties, which this loop reported as "provisioning= status=".
+  # 'ConnectedRecently' is a healthy connection state, so requiring exactly 'Connected'
+  # rejects a cluster that deployed correctly.
+  $clusterId = ("/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroup" +
+    "/providers/Microsoft.AzureStackHCI/clusters/$ClusterName")
+  $connectedStates = @('Connected', 'ConnectedRecently')
   $clusterDeadline = (Get-Date).AddMinutes(30)
   do {
-    $clusterResource = Get-AzResource -ResourceGroupName $ResourceGroup `
-      -ResourceType 'Microsoft.AzureStackHCI/clusters' -Name $ClusterName `
-      -ExpandProperties -ErrorAction SilentlyContinue
-    $provisioningState = $clusterResource.Properties.provisioningState
-    $connectionState = $clusterResource.Properties.status
-    if ($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') {
+    $clusterResource = Get-AzResource -ResourceId $clusterId -ApiVersion '2024-04-01' -ErrorAction SilentlyContinue
+    $provisioningState = "$($clusterResource.Properties.provisioningState)"
+    $connectionState = "$($clusterResource.Properties.status)"
+    if ($provisioningState -ne 'Succeeded' -or $connectionState -notin $connectedStates) {
       Write-ApexLog "Waiting for authoritative cluster state: provisioning=$provisioningState status=$connectionState."
       Start-Sleep -Seconds 30
     }
-  } while (($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') -and
+  } while (($provisioningState -ne 'Succeeded' -or $connectionState -notin $connectedStates) -and
     (Get-Date) -lt $clusterDeadline)
 
-  if ($provisioningState -ne 'Succeeded' -or $connectionState -ne 'Connected') {
+  if ($provisioningState -ne 'Succeeded' -or $connectionState -notin $connectedStates) {
     throw "Cluster '$ClusterName' did not reach Succeeded/Connected (provisioning=$provisioningState status=$connectionState)."
   }
-  Write-ApexLog "Cluster '$ClusterName' reached Succeeded/Connected."
+  Write-ApexLog "Cluster '$ClusterName' reached $provisioningState/$connectionState."
 }
 
 #endregion
