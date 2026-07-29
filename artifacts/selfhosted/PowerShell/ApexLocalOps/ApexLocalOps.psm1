@@ -1747,6 +1747,33 @@ function Test-ApexEnvironmentReadiness {
       throw "Nodes did not converge on the domain clock within 30 minutes: $($detail -join '; ')."
     }
     Write-ApexLog 'All nodes report a successful time sync against the domain controller.'
+
+    # Waiting minutes for clocks to drift into line also, by accident, let a freshly
+    # built node settle. Forcing the resync cut that wait to seconds and the first
+    # validator then hit a node 2 minutes past boot, whose session aborted mid-call
+    # ("The I/O operation has been aborted"). Make the settle explicit: a node has to
+    # answer three consecutive probes, not just one lucky one.
+    $stabilityDeadline = (Get-Date).AddMinutes(15)
+    foreach ($node in $Nodes) {
+      $consecutive = 0
+      do {
+        try {
+          Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
+            -ScriptBlock { $env:COMPUTERNAME } -ErrorAction Stop | Out-Null
+          $consecutive++
+        }
+        catch {
+          $consecutive = 0
+          Write-ApexLog "Node '$($node.Name)' is not answering reliably yet: $($_.Exception.Message)" -Level WARN
+        }
+        if ($consecutive -lt 3 -and (Get-Date) -lt $stabilityDeadline) { Start-Sleep -Seconds 20 }
+      } while ($consecutive -lt 3 -and (Get-Date) -lt $stabilityDeadline)
+
+      if ($consecutive -lt 3) {
+        throw "Node '$($node.Name)' did not answer three consecutive WinRM probes within 15 minutes."
+      }
+    }
+    Write-ApexLog 'All nodes answer WinRM consistently.'
   }
 
   function Reset-ApexNodeSession {

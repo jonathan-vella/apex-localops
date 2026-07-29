@@ -399,6 +399,10 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match 'w32tm /resync /force'
     # An unreachable node must not be reported as a clock problem.
     $moduleSource | Should -Match 'unreachable: '
+    # Forcing the resync removed the incidental settle time the old wait provided,
+    # so the settle is now explicit: one successful probe is not enough.
+    $moduleSource | Should -Match 'did not answer three consecutive WinRM probes'
+    $moduleSource | Should -Match 'All nodes answer WinRM consistently'
     $moduleSource.Contains("'Source:\s*(?!Local CMOS Clock)\S'") | Should -BeTrue
     # The wait must precede the first validator.
     $waitIndex = $moduleSource.IndexOf('Waiting for node clock sync')
