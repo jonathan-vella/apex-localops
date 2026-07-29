@@ -56,26 +56,26 @@ command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI not found." >&2; exit 
 command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found." >&2; exit 1; }
 az account show >/dev/null 2>&1 || { echo "ERROR: not logged in to Azure." >&2; exit 1; }
 
-# The build scrubs the credential from the host whenever it fails, so recover it from
-# the lab vault rather than making the operator retype it.
+# The build scrubs the credential from the host whenever it fails. The vault sits
+# behind a private endpoint, so this machine usually cannot read it; the host does
+# that itself with its managed identity. Passing one here is only a fallback.
 if [[ -z "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
   VAULT_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)
   if [[ -n "$VAULT_NAME" ]]; then
-    echo "Reading the lab password from ${VAULT_NAME}..."
     LOCALSELF_ADMIN_PASSWORD=$(az keyvault secret show --vault-name "$VAULT_NAME" \
       --name lab-admin-password --query value -o tsv 2>/dev/null || true)
     export LOCALSELF_ADMIN_PASSWORD
   fi
 fi
 
-[[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]] || {
-  echo "ERROR: set LOCALSELF_ADMIN_PASSWORD, or grant yourself Key Vault Secrets User on the lab vault." >&2
-  exit 1
-}
-(( ${#LOCALSELF_ADMIN_PASSWORD} >= 12 && ${#LOCALSELF_ADMIN_PASSWORD} <= 123 )) || {
-  echo "ERROR: LOCALSELF_ADMIN_PASSWORD must be 12-123 characters." >&2
-  exit 1
-}
+if [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
+  (( ${#LOCALSELF_ADMIN_PASSWORD} >= 12 && ${#LOCALSELF_ADMIN_PASSWORD} <= 123 )) || {
+    echo "ERROR: LOCALSELF_ADMIN_PASSWORD must be 12-123 characters." >&2
+    exit 1
+  }
+else
+  echo "No local credential; the host will read it from the lab vault over the private endpoint."
+fi
 trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT
 
 RAW_BASE="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell"
@@ -99,12 +99,15 @@ if az vm run-command show -g "$RESOURCE_GROUP" --vm-name "$HOST_VM" \
 fi
 
 echo "Resuming ${RESOURCE_GROUP}/${HOST_VM} at stage ${START_AT_STAGE} using ${ARTIFACT_REF}..."
-az vm run-command create -g "$RESOURCE_GROUP" --vm-name "$HOST_VM" \
-  --run-command-name "$RUN_COMMAND_NAME" --location "$VM_LOCATION" \
-  --script-uri "$SCRIPT_URI" \
-  --parameters StartAtStage="$START_AT_STAGE" ArtifactRef="$ARTIFACT_REF" \
-  --protected-parameters AdminPassword="$LOCALSELF_ADMIN_PASSWORD" \
-  --async-execution true --timeout-in-seconds 21600 --output none
+RUN_COMMAND_ARGS=(-g "$RESOURCE_GROUP" --vm-name "$HOST_VM"
+  --run-command-name "$RUN_COMMAND_NAME" --location "$VM_LOCATION"
+  --script-uri "$SCRIPT_URI"
+  --parameters StartAtStage="$START_AT_STAGE" ArtifactRef="$ARTIFACT_REF"
+  --async-execution true --timeout-in-seconds 21600 --output none)
+if [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
+  RUN_COMMAND_ARGS+=(--protected-parameters AdminPassword="$LOCALSELF_ADMIN_PASSWORD")
+fi
+az vm run-command create "${RUN_COMMAND_ARGS[@]}"
 
 # Clear the previous attempt's terminal 'Failed' tag straight away. The orchestrator
 # claims it too, but not for another minute or so, and a monitor started in that

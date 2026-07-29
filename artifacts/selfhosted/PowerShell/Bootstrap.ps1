@@ -44,7 +44,8 @@ param(
   [string]$clusterName = 'apexlocal-cluster',
   [string]$clusterResourceSuffix,
   [string]$azureLocalInstanceLocation = 'westeurope',
-  [string]$hciResourceProviderObjectId = ''
+  [string]$hciResourceProviderObjectId = '',
+  [string]$keyVaultName = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -79,6 +80,7 @@ $envVars = @{
   APEX_ClusterResourceSuffix = $clusterResourceSuffix
   APEX_InstanceLocation      = $azureLocalInstanceLocation
   APEX_HciRpObjectId         = $hciResourceProviderObjectId
+  APEX_KeyVaultName          = $keyVaultName
 }
 foreach ($kv in $envVars.GetEnumerator()) {
   [System.Environment]::SetEnvironmentVariable($kv.Key, $kv.Value, [System.EnvironmentVariableTarget]::Machine)

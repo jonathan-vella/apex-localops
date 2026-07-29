@@ -30,8 +30,14 @@ param resourceTags object
 @secure()
 param adminPassword string
 
-@description('Object id of the operator or group that may read the secret. Empty skips the assignment.')
+@description('Object id of the operator or group that may read the secret. Empty skips the assignment. Reaching the vault needs a session inside the virtual network, such as the jumpbox over Bastion.')
 param operatorPrincipalId string = ''
+
+@description('Resource ID of the workload subnet the private endpoint is placed in.')
+param subnetId string
+
+@description('Resource ID of the virtual network linked to the Key Vault private DNS zone.')
+param virtualNetworkId string
 
 @description('Enable purge protection. OFF by default so cleanup-selfhosted.sh can purge the vault and redeploy under the same resource-group name.')
 param enablePurgeProtection bool = false
@@ -53,10 +59,15 @@ resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' = {
     // Purge protection cannot be disabled once enabled, and an explicit 'false'
     // is rejected by the API, so omit the property (null) when off.
     enablePurgeProtection: enablePurgeProtection ? true : null
-    publicNetworkAccess: 'Enabled'
+    // Public access is denied by policy in the target subscriptions, and a vault
+    // that requests it is silently flipped to Disabled with its ACLs dropped, so
+    // the private endpoint below is the only route to the secret.
+    publicNetworkAccess: 'Disabled'
     networkAcls: {
-      defaultAction: 'Allow'
-      bypass: 'AzureServices'
+      defaultAction: 'Deny'
+      bypass: 'None'
+      ipRules: []
+      virtualNetworkRules: []
     }
   }
   tags: resourceTags
@@ -80,4 +91,64 @@ resource operatorSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
+resource vaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-10-01' = {
+  name: '${keyVaultName}-vault-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: subnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'vault'
+        properties: {
+          privateLinkServiceId: keyVault.id
+          groupIds: [
+            'vault'
+          ]
+        }
+      }
+    ]
+  }
+  tags: resourceTags
+}
+
+resource vaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  tags: resourceTags
+}
+
+resource vaultPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: vaultPrivateDnsZone
+  name: '${keyVaultName}-vnet-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetworkId
+    }
+  }
+  tags: resourceTags
+}
+
+resource vaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-10-01' = {
+  parent: vaultPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'vault'
+        properties: {
+          privateDnsZoneId: vaultPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    vaultPrivateDnsVnetLink
+  ]
+}
+
 output keyVaultName string = keyVault.name
+output keyVaultPrivateEndpointId string = vaultPrivateEndpoint.id

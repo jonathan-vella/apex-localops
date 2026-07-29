@@ -20,7 +20,7 @@
   Justification = 'Azure Managed Run Command supplies the lab password as an encrypted protected parameter; resume stores it only for the relaunched build and clears the plaintext before exit.'
 )]
 param(
-  [Parameter(Mandatory)] [string]$AdminPassword,
+  [string]$AdminPassword,
   [Parameter(Mandatory)]
   [ValidateSet('HostFabric', 'Isos', 'BaseImages', 'Router', 'DomainController',
     'ActiveDirectory', 'Nodes', 'Readiness', 'Arc', 'ClusterDeploy')]
@@ -77,6 +77,22 @@ try {
   }
 
   # Failure cleanup scrubs this deliberately, so every resumed run restores it.
+  # The vault sits behind a private endpoint, so the operator's own machine cannot
+  # read it; this host can, through its managed identity.
+  if ([string]::IsNullOrWhiteSpace($AdminPassword)) {
+    $vaultName = [Environment]::GetEnvironmentVariable('APEX_KeyVaultName', 'Machine')
+    if ([string]::IsNullOrWhiteSpace($vaultName)) {
+      throw 'No password supplied and APEX_KeyVaultName is not set on this host.'
+    }
+    $imds = ('http://169.254.169.254/metadata/identity/oauth2/token' +
+      '?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net')
+    $token = (Invoke-RestMethod -Uri $imds -Headers @{ Metadata = 'true' } -UseBasicParsing).access_token
+    $secretUri = "https://$vaultName.vault.azure.net/secrets/lab-admin-password?api-version=7.4"
+    $AdminPassword = (Invoke-RestMethod -Uri $secretUri `
+        -Headers @{ Authorization = "Bearer $token" } -UseBasicParsing).value
+    Write-Output "Read the lab credential from $vaultName."
+  }
+
   [Environment]::SetEnvironmentVariable(
     'APEX_AdminPasswordB64',
     [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($AdminPassword)),

@@ -127,6 +127,7 @@ var hostDataDiskSizeGB = 256
 // Deterministic resource names (calculable at the start of the deployment) so that
 // resource-scoped role-assignment names/scopes don't depend on runtime module outputs.
 var stagingStorageAccountName = 'apexloc${uniqueString(resourceGroup().id)}'
+var labKeyVaultName = 'apexkv${uniqueString(resourceGroup().id)}'
 var clusterResourceSuffix = take(uniqueString(resourceGroup().id, clusterName), 6)
 var hostVmNameVar = '${namePrefix}-Host'
 var managementVmNameVar = '${namePrefix}-Mgmt'
@@ -137,6 +138,10 @@ var managementVmResourceId = resourceId('Microsoft.Compute/virtualMachines', man
 var roleStorageBlobDataContributor = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+)
+var roleKeyVaultSecretsUser = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4633458b-17de-408a-b874-0445c86b69e6'
 )
 var roleContributor = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -170,9 +175,12 @@ module labSecretsDeployment 'mgmt/labSecrets.bicep' = {
   name: 'labSecretsDeployment'
   params: {
     location: location
+    keyVaultName: labKeyVaultName
     resourceTags: resourceTags
     adminPassword: windowsAdminPassword
     operatorPrincipalId: operatorPrincipalId
+    subnetId: networkDeployment.outputs.subnetId
+    virtualNetworkId: networkDeployment.outputs.vnetId
   }
 }
 
@@ -254,6 +262,25 @@ resource hostStorageContributor 'Microsoft.Authorization/roleAssignments@2022-04
   // already orders after the storage account exists.
 }
 
+resource labKeyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
+  name: labKeyVaultName
+}
+
+// The vault is unreachable from outside the network, so the host reads its own
+// credential on resume instead of the operator passing one in.
+resource hostKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(labKeyVault.id, hostVmResourceId, roleKeyVaultSecretsUser)
+  scope: labKeyVault
+  properties: {
+    principalId: hostDeployment.outputs.hostPrincipalId
+    roleDefinitionId: roleKeyVaultSecretsUser
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    labSecretsDeployment
+  ]
+}
+
 // Host identity: Contributor on the RG so the in-VM Azure Local cluster deploy can
 // create the cluster + supporting resources (Key Vault, witness storage, Arc).
 resource hostContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -293,6 +320,21 @@ resource jumpboxStorageContributor 'Microsoft.Authorization/roleAssignments@2022
   ]
 }
 
+// The jumpbox is the operator's only route to the vault, since the private endpoint
+// makes it unreachable from outside the network.
+resource jumpboxKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployManagementVm) {
+  name: guid(labKeyVault.id, managementVmResourceId, roleKeyVaultSecretsUser)
+  scope: labKeyVault
+  properties: {
+    principalId: deployManagementVm ? managementVmDeployment!.outputs.managementVmPrincipalId : ''
+    roleDefinitionId: roleKeyVaultSecretsUser
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    labSecretsDeployment
+  ]
+}
+
 module hostBootstrapDeployment 'host/bootstrapExtension.bicep' = {
   name: 'hostBootstrapDeployment'
   params: {
@@ -310,11 +352,13 @@ module hostBootstrapDeployment 'host/bootstrapExtension.bicep' = {
     clusterResourceSuffix: clusterResourceSuffix
     azureLocalInstanceLocation: azureLocalInstanceLocation
     hciResourceProviderObjectId: hciResourceProviderObjectId
+    keyVaultName: labSecretsDeployment.outputs.keyVaultName
   }
   dependsOn: [
     hostStorageContributor
     hostContributor
     hostUserAccessAdmin
+    hostKeyVaultSecretsUser
   ]
 }
 

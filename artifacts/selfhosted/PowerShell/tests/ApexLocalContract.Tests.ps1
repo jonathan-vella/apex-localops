@@ -759,6 +759,27 @@ Describe 'Self-hosted orchestration safety' {
     $Matches[1] | Should -Be 'Readiness'
   }
 
+  It 'keeps the lab vault reachable only through a private endpoint' {
+    # Policy denies public access on vaults and storage: a vault that asks for it is
+    # silently flipped to Disabled with its ACLs dropped, and every read then fails
+    # with ForbiddenByConnection rather than an RBAC error.
+    $labSecrets = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/mgmt/labSecrets.bicep') -Raw
+    $mainBicep = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/main.bicep') -Raw
+
+    $labSecrets | Should -Match "publicNetworkAccess: 'Disabled'"
+    $labSecrets | Should -Not -Match "publicNetworkAccess: 'Enabled'"
+    $labSecrets | Should -Match "defaultAction: 'Deny'"
+    $labSecrets | Should -Match 'Microsoft.Network/privateEndpoints@'
+    $labSecrets | Should -Match "privatelink\.vaultcore\.azure\.net"
+    $labSecrets | Should -Match 'virtualNetworkLinks@'
+
+    # Nothing outside the network can read the secret, so the host and the jumpbox
+    # each need their own data-plane role.
+    $mainBicep | Should -Match 'hostKeyVaultSecretsUser'
+    $mainBicep | Should -Match 'jumpboxKeyVaultSecretsUser'
+    $mainBicep | Should -Match '4633458b-17de-408a-b874-0445c86b69e6'
+  }
+
   It 'supports stage resume without exposing the lab password' {
     # Resume must reuse what the previous attempt built, so a defect costs one stage.
     $resumeWrapperSource | Should -Match '--protected-parameters AdminPassword='
@@ -766,7 +787,12 @@ Describe 'Self-hosted orchestration safety' {
     $resumeWrapperSource | Should -Match 'ARTIFACT_REF'
     # Never embed the credential in the script body or command line.
     $resumeSource | Should -Not -Match 'ToBase64String\(\[Text\.Encoding\]::UTF8\.GetBytes\(.Pass'
-    $resumeSource | Should -Match '\[Parameter\(Mandatory\)\] \[string\]\$AdminPassword'
+    # The vault is private-endpoint only, so the operator's machine usually cannot
+    # read the secret; the host reads it with its own managed identity instead.
+    $resumeSource | Should -Match '\[string\]\$AdminPassword'
+    $resumeSource | Should -Not -Match '\[Parameter\(Mandatory\)\] \[string\]\$AdminPassword'
+    $resumeSource | Should -Match 'metadata/identity/oauth2/token'
+    $resumeSource | Should -Match 'APEX_KeyVaultName'
     $resumeSource | Should -Match "Remove-Variable -Name AdminPassword"
     # A resumed build must be non-interactive and must refresh the manifest too.
     $resumeSource | Should -Match "'-NonInteractive'"
