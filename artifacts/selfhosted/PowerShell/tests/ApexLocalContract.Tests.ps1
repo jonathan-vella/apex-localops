@@ -407,7 +407,7 @@ Describe 'Self-hosted orchestration safety' {
     # credential object cannot contain domain name as part of Username", and only
     # after every component validator has already passed.
     $moduleSource.Contains("AzureStackLCMAdminUsername    = (`$DomainAdminCredential.UserName -split '\\')[-1]") |
-      Should -BeTrue
+    Should -BeTrue
     $moduleSource | Should -Not -Match 'AzureStackLCMAdminUsername\s+= \$DomainAdminCredential\.UserName\s*$'
   }
 
@@ -415,7 +415,7 @@ Describe 'Self-hosted orchestration safety' {
     # Stage 10 runs after hours of build. A parameter typo or a refreshed vendored
     # template must fail here, not three hours into a paid run.
     $template = Get-Content -Path (Join-Path $repoRoot 'artifacts/selfhosted/azlocal.json') -Raw |
-      ConvertFrom-Json
+    ConvertFrom-Json
     $templateParamNames = @($template.parameters.PSObject.Properties.Name)
 
     $block = [regex]::Match($moduleSource, '(?s)\$common = @\{(.*?)\n  \}').Groups[1].Value
@@ -498,7 +498,7 @@ Describe 'Self-hosted orchestration safety' {
     # Region is the Azure Local instance region, threaded from the orchestrator.
     $moduleSource | Should -Match 'Region                        = \$region'
     $orchestratorSource.Contains("-Phase 'ArcIntegration' -InstanceLocation `$instanceLoc") |
-      Should -BeTrue
+    Should -BeTrue
 
     # Passing ArmAccessToken selects the ARMToken parameter set, whose mandatory
     # members include AzureEnvironment and AccountId. Missing either one prompts, and
@@ -592,7 +592,7 @@ Describe 'Self-hosted orchestration safety' {
     # One refresh per session-consuming step: Connectivity, Software, Network, Hardware,
     # plus the node session the post-Arc validator runs inside.
     ([regex]::Matches($moduleSource, '\$nodeSessions = Reset-ApexNodeSession')).Count |
-      Should -Be 5
+    Should -Be 5
     # Every -PsSession argument must be the refreshed variable.
     foreach ($validator in 'Invoke-AzStackHciConnectivityValidation',
       'Invoke-AzStackHciSoftwareValidation', 'Invoke-AzStackHciHardwareValidation') {
@@ -605,9 +605,9 @@ Describe 'Self-hosted orchestration safety' {
     # in the Resource Group" if it runs after onboarding. It also only works on the
     # Azure Local OS, so it runs in a node session rather than on the host.
     $moduleSource.Contains("[ValidateSet('HostChecks', 'ArcIntegration')] [string]`$Phase = 'HostChecks'") |
-      Should -BeTrue
+    Should -BeTrue
     $orchestratorSource.Contains("-Phase 'ArcIntegration' -InstanceLocation `$instanceLoc") |
-      Should -BeTrue
+    Should -BeTrue
 
     # It must sit inside the Readiness stage, ahead of the Arc onboarding loop.
     $arcCheckIndex = $orchestratorSource.IndexOf("-Phase 'ArcIntegration'")
@@ -625,7 +625,7 @@ Describe 'Self-hosted orchestration safety' {
     # other validators use, so the harness must be told, not assume.
     $moduleSource | Should -Match '\[string\]\$ReportPath = \$sourceReport'
     $moduleSource.Contains("Invoke-ValidationStep -Name 'Network' -ReportPath (Join-Path `$reportDirectory 'AzStackHciEnvironmentReport.json')") |
-      Should -BeTrue
+    Should -BeTrue
     $moduleSource | Should -Match 'Remove-Item -Path \$ReportPath'
     $moduleSource | Should -Match 'Copy-Item -Path \$ReportPath'
     # The failure must name the path it looked in.
@@ -641,12 +641,12 @@ Describe 'Self-hosted orchestration safety' {
       'OverrideVirtualSwitchConfiguration') {
       # Once per intent, and both must be $false to match the no-RDMA nested adapters.
       ([regex]::Matches($intentBlock, [regex]::Escape($flag) + '\s+= \$false')).Count |
-        Should -Be 2
+      Should -Be 2
     }
     foreach ($bag in 'AdapterPropertyOverrides', 'QoSPolicyOverrides',
       'VirtualSwitchConfigurationOverrides') {
       ([regex]::Matches($intentBlock, [regex]::Escape($bag) + '\s+= \$null')).Count |
-        Should -Be 2
+      Should -Be 2
     }
   }
 
@@ -658,9 +658,9 @@ Describe 'Self-hosted orchestration safety' {
     $deployIntents = [regex]::Match($moduleSource, '(?s)\$intentList = @\((.*?)\n  \)').Groups[1].Value
     $deployIntents | Should -Not -BeNullOrEmpty
     ([regex]::Matches($deployIntents, 'overrideAdapterProperty\s+= \$true')).Count |
-      Should -Be 2
+    Should -Be 2
     ([regex]::Matches($deployIntents, "networkDirect = 'Disabled'")).Count |
-      Should -Be 2
+    Should -Be 2
     $deployIntents.Contains('overrideAdapterProperty             = $false') | Should -BeFalse
   }
 
@@ -685,7 +685,7 @@ Describe 'Self-hosted orchestration safety' {
     # rebuilds it from ComputerName + ConnectionInfo.Credential. PowerShell Direct
     # carries no reusable credential there, so the rebuild ran as SYSTEM and failed.
     $moduleSource.Contains('$fresh += New-PSSession -ComputerName $node.Name') |
-      Should -BeFalse
+    Should -BeFalse
     $moduleSource | Should -Match '\$candidate = New-PSSession -ComputerName \$node\.Name'
     $moduleSource | Should -Match '-Credential \$networkAdminCredential -ErrorAction Stop'
     $moduleSource.Contains('New-PSSession -VMName $node.Name') | Should -BeFalse
@@ -699,7 +699,7 @@ Describe 'Self-hosted orchestration safety' {
     # Proven on the live lab: bare 'Administrator' fails NTLM to a workgroup node with
     # 0x8009030d, while '.\Administrator' succeeds against every node.
     $moduleSource.Contains('$networkAdminCredential = New-Object System.Management.Automation.PSCredential(') |
-      Should -BeTrue
+    Should -BeTrue
     $moduleSource | Should -Match '-ConnectionLocalAdminCredential \$networkAdminCredential'
     $moduleSource | Should -Match '0x8009030d'
     # PowerShell Direct must keep the original credential, which is already proven.
@@ -717,7 +717,7 @@ Describe 'Self-hosted orchestration safety' {
     # Rewriting the block in place keeps repeated runs from stacking stale addresses.
     $moduleSource | Should -Match 'Set-Content -Path \$hostsPath'
     $moduleSource.Contains('Set-ApexNodeNameResolution -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn') |
-      Should -BeTrue
+    Should -BeTrue
     # Resolution must be pinned before trust is granted and the validators run.
     $resolutionIndex = $moduleSource.IndexOf('Set-ApexNodeNameResolution -Nodes $Nodes')
     $validatorIndex = $moduleSource.IndexOf('Invoke-AzStackHciNetworkValidation')
@@ -731,7 +731,7 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match 'function Set-ApexNodeWinRmTrust'
     $moduleSource.Contains('WSMan:\localhost\Client\TrustedHosts') | Should -BeTrue
     $moduleSource.Contains('Set-ApexNodeWinRmTrust -Nodes $Nodes -DomainFqdn $Config.Domain.Fqdn') |
-      Should -BeTrue
+    Should -BeTrue
     # A wildcard trust list would let the host authenticate to anything.
     $moduleSource.Contains("-ne '*'") | Should -BeTrue
   }
@@ -829,7 +829,7 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource | Should -Match ([regex]::Escape("`$passedStatuses = @('Succeeded', 'Success', 'Passed', '0')"))
     # Every waiver must be an exact test ID, never a blanket bypass.
     $config.Validation.AllowedCriticalTests |
-      Should -Contain 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
+    Should -Contain 'AzStackHci_ExternalActiveDirectory_Test_OrganizationalUnit_ExecutingAsDeploymentUser'
   }
 
   It 'parses validator reports without case-folding their keys' {
@@ -926,7 +926,7 @@ Describe 'Self-hosted orchestration safety' {
     # configured peer, the DC never becomes reliable, and every node then fails
     # AzStackHci_Software_NtpServer-Sync despite reaching the DC fine.
     $moduleSource.Contains("Disable-VMIntegrationService -VMName `$dom.DcHostName -Name 'Time Synchronization'") |
-      Should -BeTrue
+    Should -BeTrue
     $moduleSource | Should -Match 'Domain controller is not an authoritative time source'
     $moduleSource | Should -Match 'did not synchronize time with DC'
     $moduleSource.Contains('Last Successful Sync Time:\s*unspecified') | Should -BeTrue
