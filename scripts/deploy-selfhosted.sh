@@ -264,15 +264,31 @@ preflight() {
     echo "         Supported: ${AZURE_LOCAL_REGIONS[*]}" >&2
     failures=$((failures + 1))
   else
+    # Creating a resource group proves nothing: it is a metadata operation that
+    # succeeds even where the subscription is barred from creating resources. Arc
+    # onboarding then dies ~90 minutes in with "The selected region is currently not
+    # accepting new customers", so probe the exact resource type that fails.
     probe_rg="apexlocal-regionprobe-$RANDOM"
-    if az group create --name "$probe_rg" --location "$AZURE_LOCAL_INSTANCE_LOCATION" \
-        --output none 2>/dev/null; then
+    probe_sub=$(az account show --query id -o tsv)
+    if az group create --name "$probe_rg" --location "$LOCATION" --output none 2>/dev/null; then
+      probe_out=$(az rest --method put \
+        --url "https://management.azure.com/subscriptions/${probe_sub}/resourceGroups/${probe_rg}/providers/Microsoft.HybridCompute/machines/regionprobe?api-version=2024-07-10" \
+        --body "{\"location\":\"${AZURE_LOCAL_INSTANCE_LOCATION}\",\"kind\":\"HCI\",\"properties\":{}}" 2>&1 || true)
       az group delete --name "$probe_rg" --yes --no-wait --output none 2>/dev/null || true
-      echo "  [ok]   Azure Local region '$AZURE_LOCAL_INSTANCE_LOCATION' accepted"
+      if grep -qiE 'disallowed|not accepting new customers|ineligible' <<<"$probe_out"; then
+        echo "  [FAIL] '$AZURE_LOCAL_INSTANCE_LOCATION' is not accepting new customers for this" >&2
+        echo "         subscription, so Arc onboarding cannot create the node machines." >&2
+        echo "         Choose another with --azure-local-location. Supported: ${AZURE_LOCAL_REGIONS[*]}" >&2
+        failures=$((failures + 1))
+      elif grep -q '"id"' <<<"$probe_out"; then
+        echo "  [ok]   Azure Local region '$AZURE_LOCAL_INSTANCE_LOCATION' accepts new Arc machines"
+      else
+        echo "  [FAIL] could not verify Arc machine creation in '$AZURE_LOCAL_INSTANCE_LOCATION':" >&2
+        echo "         $(head -c 300 <<<"$probe_out")" >&2
+        failures=$((failures + 1))
+      fi
     else
-      echo "  [FAIL] subscription cannot create resources in '$AZURE_LOCAL_INSTANCE_LOCATION'." >&2
-      echo "         Azure restricts some regions per subscription. Choose another with" >&2
-      echo "         --azure-local-location. Supported: ${AZURE_LOCAL_REGIONS[*]}" >&2
+      echo "  [FAIL] subscription cannot create resources in '$LOCATION'." >&2
       failures=$((failures + 1))
     fi
   fi

@@ -553,9 +553,12 @@ Describe 'Self-hosted orchestration safety' {
 
     $deployWrapperSource | Should -Match '--azure-local-location\) AZURE_LOCAL_INSTANCE_LOCATION='
     $deployWrapperSource | Should -Match 'azureLocalInstanceLocation=\$AZURE_LOCAL_INSTANCE_LOCATION'
-    # Preflight must prove the subscription can actually use the region.
-    $deployWrapperSource | Should -Match 'subscription cannot create resources in'
+    # Preflight must prove the subscription can actually use the region. Creating a
+    # resource group does not: it succeeds in regions barred from new customers, and
+    # Arc onboarding then fails ~90 minutes in.
     $deployWrapperSource | Should -Match 'apexlocal-regionprobe-'
+    $deployWrapperSource | Should -Match 'Microsoft.HybridCompute/machines/regionprobe'
+    $deployWrapperSource | Should -Match 'not accepting new customers'
 
     # The allowed list must match between bicep and the wrapper. [^\]]* keeps the match
     # from spanning earlier @allowed blocks in the file.
