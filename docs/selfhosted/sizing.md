@@ -72,10 +72,14 @@ fails fast; request an increase if you are short.
 ## Regions
 
 - **Infrastructure** (`location`) uses `swedencentral` as primary and
-  `germanywestcentral` as the explicit fallback.
-- **Azure Local instance** (`azureLocalInstanceLocation`) is separate because not every region
-  supports the instance — the default is `westeurope`. Keep these two distinct, matching the
-  LocalBox profile.
+  `germanywestcentral` as the explicit fallback. This covers the host VM, jumpbox,
+  Bastion, and NAT Gateway.
+- **Azure Local instance** (`azureLocalInstanceLocation`) is separate and always registers
+  the Arc machines and the instance in `westeurope`. Keep these two distinct, matching the
+  LocalBox profile. The allowed values are limited to Azure Local regions that also have the
+  Arc Resource Bridge extension `microsoft.hybridaksoperator` registered — `germanywestcentral`
+  and `ukwest` support Azure Local but not that extension, so they pass every validation check
+  and then fail roughly three hours into the deployment.
 
 ## Azure Hybrid Benefit
 

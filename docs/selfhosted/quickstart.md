@@ -105,8 +105,12 @@ restricts some regions per subscription, so preflight proves your subscription c
 create resources there before anything starts billing — otherwise Arc onboarding fails roughly
 ninety minutes into the build, and the agent reports it as a credentials problem rather than a
 region one. If preflight rejects your region, pick another from: `australiaeast`,
-`canadacentral`, `centralindia`, `eastus`, `germanywestcentral`, `japaneast`, `southcentralus`,
-`southeastasia`, `uksouth`, `ukwest`, `westeurope`.
+`canadacentral`, `centralindia`, `eastus`, `japaneast`, `southcentralus`, `southeastasia`,
+`uksouth`, `westeurope`.
+
+`germanywestcentral` and `ukwest` are deliberately excluded. They support Azure Local, and a
+deployment there passes all 23 validation steps — then fails about three hours in, because the
+Arc Resource Bridge extension `microsoft.hybridaksoperator` is not registered in those regions.
 
 The cluster host then installs Hyper-V, pools its data disks into `V:`, configures the internal
 and NAT-uplink switches, and **waits** for both ISOs to appear in storage. The nested router VM

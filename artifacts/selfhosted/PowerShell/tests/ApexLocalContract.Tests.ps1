@@ -561,6 +561,11 @@ Describe 'Self-hosted orchestration safety' {
         'AZURE_LOCAL_REGIONS=\(([^)]*)\)').Groups[1].Value -split '\s+' | Where-Object { $_ })
     $bicepRegions.Count | Should -BeGreaterThan 5
     Compare-Object $bicepRegions $wrapperRegions | Should -BeNullOrEmpty
+    # Proven on the live lab: germanywestcentral supports Azure Local, passed all 23
+    # validation steps, then failed the ARB step three hours in because the extension
+    # type microsoft.hybridaksoperator is not registered there.
+    $bicepRegions | Should -Not -Contain 'germanywestcentral'
+    $bicepRegions | Should -Not -Contain 'ukwest'
   }
 
   It 'waives only the criticals nested virtualization makes unavoidable' {

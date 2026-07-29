@@ -90,18 +90,16 @@ param hciResourceProviderObjectId string = ''
 @description('Add CostControl/SecurityControl tags (Microsoft-internal lab tenants only).')
 param governResourceTags bool = false
 
-@description('Azure region the Azure Local instance and its Arc machines are created in. Only Azure Local supported regions are listed. Your subscription must also be permitted to create resources there: a restricted region fails Arc onboarding with a RequestDisallowedByAzure 403 roughly ninety minutes into the build.')
+@description('Azure region the Azure Local instance and its Arc machines are created in. Restricted to Azure Local regions where the Arc Resource Bridge extension type microsoft.hybridaksoperator is also registered: a region that supports Azure Local but not that extension passes validation and then fails the ARB step about three hours into the deployment. Your subscription must also be permitted to create resources there: a restricted region fails Arc onboarding with a RequestDisallowedByAzure 403 roughly ninety minutes into the build.')
 @allowed([
   'australiaeast'
   'canadacentral'
   'centralindia'
   'eastus'
-  'germanywestcentral'
   'japaneast'
   'southcentralus'
   'southeastasia'
   'uksouth'
-  'ukwest'
   'westeurope'
 ])
 param azureLocalInstanceLocation string = 'westeurope'

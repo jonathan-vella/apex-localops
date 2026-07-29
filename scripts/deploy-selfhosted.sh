@@ -29,7 +29,10 @@ WINDOWS_SERVER_ISO_ALIAS='https://go.microsoft.com/fwlink/?linkid=2293312&clcid=
 # Region the Azure Local instance and its Arc machines are created in. Separate from
 # the infrastructure region because Azure Local supports far fewer regions.
 AZURE_LOCAL_INSTANCE_LOCATION="westeurope"
-AZURE_LOCAL_REGIONS=(australiaeast canadacentral centralindia eastus germanywestcentral japaneast southcentralus southeastasia uksouth ukwest westeurope)
+# Azure Local regions that also have the ARB extension type microsoft.hybridaksoperator
+# registered. germanywestcentral and ukwest support Azure Local but not that extension,
+# so they pass validation and fail the ARB step ~3 hours into the deployment.
+AZURE_LOCAL_REGIONS=(australiaeast canadacentral centralindia eastus japaneast southcentralus southeastasia uksouth westeurope)
 HCI_RP_APP_ID="1412d89f-b8a8-4111-b4fd-e82905cbd85d"
 HOST_SKU="Standard_E64s_v6"
 HOST_VCPU=64

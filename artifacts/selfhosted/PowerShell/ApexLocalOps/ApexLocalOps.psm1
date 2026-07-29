@@ -2275,8 +2275,8 @@ function Start-ApexLocalClusterDeployment {
       $validation = $settings.Properties.reportedProperties.validationStatus
       $validationState = "$($validation.status)"
       $failedSteps = @($validation.steps |
-          Where-Object { "$($_.status)" -notin $successStates } |
-          ForEach-Object { "$($_.name) [$(if ($_.status) { $_.status } else { 'did not run' })]" })
+        Where-Object { "$($_.status)" -notin $successStates } |
+        ForEach-Object { "$($_.name) [$(if ($_.status) { $_.status } else { 'did not run' })]" })
       Write-ApexLog "Cluster validation state: '$validationState'; $($failedSteps.Count) step(s) not successful."
     } while ($validationState -notin $terminalStates -and (Get-Date) -lt $validationDeadline)
 
