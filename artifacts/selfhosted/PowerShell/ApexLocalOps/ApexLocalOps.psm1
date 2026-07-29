@@ -1701,30 +1701,50 @@ function Test-ApexEnvironmentReadiness {
   # reads like a configuration fault but is purely a race: the stragglers correct
   # themselves minutes later. Wait for all of them before any validator runs.
   if ($Phase -eq 'HostChecks') {
-    $timeDeadline = (Get-Date).AddMinutes(15)
+    # Nodes converge serially, several minutes apart, and the clock starts before any
+    # of them has synced: a 15-minute budget failed a healthy lab with the last node
+    # 80 seconds short.
+    $timeDeadline = (Get-Date).AddMinutes(30)
     $pending = @()
+    $unreachable = @{}
     do {
       $pending = @()
       foreach ($node in $Nodes) {
         $state = ''
         try {
           $state = Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
-            -ScriptBlock { (w32tm /query /status 2>&1) | Out-String } -ErrorAction Stop
+            -ScriptBlock {
+            # Nudge rather than wait out w32time's own poll interval.
+            w32tm /resync /force 2>&1 | Out-Null
+            (w32tm /query /status 2>&1) | Out-String
+          } -ErrorAction Stop
+          $unreachable.Remove($node.Name)
         }
-        catch { $state = '' }
+        catch {
+          $state = ''
+          $unreachable[$node.Name] = $_.Exception.Message
+        }
         $sourceOk = $state -match 'Source:\s*(?!Local CMOS Clock)\S'
         $syncOk = ($state -match 'Last Successful Sync Time:') -and
         ($state -notmatch 'Last Successful Sync Time:\s*unspecified')
         if (-not ($sourceOk -and $syncOk)) { $pending += $node.Name }
       }
       if ($pending.Count -gt 0) {
-        Write-ApexLog "Waiting for node clock sync: $($pending -join ', ')." -Level WARN
+        # A node we cannot reach is not a node with a bad clock; saying so saves the
+        # next reader from chasing time sync when the real fault is connectivity.
+        $detail = $pending | ForEach-Object {
+          if ($unreachable[$_]) { "$_ (unreachable: $($unreachable[$_]))" } else { $_ }
+        }
+        Write-ApexLog "Waiting for node clock sync: $($detail -join '; ')." -Level WARN
         Start-Sleep -Seconds 30
       }
     } while ($pending.Count -gt 0 -and (Get-Date) -lt $timeDeadline)
 
     if ($pending.Count -gt 0) {
-      throw "Nodes did not converge on the domain clock within 15 minutes: $($pending -join ', ')."
+      $detail = $pending | ForEach-Object {
+        if ($unreachable[$_]) { "$_ (unreachable: $($unreachable[$_]))" } else { "$_ (clock not synced)" }
+      }
+      throw "Nodes did not converge on the domain clock within 30 minutes: $($detail -join '; ')."
     }
     Write-ApexLog 'All nodes report a successful time sync against the domain controller.'
   }

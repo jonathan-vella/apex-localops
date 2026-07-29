@@ -393,7 +393,12 @@ Describe 'Self-hosted orchestration safety' {
     # 'Local CMOS Clock' and the third had converged, so NtpServer-Sync failed as a
     # race. The stragglers corrected themselves minutes later.
     $moduleSource | Should -Match 'Waiting for node clock sync'
-    $moduleSource | Should -Match 'did not converge on the domain clock within 15 minutes'
+    # Nodes converge serially: a healthy lab failed with the last node 80 seconds
+    # past a 15-minute budget, so the gate waits longer and forces a resync.
+    $moduleSource | Should -Match 'did not converge on the domain clock within 30 minutes'
+    $moduleSource | Should -Match 'w32tm /resync /force'
+    # An unreachable node must not be reported as a clock problem.
+    $moduleSource | Should -Match 'unreachable: '
     $moduleSource.Contains("'Source:\s*(?!Local CMOS Clock)\S'") | Should -BeTrue
     # The wait must precede the first validator.
     $waitIndex = $moduleSource.IndexOf('Waiting for node clock sync')
