@@ -74,12 +74,17 @@ fails fast; request an increase if you are short.
 - **Infrastructure** (`location`) uses `swedencentral` as primary and
   `germanywestcentral` as the explicit fallback. This covers the host VM, jumpbox,
   Bastion, and NAT Gateway.
-- **Azure Local instance** (`azureLocalInstanceLocation`) is separate and always registers
-  the Arc machines and the instance in `westeurope`. Keep these two distinct, matching the
-  LocalBox profile. The allowed values are limited to Azure Local regions that also have the
-  Arc Resource Bridge extension `microsoft.hybridaksoperator` registered — `germanywestcentral`
-  and `ukwest` support Azure Local but not that extension, so they pass every validation check
-  and then fail roughly three hours into the deployment.
+- **Azure Local instance** (`azureLocalInstanceLocation`) is separate and defaults to
+  `westeurope`. Keep these two distinct, matching the LocalBox profile. The allowed values
+  are the public regions that support clusters deployed anywhere in the world: East US,
+  West Europe, Australia East, Southeast Asia, India Central, Canada Central, Japan East,
+  and South Central US. `uksouth`, `ukwest` and `germanywestcentral` are not on that list —
+  and `germanywestcentral` additionally lacks the Arc Resource Bridge extension
+  `microsoft.hybridaksoperator`, so a deployment there passes all 23 validation steps and
+  then fails about three hours in.
+- A region on the list can still be unavailable to *your* subscription. Preflight creates a
+  real `Microsoft.HybridCompute/machines` resource there and deletes it, because creating a
+  resource group succeeds even where the subscription is barred from creating resources.
 
 ## Azure Hybrid Benefit
 

@@ -100,17 +100,17 @@ mandatory. Sweden Central is primary. Use `--location germanywestcentral` only a
 capacity fallback.
 
 The **Azure Local instance region is separate** from the infrastructure region and supports far
-fewer locations. It defaults to West Europe and is set with `--azure-local-location`. Azure
-restricts some regions per subscription, so preflight proves your subscription can actually
-create resources there before anything starts billing — otherwise Arc onboarding fails roughly
-ninety minutes into the build, and the agent reports it as a credentials problem rather than a
-region one. If preflight rejects your region, pick another from: `australiaeast`,
-`canadacentral`, `centralindia`, `eastus`, `japaneast`, `southcentralus`, `southeastasia`,
-`uksouth`, `westeurope`.
+fewer locations. It defaults to West Europe and is set with `--azure-local-location`. The
+allowed values are the public regions that support clusters deployed anywhere in the world:
+`australiaeast`, `canadacentral`, `centralindia`, `eastus`, `japaneast`, `southcentralus`,
+`southeastasia`, `westeurope`.
 
-`germanywestcentral` and `ukwest` are deliberately excluded. They support Azure Local, and a
-deployment there passes all 23 validation steps — then fails about three hours in, because the
-Arc Resource Bridge extension `microsoft.hybridaksoperator` is not registered in those regions.
+A region on that list can still be closed to *your* subscription. Preflight creates a real
+`Microsoft.HybridCompute/machines` resource in the chosen region and deletes it again, because
+creating a resource group succeeds even where the subscription is barred from creating
+resources — and Arc onboarding would otherwise fail about ninety minutes into the build with
+"The selected region is currently not accepting new customers", which the agent reports as a
+credentials problem rather than a region one.
 
 The cluster host then installs Hyper-V, pools its data disks into `V:`, configures the internal
 and NAT-uplink switches, and **waits** for both ISOs to appear in storage. The nested router VM

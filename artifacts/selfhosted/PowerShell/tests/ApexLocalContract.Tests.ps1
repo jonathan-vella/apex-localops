@@ -567,13 +567,14 @@ Describe 'Self-hosted orchestration safety' {
         "'([a-z]+)'") | ForEach-Object { $_.Groups[1].Value })
     $wrapperRegions = @([regex]::Match($deployWrapperSource,
         'AZURE_LOCAL_REGIONS=\(([^)]*)\)').Groups[1].Value -split '\s+' | Where-Object { $_ })
-    $bicepRegions.Count | Should -BeGreaterThan 5
+    $bicepRegions.Count | Should -Be 8
     Compare-Object $bicepRegions $wrapperRegions | Should -BeNullOrEmpty
-    # Proven on the live lab: germanywestcentral supports Azure Local, passed all 23
-    # validation steps, then failed the ARB step three hours in because the extension
-    # type microsoft.hybridaksoperator is not registered there.
-    $bicepRegions | Should -Not -Contain 'germanywestcentral'
-    $bicepRegions | Should -Not -Contain 'ukwest'
+    # Only the public regions that support clusters deployed anywhere in the world.
+    # germanywestcentral is doubly wrong: not on that list, and missing the ARB
+    # extension, which cost three hours on the live lab before it surfaced.
+    foreach ($excluded in 'germanywestcentral', 'ukwest', 'uksouth') {
+      $bicepRegions | Should -Not -Contain $excluded
+    }
   }
 
   It 'waives only the criticals nested virtualization makes unavoidable' {
