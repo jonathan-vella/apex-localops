@@ -984,10 +984,10 @@ Describe 'Self-hosted orchestration safety' {
   }
 
   It 'declares success only after authoritative cluster state is healthy' {
-    $moduleSource | Should -Match "ResourceType 'Microsoft\.AzureStackHCI/clusters'"
+    $moduleSource | Should -Match 'Get-AzResource -ResourceId \$clusterId -ApiVersion'
     $moduleSource | Should -Match "provisioningState -ne 'Succeeded'"
-    $moduleSource | Should -Match "connectionState -ne 'Connected'"
-    $moduleSource | Should -Match "reached Succeeded/Connected"
+    $moduleSource | Should -Match 'connectionState -notin \$connectedStates'
+    $moduleSource | Should -Match 'did not reach Succeeded/Connected'
   }
 
   It 'reuses deterministic cluster resource names during recovery' {
