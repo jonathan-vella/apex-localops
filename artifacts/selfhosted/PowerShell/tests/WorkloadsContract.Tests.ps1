@@ -31,9 +31,10 @@ Describe 'Self-hosted workloads config' {
     $config.VmSwitchName | Should -Be 'ConvergedSwitch(compute_management)'
   }
 
-  It 'reuses InfraLNET for VMs and pre-creates the AKS lnet' {
-    $config.LogicalNetworks.Vm.Name | Should -BeNullOrEmpty
-    $config.LogicalNetworks.Vm.ReuseExisting | Should -BeTrue
+  It 'creates a dedicated tenant VM lnet and pre-creates the AKS lnet' {
+    $config.LogicalNetworks.Vm.Name | Should -Be 'apexlocal-vmlnet'
+    $config.LogicalNetworks.Vm.ReuseExisting | Should -BeFalse
+    $config.LogicalNetworks.Vm.AddressPrefix | Should -BeNullOrEmpty
     $config.LogicalNetworks.Aks.ReuseExisting | Should -BeFalse
     $config.LogicalNetworks.Aks.Vlan | Should -Be 110
     $config.LogicalNetworks.Aks.AddressPrefix | Should -Be '10.10.0.0/24'
@@ -45,7 +46,7 @@ Describe 'Self-hosted workloads config' {
     $config.Images.Win11Avd.Urn | Should -Be 'microsoftwindowsdesktop:office-365:win11-25h2-avd-m365:latest'
   }
 
-  It 'defines two domain-joined WS2025 VMs with static InfraLNET IPs' {
+  It 'defines two domain-joined WS2025 VMs with static tenant-lnet IPs' {
     $config.Vms.WindowsServer2025_1.Name | Should -Be 'apexws01'
     $config.Vms.WindowsServer2025_1.PrivateIp | Should -Be '192.168.1.60'
     $config.Vms.WindowsServer2025_1.LogicalNetworkName | Should -BeNullOrEmpty
@@ -76,6 +77,15 @@ Describe 'Self-hosted workloads module + orchestrator' {
     $moduleSource | Should -Match 'ReuseExisting'
     $moduleSource | Should -Match 'privateIPAddress=\$\(\$Vm\.PrivateIp\)'
     $moduleSource | Should -Match 'hciLogicalNetworkName=\$lnetName'
+  }
+
+  It 'decouples domain join from VM creation (waits for the Arc agent, defers on timeout)' {
+    $moduleSource | Should -Match 'function Wait-VmAgentConnected'
+    $moduleSource | Should -Match 'Phase 1: create the VM instance \(no domain join\)'
+    $moduleSource | Should -Match 'Phase 2: domain join \(decoupled \+ retryable\)'
+    $moduleSource | Should -Match 'Wait-VmAgentConnected -Config \$Config -VmName \$Vm\.Name'
+    $moduleSource | Should -Match 'domain join DEFERRED'
+    $moduleSource | Should -Match 'Wait-VmAgentConnected'  # exported for reuse
   }
 
   It 'points at the self-hosted vm.bicep' {

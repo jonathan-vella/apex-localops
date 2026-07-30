@@ -48,7 +48,12 @@ function Invoke-Az {
     $out = & az @Args 2>&1
     $code = $LASTEXITCODE
     if ($code -ne 0) {
-        if ($MustSucceed) { throw "az $($Args -join ' ') failed ($code): $out" }
+        if ($MustSucceed) {
+            # Redact secret parameter values before surfacing the failed command.
+            $safeArgs = $Args | ForEach-Object { $_ -replace '(?i)(password|token)=.+', '$1=***' }
+            $safeOut = ($out -join "`n") -replace '(?i)(password|token)=[^ ]+', '$1=***'
+            throw "az $($safeArgs -join ' ') failed ($code): $safeOut"
+        }
         return $null
     }
     if ($Raw) { return ($out -join "`n") }
@@ -85,7 +90,26 @@ function Resolve-ClusterContext {
         $Config.Location = ([string](Invoke-Az -Args @('customlocation', 'show', '-g', $Config.ResourceGroup, '-n', $Config.CustomLocationName, '--query', 'location', '-o', 'tsv') -Raw)).Trim()
     }
     if ([string]::IsNullOrWhiteSpace($Config.VmLogicalNetworkName)) {
-        $Config.VmLogicalNetworkName = ([string](Invoke-Az -Args @('stack-hci-vm', 'network', 'lnet', 'list', '-g', $Config.ResourceGroup, '--query', "[?ends_with(name,'InfraLNET')].name | [0]", '-o', 'tsv') -Raw)).Trim()
+        # VMs need a DEDICATED tenant lnet - the platform blocks tenant NICs on the *-InfraLNET.
+        # Derive its L2 (subnet/VLAN/gateway/DNS) from the InfraLNET so VMs share the DC's subnet
+        # and domain join needs no routing; only the IP pool is a lab choice (.60-.120 of the /24).
+        $vm = $Config.LogicalNetworks.Vm
+        $infra = Invoke-Az -Args @('stack-hci-vm', 'network', 'lnet', 'list', '-g', $Config.ResourceGroup,
+            '--query', "[?ends_with(name,'InfraLNET')] | [0]", '-o', 'json')
+        if ($infra -and $infra.properties.subnets) {
+            $sp = $infra.properties.subnets[0].properties
+            if ([string]::IsNullOrWhiteSpace($vm.AddressPrefix)) { $vm.AddressPrefix = [string]$sp.addressPrefix }
+            if ([string]::IsNullOrWhiteSpace("$($vm.Vlan)")) { $vm.Vlan = [int]$sp.vlan }
+            if ([string]::IsNullOrWhiteSpace($vm.Gateway)) {
+                $def = @($sp.routeTable.properties.routes) | Where-Object { $_.properties.addressPrefix -in '0.0.0.0', '0.0.0.0/0' } | Select-Object -First 1
+                if ($def) { $vm.Gateway = [string]$def.properties.nextHopIpAddress }
+            }
+            if (-not $vm.DnsServers -or @($vm.DnsServers).Count -eq 0) { $vm.DnsServers = @($infra.properties.dhcpOptions.dnsServers) }
+            $base = ([string]$sp.addressPrefix -split '/')[0] -replace '\.\d+$', ''
+            if ([string]::IsNullOrWhiteSpace($vm.IpPoolStart)) { $vm.IpPoolStart = "$base.60" }
+            if ([string]::IsNullOrWhiteSpace($vm.IpPoolEnd)) { $vm.IpPoolEnd = "$base.120" }
+        }
+        $Config.VmLogicalNetworkName = $vm.Name
     }
     Write-Step "Resolved: sub=$($Config.SubscriptionId) rg=$($Config.ResourceGroup) cl=$($Config.CustomLocationName) region=$($Config.Location) vmLnet=$($Config.VmLogicalNetworkName)" 'INFO'
 }
@@ -225,8 +249,8 @@ function Wait-ImageReady {
 
 function Ensure-WorkloadLogicalNetwork {
     <# Ensure every logical network in $Config.LogicalNetworks exists. Entries flagged
-       ReuseExisting are VERIFIED only (never created) - used for the cluster's existing
-       InfraLNET that tenant VMs attach to via static IPs. All others are created idempotently. #>
+       ReuseExisting are VERIFIED only (never created). All others are created idempotently -
+       the tenant VM lnet (derived from the InfraLNET's L2) and the pre-staged AKS lnet. #>
     [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)]$Config, [string]$CustomLocationId)
     foreach ($key in $Config.LogicalNetworks.Keys) {
@@ -280,12 +304,49 @@ function Get-VmDomainJoinState {
     return 'NotFound'
 }
 
+function Wait-VmAgentConnected {
+    <# Poll the VM's Azure Arc Connected Machine agent until it reports Connected, or the
+       timeout elapses. On Azure Local the in-guest Arc agent onboards AFTER the VM instance is
+       created (the moc guest agent installs it), and guest extensions - e.g. the domain-join
+       JsonADDomainExtension - can only run once the machine is Connected to Azure. Returns
+       $true when connected; $false on timeout. Non-fatal by design: the caller defers the
+       dependent step so VM creation is never blocked by a slow/absent guest agent. #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Config,
+        [Parameter(Mandatory)][string]$VmName,
+        [int]$TimeoutMinutes = 15,
+        [int]$PollSeconds = 30
+    )
+    $url = "https://management.azure.com/subscriptions/$($Config.SubscriptionId)/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.HybridCompute/machines/$VmName" + '?api-version=2025-01-13'
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    Write-Step "Waiting up to $TimeoutMinutes min for VM '$VmName' Arc agent to connect to Azure..."
+    $status = $null
+    do {
+        $m = Invoke-Az -Args @('rest', '--method', 'get', '--url', $url)
+        $status = if ($m -and $m.properties) { $m.properties.status } else { $null }
+        if ($status -eq 'Connected') {
+            Write-Step "VM '$VmName' Arc agent = Connected (agent $($m.properties.agentVersion))." 'OK'
+            return $true
+        }
+        if ((Get-Date) -ge $deadline) { break }
+        Start-Sleep -Seconds $PollSeconds
+    } while ($true)
+    Write-Step "VM '$VmName' Arc agent still '$status' after $TimeoutMinutes min." 'WARN'
+    return $false
+}
+
 function New-WorkloadVm {
-    <# Deploy ONE Azure Local VM by deploying the canonical vm.bicep template: an Arc machine
-       (with a system-assigned identity, for zero-touch guest-agent onboarding) + a NIC on the
-       logical network + data disks + a correctly-sized VM instance, and - when $Vm.DomainJoin
-       is set - an AD domain join via the JsonADDomainExtension (no in-guest run-command).
-       Declarative and idempotent (ARM no-ops unchanged resources). Returns the VM name.
+    <# Deploy ONE Azure Local VM from the canonical vm.bicep template: an Arc machine (with a
+       system-assigned identity, for zero-touch guest-agent onboarding) + a NIC on the logical
+       network + data disks + a correctly-sized VM instance. When $Vm.DomainJoin is set, the AD
+       domain join (JsonADDomainExtension) is applied as a SEPARATE second phase, DECOUPLED from
+       VM creation: the in-guest Arc agent onboards only after the VM instance exists, so the
+       function first creates the VM, then waits (bounded) for the agent and applies the join.
+       If the agent never connects the join is deferred (not fatal) and a later re-run retries
+       it - VM creation is therefore never blocked by a slow/absent guest agent. Declarative
+       and idempotent (ARM no-ops unchanged resources; each phase is skipped when already done).
+       Returns the VM name.
 
        Sizing is applied AT CREATE via hardwareProfile.vmSize='Custom' + processors + memoryMB,
        the only reliable mechanism: the CLI `--hardware-profile` path (without vm-size='Custom')
@@ -297,6 +358,7 @@ function New-WorkloadVm {
         [string]$AdminPassword,                    # resolved by caller (not stored)
         [int]$StoragePathIndex = 0,
         [switch]$SkipDomainJoin,
+        [int]$JoinAgentTimeoutMinutes = 15,        # bounded wait for the in-guest Arc agent
         [string]$TemplateFile
     )
     if (-not $TemplateFile) {
@@ -310,30 +372,35 @@ function New-WorkloadVm {
     $storagePathId = $Config.StoragePathIds[$StoragePathIndex % $Config.StoragePathIds.Count]
     $doJoin = [bool]$Vm.DomainJoin -and -not $SkipDomainJoin
 
-    # Idempotency: skip if the VM already exists (and, when joining, the join already succeeded).
+    # Idempotency: is the VM instance already present, and (when joining) is the join already done?
     $existing = Get-WorkloadVmInstance -Config $Config -VmName $Vm.Name
+    $joinDone = $doJoin -and $existing -and ((Get-VmDomainJoinState -Config $Config -VmName $Vm.Name) -eq 'Succeeded')
     if ($existing) {
         if (-not $doJoin) {
             Write-Step "VM '$($Vm.Name)' already exists (state=$($existing.properties.provisioningState)) - skipping." 'SKIP'
             return $Vm.Name
         }
-        if ((Get-VmDomainJoinState -Config $Config -VmName $Vm.Name) -eq 'Succeeded') {
+        if ($joinDone) {
             Write-Step "VM '$($Vm.Name)' already exists and is domain-joined - skipping." 'SKIP'
             return $Vm.Name
         }
-        Write-Step "VM '$($Vm.Name)' exists but not yet domain-joined - redeploying to add the join." 'INFO'
+        Write-Step "VM '$($Vm.Name)' exists but not yet domain-joined - will wait for the Arc agent and apply the join." 'INFO'
     }
 
     # Password is only needed to actually deploy; skip resolving it on a -WhatIf dry run.
     if (-not $AdminPassword -and -not $WhatIfPreference) { $AdminPassword = Resolve-AdminPassword }
 
     # Data-disk parameter as a JSON array matching vm.bicep's dataDiskType ({name,diskSizeGB,dynamic}).
-    $disks = foreach ($d in $Vm.DataDisks) { [ordered]@{ name = $d.Name; diskSizeGB = $d.SizeGb; dynamic = $true } }
-    $disksJson = ConvertTo-Json -InputObject @($disks) -AsArray -Compress -Depth 5
+    # Guard the empty case: an unguarded foreach yields [[]] which fails template validation.
+    $disks = @(foreach ($d in $Vm.DataDisks) { [ordered]@{ name = $d.Name; diskSizeGB = $d.SizeGb; dynamic = $true } })
+    $disksJson = if ($disks.Count) { ConvertTo-Json -InputObject $disks -AsArray -Compress -Depth 5 } else { '[]' }
 
-    # Per-VM target logical network (defaults to the reused InfraLNET) + optional static IP.
+    # Per-VM target logical network (defaults to the dedicated tenant lnet) + optional static IP.
     $lnetName = if ($Vm.LogicalNetworkName) { $Vm.LogicalNetworkName } else { $Config.VmLogicalNetworkName }
-    $deployParams = @(
+
+    # Base (VM-only) parameters. Domain-join params are added ONLY in phase 2 so a slow/absent
+    # in-guest Arc agent never blocks VM creation - the two concerns are decoupled + retryable.
+    $baseParams = @(
         "name=$($Vm.Name)", "location=$($Config.Location)",
         "vCPUCount=$($Vm.VCpus)", "memoryMB=$($Vm.MemoryMb)",
         "adminUsername=$($Config.AdminUsername)", "adminPassword=$AdminPassword",
@@ -342,26 +409,41 @@ function New-WorkloadVm {
         "customLocationName=$($Config.CustomLocationName)",
         "storagePathId=$storagePathId", "dataDiskParams=$disksJson"
     )
-    if ($Vm.PrivateIp) { $deployParams += "privateIPAddress=$($Vm.PrivateIp)" }
-    $joinSuffix = ''
-    if ($doJoin) {
-        $joinUser = if ($Config.Domain.JoinUsername) { $Config.Domain.JoinUsername } else { 'Administrator' }
-        $deployParams += @("domainToJoin=$($Config.Domain.Fqdn)", "domainJoinUserName=$joinUser", "domainJoinPassword=$AdminPassword")
-        if ($Config.Domain.OuPath) { $deployParams += "domainTargetOu=$($Config.Domain.OuPath)" }
-        $joinSuffix = " + domain join $($Config.Domain.Fqdn)"
+    if ($Vm.PrivateIp) { $baseParams += "privateIPAddress=$($Vm.PrivateIp)" }
+
+    # ---- Phase 1: create the VM instance (no domain join) ----
+    if (-not $existing) {
+        $depName = "vm-$($Vm.Name)-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+        $action = "deploy vm.bicep ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB)"
+        Write-Step "Deploying VM '$($Vm.Name)': $action ..."
+        if ($PSCmdlet.ShouldProcess($Vm.Name, $action)) {
+            $null = Invoke-Az -MustSucceed -Args (@('deployment', 'group', 'create', '-g', $Config.ResourceGroup,
+                    '--name', $depName, '--template-file', $TemplateFile, '-o', 'none', '--parameters') + $baseParams)
+            Write-Step "VM '$($Vm.Name)' created." 'OK'
+        }
     }
 
-    $depName = "vm-$($Vm.Name)-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
-    $action = "deploy vm.bicep ($($Vm.VCpus) vCPU / $($Vm.MemoryMb) MB$joinSuffix)"
-    Write-Step "Deploying VM '$($Vm.Name)': $action ..."
-    if ($PSCmdlet.ShouldProcess($Vm.Name, $action)) {
-        $null = Invoke-Az -MustSucceed -Args (@('deployment', 'group', 'create', '-g', $Config.ResourceGroup,
-                '--name', $depName, '--template-file', $TemplateFile, '-o', 'none', '--parameters') + $deployParams)
-        Write-Step "VM '$($Vm.Name)' deployment completed." 'OK'
-        if ($doJoin) {
-            $state = Get-VmDomainJoinState -Config $Config -VmName $Vm.Name
-            if ($state -eq 'Succeeded') { Write-Step "VM '$($Vm.Name)' domain-join extension = Succeeded." 'OK' }
-            else { Write-Step "VM '$($Vm.Name)' domain-join extension state = $state - verify before dependent steps." 'WARN' }
+    # ---- Phase 2: domain join (decoupled + retryable) ----
+    if ($doJoin -and -not $joinDone) {
+        $joinUser = if ($Config.Domain.JoinUsername) { $Config.Domain.JoinUsername } else { 'Administrator' }
+        $joinParams = $baseParams + @("domainToJoin=$($Config.Domain.Fqdn)", "domainJoinUserName=$joinUser", "domainJoinPassword=$AdminPassword")
+        if ($Config.Domain.OuPath) { $joinParams += "domainTargetOu=$($Config.Domain.OuPath)" }
+        $action = "domain join $($Config.Domain.Fqdn) (JsonADDomainExtension)"
+        if ($PSCmdlet.ShouldProcess($Vm.Name, $action)) {
+            # The extension runs via the in-guest Arc agent, which onboards AFTER the VM exists.
+            # Wait (bounded) for it; if it never connects, defer so the VM stage still succeeds.
+            if (Wait-VmAgentConnected -Config $Config -VmName $Vm.Name -TimeoutMinutes $JoinAgentTimeoutMinutes) {
+                $depName = "vm-$($Vm.Name)-join-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+                Write-Step "Applying $action to '$($Vm.Name)' ..."
+                $null = Invoke-Az -MustSucceed -Args (@('deployment', 'group', 'create', '-g', $Config.ResourceGroup,
+                        '--name', $depName, '--template-file', $TemplateFile, '-o', 'none', '--parameters') + $joinParams)
+                $state = Get-VmDomainJoinState -Config $Config -VmName $Vm.Name
+                if ($state -eq 'Succeeded') { Write-Step "VM '$($Vm.Name)' domain-join extension = Succeeded." 'OK' }
+                else { Write-Step "VM '$($Vm.Name)' domain-join extension state = $state - verify before dependent steps." 'WARN' }
+            }
+            else {
+                Write-Step "VM '$($Vm.Name)' domain join DEFERRED (Arc agent not connected). Re-run this stage later to complete it." 'WARN'
+            }
         }
     }
     return $Vm.Name
@@ -446,5 +528,5 @@ Write-Output 'AVD_AGENT_INSTALLED'
 
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
-    New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Set-SqlStoragePaths, `
+    New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Wait-VmAgentConnected, Set-SqlStoragePaths, `
     Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, Invoke-ArcRunCommand

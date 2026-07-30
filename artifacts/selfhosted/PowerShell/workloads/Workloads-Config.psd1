@@ -25,17 +25,25 @@
   # The default compute switch Azure Local creates for the Compute_Management intent.
   VmSwitchName         = 'ConvergedSwitch(compute_management)'
 
-  # Tenant VMs reuse the cluster's own infrastructure logical network (*-InfraLNET) with
-  # STATIC IPs (see Vms[].PrivateIp) - no VLAN and no nested-router change needed.
-  VmLogicalNetworkName = ''    # resolved: the cluster's *-InfraLNET
+  # Tenant VMs get their OWN logical network - the platform blocks tenant NICs on the
+  # *-InfraLNET. It is created on the SAME L2 as the DC (subnet/VLAN/gateway/DNS derived
+  # from the InfraLNET at runtime), so domain join needs no VLAN or nested-router change.
+  VmLogicalNetworkName = ''    # resolved: the dedicated tenant lnet (LogicalNetworks.Vm.Name)
 
-  # Logical networks the 'network' stage ensures. InfraLNET is reused (verified, never
-  # created); the AKS network is pre-created for the future AKS plan (its router route
-  # and VIP wiring land with that plan). VLAN 110 is inside the node trunk range 0-1000.
+  # Logical networks the 'network' stage ensures. The VM lnet is a DEDICATED tenant network
+  # created on the DC's L2 (blank fields below are derived from the *-InfraLNET at runtime);
+  # the AKS network is pre-created for the future AKS plan (its router route and VIP wiring
+  # land with that plan). Both VLANs are inside the node trunk range 0-1000.
   LogicalNetworks      = @{
     Vm  = @{
-      Name          = ''    # resolved to VmLogicalNetworkName (the *-InfraLNET)
-      ReuseExisting = $true
+      Name          = 'apexlocal-vmlnet'   # dedicated tenant lnet (InfraLNET forbids tenant NICs)
+      AddressPrefix = ''    # derived from *-InfraLNET (same subnet as the DC)
+      Gateway       = ''    # derived from InfraLNET default-route next-hop
+      DnsServers    = @()   # derived from InfraLNET DNS (the DC)
+      Vlan          = ''    # derived from InfraLNET (untagged 0 in this lab)
+      IpPoolStart   = ''    # derived: .60 of the InfraLNET /24 (override for non-/24 subnets)
+      IpPoolEnd     = ''    # derived: .120 of the InfraLNET /24
+      ReuseExisting = $false
     }
     Aks = @{
       Name          = 'aks-lnet-vlan110'
@@ -90,8 +98,8 @@
 
   # --- Workload VM definitions ------------------------------------------------
   # Azure Local sizes VMs by EXPLICIT vCPU + memory (vm.bicep sets vmSize='Custom').
-  # PrivateIp assigns a static address on the reused InfraLNET (outside its infra pool).
-  # LogicalNetworkName blank => the resolved VmLogicalNetworkName (the *-InfraLNET).
+  # PrivateIp assigns a static address on the dedicated tenant VM lnet (same subnet as the DC).
+  # LogicalNetworkName blank => the resolved VmLogicalNetworkName (the tenant VM lnet).
   Vms                  = @{
     WindowsServer2025_1 = @{
       Name               = 'apexws01'          # <=15 chars for NetBIOS/domain join
