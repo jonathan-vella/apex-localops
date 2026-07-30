@@ -7,7 +7,7 @@
 # verification, and cleanup. Idempotent: re-running is safe (ARM no-ops unchanged resources).
 #
 # Minimal effort:
-#   export LOCALBOX_ADMIN_PASSWORD='<strong-password>'   # or let the script prompt you
+#   export AZLOCAL_VM_ADMIN_PASSWORD='<strong-password>'   # or let the script prompt you
 #   ./deploy.sh                                          # deploys ws2025-<random>, no name clashes
 #
 # Usage:
@@ -32,7 +32,7 @@
 # (NetBIOS / domain-join limit). The resolved name is printed before deploying.
 #
 # Prereqs: az login (operator) with rights on the resource group; Azure CLI. The admin
-# password is taken from LOCALBOX_ADMIN_PASSWORD (never written to disk); if unset, the
+# password is taken from AZLOCAL_VM_ADMIN_PASSWORD (never written to disk); if unset, the
 # script prompts for it (no echo).
 
 set -euo pipefail
@@ -116,13 +116,13 @@ if $CLEANUP; then
 fi
 
 # --- Password (never written to disk) ----------------------------------------
-if [[ -z "${LOCALBOX_ADMIN_PASSWORD:-}" ]]; then
+if [[ -z "${AZLOCAL_VM_ADMIN_PASSWORD:-}" ]]; then
   printf 'Enter the VM admin password (input hidden): ' >&2
-  IFS= read -rs LOCALBOX_ADMIN_PASSWORD || true
+  IFS= read -rs AZLOCAL_VM_ADMIN_PASSWORD || true
   echo >&2
-  [[ -n "$LOCALBOX_ADMIN_PASSWORD" ]] || { echo "ERROR: a password is required." >&2; exit 1; }
+  [[ -n "$AZLOCAL_VM_ADMIN_PASSWORD" ]] || { echo "ERROR: a password is required." >&2; exit 1; }
 fi
-export LOCALBOX_ADMIN_PASSWORD   # main.bicepparam reads it via readEnvironmentVariable
+export AZLOCAL_VM_ADMIN_PASSWORD   # main.bicepparam reads it via readEnvironmentVariable
 
 # --- Build the parameter set (base param file + optional overrides) ----------
 params=(--parameters "$PARAM" --parameters "name=$VM_NAME")
@@ -130,7 +130,7 @@ if $DOMAIN_JOIN; then
   params+=(--parameters
     "domainToJoin=$DOMAIN_FQDN"
     "domainJoinUserName=$DOMAIN_USER"
-    "domainJoinPassword=$LOCALBOX_ADMIN_PASSWORD")
+    "domainJoinPassword=$AZLOCAL_VM_ADMIN_PASSWORD")
 fi
 
 echo "============================================================"

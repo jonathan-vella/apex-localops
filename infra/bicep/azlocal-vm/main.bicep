@@ -50,7 +50,7 @@ param imageName string
 @description('Set true if the referenced image is an Azure Marketplace gallery image (false = custom gallery image).')
 param isMarketplaceImage bool = true
 
-@description('Name of an existing logical network on the cluster (for example: localbox-vm-lnet-vlan200).')
+@description('Name of an existing logical network on the cluster (for example: vm-lnet-vlan200).')
 param hciLogicalNetworkName string
 
 @description('Name of the custom location for the Azure Local instance (for example: jumpstart).')

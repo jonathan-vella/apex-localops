@@ -26,7 +26,7 @@ guest-agent enabled, and optionally AD domain-joined.
 
 - An operational Azure Local instance (23H2+) with its Arc Resource Bridge and custom location.
 - A **VM image** already created on the cluster (for example `2025-datacenter-azure-edition-01`).
-- A **logical network** already created (for example `localbox-vm-lnet-vlan200`).
+- A **logical network** already created (for example `vm-lnet-vlan200`).
 - Azure CLI with the `stack-hci-vm` extension (used by the verify/cleanup commands):
 
 ```bash
@@ -49,7 +49,7 @@ The script wraps everything below into one command. From this folder:
 ```bash
 cd infra/bicep/azlocal-vm
 az login                                  # once
-export LOCALBOX_ADMIN_PASSWORD='<strong-password>'   # or let the script prompt
+export AZLOCAL_VM_ADMIN_PASSWORD='<strong-password>'   # or let the script prompt
 ./deploy.sh                               # preflight + confirm + deploy + verify
 ```
 
@@ -89,7 +89,7 @@ az account set --subscription "<your-subscription-id>"
 ### 2. Provide the admin password (never stored on disk)
 
 ```bash
-export LOCALBOX_ADMIN_PASSWORD='<choose-a-strong-password>'
+export AZLOCAL_VM_ADMIN_PASSWORD='<choose-a-strong-password>'
 ```
 
 ### 3. (Optional) Lint the template
@@ -158,15 +158,15 @@ az deployment group create \
       vCPUCount=2 \
       memoryMB=8192 \
       adminUsername=arcdemo \
-      adminPassword="$LOCALBOX_ADMIN_PASSWORD" \
+      adminPassword="$AZLOCAL_VM_ADMIN_PASSWORD" \
       imageName=2025-datacenter-azure-edition-01 \
       isMarketplaceImage=true \
-      hciLogicalNetworkName=localbox-vm-lnet-vlan200 \
+      hciLogicalNetworkName=vm-lnet-vlan200 \
       customLocationName=jumpstart \
       dataDiskParams='[{"name":"demo-ws2025-01-data","diskSizeGB":128,"dynamic":true}]' \
       domainToJoin=jumpstart.local \
       domainJoinUserName=Administrator \
-      domainJoinPassword="$LOCALBOX_ADMIN_PASSWORD"
+      domainJoinPassword="$AZLOCAL_VM_ADMIN_PASSWORD"
 ```
 
 ### Confirm the join succeeded
@@ -202,7 +202,7 @@ az stack-hci-vm disk delete       -g "$RG" --name demo-ws2025-01-data --yes
 | `vCPUCount` | `2` | Virtual processors. |
 | `memoryMB` | `8192` | Memory in MB (multiple of 4). |
 | `adminUsername` | `arcdemo` | In-guest local administrator. |
-| `adminPassword` | — | `@secure()`; supply via `readEnvironmentVariable('LOCALBOX_ADMIN_PASSWORD')`. |
+| `adminPassword` | — | `@secure()`; supply via `readEnvironmentVariable('AZLOCAL_VM_ADMIN_PASSWORD')`. |
 | `imageName` | — | Existing gallery image name on the cluster. |
 | `isMarketplaceImage` | `true` | `false` for a custom gallery image. |
 | `hciLogicalNetworkName` | — | Existing logical network name. |
