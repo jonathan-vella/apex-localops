@@ -11,6 +11,11 @@ in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-07-30
+
+_Final release that still includes the **LocalBox** profile; **v2.0.0** retires it. Everything
+below shipped since v1.2.1._
+
 ### Added
 
 - **Self-hosted release-candidate hardening:** fixed three-node witnessless topology,
@@ -181,6 +186,7 @@ Initial release - a self-contained packaging of the Arc Jumpstart **LocalBox** s
 - Docs, CC BY 4.0 `LICENSE` + `ATTRIBUTION.md`, and a `validate` CI workflow (Bicep
   build/lint + ShellCheck).
 
+[v1.3.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.3.0
 [v1.2.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.1
 [v1.2.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.1.1
