@@ -67,6 +67,17 @@ jobs:
           LOCALSELF_ADMIN_PASSWORD: ValidationOnly-123!
         run: az bicep build-params --file infra/bicep/azlocal-selfhosted/main.bicepparam --stdout > /dev/null
 
+      - name: Bicep build (Self-hosted workloads)
+        run: |
+          for b in \
+            infra/bicep/azlocal-selfhosted/workloads/vm.bicep \
+            infra/bicep/azlocal-selfhosted/workloads/avd/main.bicep \
+            infra/bicep/azlocal-selfhosted/workloads/avd/avd-agent.bicep \
+            infra/bicep/azlocal-selfhosted/mgmt/insights.bicep; do
+            az bicep build --file "$b" --stdout > /dev/null
+          done
+          az bicep build-params --file infra/bicep/azlocal-selfhosted/workloads/avd/main.bicepparam --stdout > /dev/null
+
       - name: Bicep build (AKS on bare metal)
         run: az bicep build --file infra/bicep/aks-baremetal/main.bicep --stdout > /dev/null
 
