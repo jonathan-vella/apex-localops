@@ -104,12 +104,16 @@ Describe 'Self-hosted workloads bicep' {
     $vmBicepSource | Should -Match "vmSize: 'Custom'"
   }
 
-  It 'insights.bicep installs AMA + DCR on the Arc cluster nodes' {
+  It 'insights.bicep installs AMA + the Azure Local Insights DCR on the Arc cluster nodes' {
     $insightsBicepSource | Should -Match 'param nodeNames array'
     $insightsBicepSource | Should -Match 'Microsoft.HybridCompute/machines/extensions'
     $insightsBicepSource | Should -Match "type: 'AzureMonitorWindowsAgent'"
     $insightsBicepSource | Should -Match 'Microsoft.Insights/dataCollectionRules'
     $insightsBicepSource | Should -Match 'Microsoft.Insights/dataCollectionRuleAssociations'
+    # The DCR must carry the Azure Local Insights data sources for the portal blade + workbook.
+    $insightsBicepSource | Should -Match 'Microsoft-Windows-Health/Operational'
+    $insightsBicepSource | Should -Match 'Microsoft-Windows-SDDC-Management/Operational'
+    $insightsBicepSource | Should -Match 'AzureStackHCI-'
   }
 
   It 'avd main.bicep defaults to canadacentral + apexlocal names' {

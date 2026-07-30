@@ -26,6 +26,9 @@ param location string
 @description('Azure region for the DCR - must match the Log Analytics workspace region. Empty = same as location.')
 param dcrLocation string = ''
 
+@description('DCR name. Azure Local Insights DCRs use the AzureStackHCI- prefix convention.')
+param dcrName string = 'AzureStackHCI-${workspaceName}'
+
 @description('Resource tags.')
 param resourceTags object = {}
 
@@ -34,7 +37,7 @@ param resourceTags object = {}
 var effectiveDcrLocation = empty(dcrLocation) ? location : dcrLocation
 
 resource dcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
-  name: '${workspaceName}-cluster-dcr'
+  name: dcrName
   location: effectiveDcrLocation
   tags: resourceTags
   properties: {
@@ -46,8 +49,8 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
             'Microsoft-Event'
           ]
           xPathQueries: [
-            'System!*[System[(Level=1 or Level=2 or Level=3)]]'
-            'Application!*[System[(Level=1 or Level=2 or Level=3)]]'
+            'Microsoft-Windows-Health/Operational!*'
+            'Microsoft-Windows-SDDC-Management/Operational!*'
           ]
         }
       ]
@@ -58,11 +61,13 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
             'Microsoft-Perf'
           ]
           samplingFrequencyInSeconds: 60
+          // The five counters the Azure Local Insights workbook queries.
           counterSpecifiers: [
-            '\\Processor(_Total)\\% Processor Time'
-            '\\Memory\\Available MBytes'
-            '\\LogicalDisk(_Total)\\% Free Space'
+            '\\Memory(*)\\Available Bytes'
             '\\Network Interface(*)\\Bytes Total/sec'
+            '\\Processor(_Total)\\% Processor Time'
+            '\\RDMA Activity(*)\\RDMA Inbound Bytes/sec'
+            '\\RDMA Activity(*)\\RDMA Outbound Bytes/sec'
           ]
         }
       ]
@@ -119,7 +124,7 @@ resource azureMonitorAgent 'Microsoft.HybridCompute/machines/extensions@2025-01-
 
 resource dcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = [
   for (name, i) in nodeNames: {
-    name: 'apexlocal-cluster-dcra'
+    name: 'AzureStackHCIInsights'
     scope: nodes[i]
     properties: {
       dataCollectionRuleId: dcr.id
