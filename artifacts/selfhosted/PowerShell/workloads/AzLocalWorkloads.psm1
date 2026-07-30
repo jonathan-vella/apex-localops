@@ -250,9 +250,13 @@ function Get-VmHostNode {
 }
 
 function Invoke-GuestDomainJoin {
-    <# Domain-join an Azure Local guest via PowerShell Direct from its hosting cluster node - a
-       reliable fallback for when the in-guest Azure Arc agent hasn't onboarded (so the declarative
-       JsonADDomainExtension can't run). It runs over the Hyper-V VMBus, so it needs NO guest->Azure
+    <# EXPERIMENTAL / OPT-IN - USE WITH CAUTION. Domain-join an Azure Local guest via PowerShell
+       Direct from its hosting cluster node, a fallback for when the in-guest Azure Arc agent hasn't
+       onboarded (so the declarative JsonADDomainExtension can't run). WARNING: running PowerShell
+       Direct (Invoke-Command -VMName) from a HybridCompute runCommand has been observed to WEDGE the
+       node's runCommand handler (all further runCommands on that node fail until the node is
+       rebooted) - prefer fixing guest->Azure egress so the agent onboards, or joining from the VM
+       console. It runs over the Hyper-V VMBus, so it needs NO guest->Azure
        network path; the join itself only needs the guest to reach the domain controller on its own
        subnet. Secrets (the guest local-admin password and the domain join password) are passed to
        the node via runCommand *protectedParameters* (encrypted, write-only, never returned in GET) -
@@ -267,6 +271,7 @@ function Invoke-GuestDomainJoin {
     )
     $node = Get-VmHostNode -Config $Config -VmName $VmName
     if (-not $node) { Write-Step "Could not locate VM '$VmName' on any cluster node - cannot host-join." 'WARN'; return $false }
+    Write-Step "PowerShell-Direct host join is EXPERIMENTAL and can wedge node '$node' runCommand handler - opt-in only." 'WARN'
     $guestUser = $Config.AdminUsername
     $joinUser = if ($Config.Domain.JoinUsername) { $Config.Domain.JoinUsername } else { 'Administrator' }
     $fqdn = $Config.Domain.Fqdn
@@ -498,8 +503,8 @@ function New-WorkloadVm {
         [string]$AdminPassword,                    # resolved by caller (not stored)
         [int]$StoragePathIndex = 0,
         [switch]$SkipDomainJoin,
-        [switch]$NoHostJoinFallback,               # disable the PowerShell-Direct host-join fallback
-        [int]$JoinAgentTimeoutMinutes = 5,         # bounded wait for the in-guest Arc agent before falling back
+        [switch]$EnableHostJoinFallback,           # OPT-IN: PowerShell-Direct host join (risky - see Invoke-GuestDomainJoin)
+        [int]$JoinAgentTimeoutMinutes = 5,         # bounded wait for the in-guest Arc agent
         [string]$TemplateFile
     )
     if (-not $TemplateFile) {
@@ -583,14 +588,14 @@ function New-WorkloadVm {
                 else { Write-Step "VM '$($Vm.Name)' domain-join extension state = $state - verify before dependent steps." 'WARN' }
             }
             else {
-                # The Arc agent didn't onboard in time - fall back to a host-based join over
-                # PowerShell Direct (VMBus), which needs no guest->Azure path (only guest->DC on
-                # the local subnet). Still non-fatal: defer if the fallback is disabled or fails.
-                if (-not $NoHostJoinFallback -and $AdminPassword -and (Invoke-GuestDomainJoin -Config $Config -VmName $Vm.Name -AdminPassword $AdminPassword)) {
-                    Write-Step "VM '$($Vm.Name)' domain joined via PowerShell Direct fallback (Arc agent absent)." 'OK'
+                # The Arc agent didn't onboard in time. Default = DEFER (safe). The PS-Direct
+                # fallback is OPT-IN only (-EnableHostJoinFallback) because it can wedge a node's
+                # runCommand handler; prefer fixing guest->Azure egress so the agent onboards.
+                if ($EnableHostJoinFallback -and $AdminPassword -and (Invoke-GuestDomainJoin -Config $Config -VmName $Vm.Name -AdminPassword $AdminPassword)) {
+                    Write-Step "VM '$($Vm.Name)' domain joined via opt-in PowerShell Direct fallback (Arc agent absent)." 'OK'
                 }
                 else {
-                    Write-Step "VM '$($Vm.Name)' domain join DEFERRED (Arc agent not connected; host fallback disabled/failed). Re-run this stage later to complete it." 'WARN'
+                    Write-Step "VM '$($Vm.Name)' domain join DEFERRED (Arc agent not connected). Re-run after fixing guest->Azure egress so the agent onboards, or join from the VM console." 'WARN'
                 }
             }
         }

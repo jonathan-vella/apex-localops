@@ -106,9 +106,9 @@ Describe 'Self-hosted workloads module + orchestrator' {
     # secrets go through runCommand protectedParameters (never the script text)
     $moduleSource | Should -Match '-ProtectedParameters \$protected'
     $moduleSource | Should -Match '\$props\.protectedParameters'
-    # New-WorkloadVm falls back to the host join when the agent doesn't connect, with an opt-out
+    # New-WorkloadVm can fall back to the host join when the agent doesn't connect, but only as opt-in
     $moduleSource | Should -Match 'Invoke-GuestDomainJoin -Config \$Config -VmName \$Vm\.Name -AdminPassword \$AdminPassword'
-    $moduleSource | Should -Match '\[switch\]\$NoHostJoinFallback'
+    $moduleSource | Should -Match '\[switch\]\$EnableHostJoinFallback'
   }
 
   It 'points at the self-hosted vm.bicep' {
