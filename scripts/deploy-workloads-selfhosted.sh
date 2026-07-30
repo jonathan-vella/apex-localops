@@ -175,7 +175,7 @@ do_avd_cp() {
   az deployment group create -g "$RESOURCE_GROUP" --name "avd-controlplane-$(date +%Y%m%d-%H%M%S)" \
     --template-file "$AVD_BICEP" --parameters "$AVD_PARAM" -o table
   echo "Retrieve the registration token with:"
-  echo "  az desktopvirtualization hostpool retrieve-registration-token -g $RESOURCE_GROUP --host-pool-name $AVD_HOST_POOL --query token -o tsv"
+  echo "  az desktopvirtualization hostpool retrieve-registration-token -g $RESOURCE_GROUP --name $AVD_HOST_POOL --query token -o tsv"
 }
 
 # --- Dispatch ----------------------------------------------------------------
@@ -192,7 +192,16 @@ case "$STAGE" in
                   if [[ -z "$TOKEN" ]]; then
                     echo "Pulling registration token from host pool $AVD_HOST_POOL..."
                     TOKEN="$(az desktopvirtualization hostpool retrieve-registration-token \
-                      -g "$RESOURCE_GROUP" --host-pool-name "$AVD_HOST_POOL" --query token -o tsv 2>/dev/null || true)"
+                      -g "$RESOURCE_GROUP" --name "$AVD_HOST_POOL" --query token -o tsv 2>/dev/null || true)"
+                    if [[ -z "$TOKEN" ]]; then
+                      # No active token (expired or never generated) — mint a fresh one valid 24h.
+                      echo "No active token; generating a new one (valid ~24h)..."
+                      _exp="$(date -u -d '+23 hours' +%Y-%m-%dT%H:%M:%SZ)"
+                      az desktopvirtualization hostpool update -g "$RESOURCE_GROUP" --name "$AVD_HOST_POOL" \
+                        --registration-info expiration-time="$_exp" registration-token-operation=Update -o none 2>/dev/null || true
+                      TOKEN="$(az desktopvirtualization hostpool retrieve-registration-token \
+                        -g "$RESOURCE_GROUP" --name "$AVD_HOST_POOL" --query token -o tsv 2>/dev/null || true)"
+                    fi
                   fi
                   [[ -n "$TOKEN" ]] || { echo "ERROR: no registration token (deploy avd-cp first or pass --token)." >&2; exit 1; }
                   run_stage_local "avd-host" "-RegistrationToken '$TOKEN'" ;;
