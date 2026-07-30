@@ -1,9 +1,9 @@
 // =============================================================================
 // apex-localops — Azure Local Small Form Factor (SFF) profile.
 // Network module: VNet + workload subnet + NSG + NAT Gateway (egress) + optional
-// Azure Bastion (ingress). Modeled on the LocalBox network module, but the
-// resource names are driven by a `namePrefix` param so the SFF profile is fully
-// self-contained and never collides with the LocalBox profile.
+// Azure Bastion (ingress). The resource names are driven by a `namePrefix` param
+// so the SFF profile is fully self-contained and never collides with the
+// Self-hosted profile.
 //
 // When deployBastion = true (the default for SFF), the workload subnet has NO
 // default outbound access and routes all egress through the NAT Gateway, and the

@@ -8,8 +8,7 @@ VM, with a separate small jumpbox for ISO staging. To deploy, see the
 [Self-hosted quickstart](quickstart.md).
 
 > [!NOTE]
-> This page covers the self-hosted profile. For the Jumpstart-based profile, see
-> [LocalBox sizing and cost](../localbox/sizing.md); for the edge profile, see
+> This page covers the self-hosted profile. For the edge profile, see
 > [SFF sizing and cost](../sff/sizing.md).
 
 ## In this guide

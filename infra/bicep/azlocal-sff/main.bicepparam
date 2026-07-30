@@ -32,7 +32,7 @@ param hostDataDiskSizeGB = 1024
 
 // --- Azure Hybrid Benefit (ON by default for this project) ---
 // Applies AHB across the SFF profile: Windows_Server on the host VM and
-// Windows_Client on the Windows 11 jumpbox (matches the LocalBox profile). Removes the
+// Windows_Client on the Windows 11 jumpbox (matches the Self-hosted profile). Removes the
 // Windows license charge; requires the corresponding eligible licenses. Set false for
 // license-included (PAYG) billing on both VMs.
 param enableAzureHybridBenefit = true

@@ -8,7 +8,7 @@
     operation is a cloud/ARM call: VM/disk/NIC/image/lnet via the `stack-hci-vm` extension
     (custom location + Arc), and in-guest steps via the Microsoft.HybridCompute
     machines/runCommands API (Invoke-ArcRunCommand) - so nothing needs to run on
-    LocalBox-Client and there is no run-command-extension wedge risk.
+    the cluster host and there is no run-command-extension wedge risk.
 
     Every function is ADDITIVE and IDEMPOTENT: it inspects current state and skips/echoes
     when the target already exists, so the whole module is safe to re-run and never

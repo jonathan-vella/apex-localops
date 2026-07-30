@@ -17,7 +17,7 @@ example for a 2-node Azure Local instance); set `nestedVmCount = 1` for one. To 
 - [Monthly cost](#monthly-cost)
 - [Azure Hybrid Benefit (on by default)](#azure-hybrid-benefit-on-by-default)
 - [Cost guidance](#cost-guidance)
-- [Comparison with the LocalBox profile](#comparison-with-the-localbox-profile)
+- [Comparison with the Self-hosted profile](#comparison-with-the-self-hosted-profile)
 
 ## Default footprint
 
@@ -93,7 +93,7 @@ AHB is enabled across the SFF profile via a single parameter, `enableAzureHybrid
 - `licenseType: Windows_Client` to the **Windows 11 jumpbox**.
 
 This removes the Windows license charge from both VMs (you keep paying for the base compute,
-storage, and networking). It matches the LocalBox profile, which applies AHB the same way.
+storage, and networking). It matches the Self-hosted profile, which applies AHB the same way.
 
 > [!IMPORTANT]
 > **Attestation:** enabling AHB attests that you hold the corresponding eligible licenses —
@@ -127,14 +127,14 @@ Verify with: `az vm show -g rg-sff-host-swc01 -n LocalSFF-Host --query licenseTy
 - **Skip the jumpbox** (`deployManagementVm=false`) and stage artifacts from Azure Cloud Shell
   instead, to save the Windows 11 VM cost — still Azure-initiated.
 
-## Comparison with the LocalBox profile
+## Comparison with the Self-hosted profile
 
-| | LocalBox (3-node) | **SFF** |
+| | Self-hosted (3-node) | **SFF** |
 | --- | --- | --- |
 | Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D16s_v5` (16 / 64) |
 | Data disks | 12 × 256 GB P30 (3 TB) | 1 × 1024 GB Premium |
 | Est. 24×7 | ~$7,850/mo | ~$700–900/mo (~1/10th) |
-| Nested payload | 3-node Azure Local cluster + management host | One or two ROE SFF test VMs (two by default) |
+| Nested payload | 3-node Azure Local cluster + DC + router | One or two ROE SFF test VMs (two by default) |
 
 ## Next steps
 

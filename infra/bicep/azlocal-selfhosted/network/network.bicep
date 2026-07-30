@@ -2,7 +2,7 @@
 // apex-localops — Azure Local SELF-HOSTED profile.
 // Network module: VNet + workload subnet + NSG + NAT Gateway (egress) + optional
 // Azure Bastion (ingress). Resource names are driven by `namePrefix` so this
-// profile is fully self-contained and never collides with the LocalBox/SFF ones.
+// profile is fully self-contained and never collides with the SFF one.
 //
 // When deployBastion = true (the default), the workload subnet has NO default
 // outbound access and routes all egress through the NAT Gateway, and the VMs have

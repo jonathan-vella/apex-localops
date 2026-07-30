@@ -24,10 +24,8 @@ flow. To deploy, go to the [Self-hosted quickstart](quickstart.md).
 ## When to use this profile
 
 Choose self-hosted when you need a transparent build with no Arc Jumpstart dependency — for
-example, in a sovereign, restricted, or audit-sensitive environment. If you want the fastest
-path to a cluster and a Jumpstart-based build is acceptable, use the
-[LocalBox profile](../localbox/overview.md) instead. For a lighter edge device, use the
-[SFF profile](../sff/overview.md). For a full comparison, see
+example, in a sovereign, restricted, or audit-sensitive environment. For a lighter edge device,
+use the [SFF profile](../sff/overview.md). For a full comparison, see
 [Choose a profile](../choose-a-profile.md).
 
 ## Azure topology

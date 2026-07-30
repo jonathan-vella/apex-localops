@@ -10,7 +10,7 @@
 # Everything runs FROM THIS DEV CONTAINER with your operator `az` login - every action is
 # a cloud/ARM call (stack-hci-vm for VM/disk/NIC/image/lnet via the custom location;
 # Microsoft.HybridCompute machines/runCommands for in-guest steps; ARM/Bicep for AVD).
-# Nothing runs on LocalBox-Client, so there is no run-command-extension wedge risk.
+# Nothing runs on the cluster host, so there is no run-command-extension wedge risk.
 #
 # Usage:
 #   ./deploy-workloads-selfhosted.sh --stage <stage> [--what-if] [--yes]

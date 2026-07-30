@@ -30,7 +30,6 @@ This page explains the topology and what gets deployed. To deploy, go to the
 
 Choose SFF when you want to evaluate an edge or Small Form Factor device, or when you need a
 target for AKS on bare metal. If you want a full multi-node cluster, use the
-[LocalBox profile](../localbox/overview.md) or the
 [Self-hosted profile](../selfhosted/overview.md) instead. For a full comparison, see
 [Choose a profile](../choose-a-profile.md).
 
