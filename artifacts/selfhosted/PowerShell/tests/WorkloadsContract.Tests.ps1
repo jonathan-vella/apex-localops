@@ -88,6 +88,16 @@ Describe 'Self-hosted workloads module + orchestrator' {
     $moduleSource | Should -Match 'Wait-VmAgentConnected'  # exported for reuse
   }
 
+  It 'runs a reusable node time-sync preflight before creating VHDs (avoids clock-skew failures)' {
+    $moduleSource | Should -Match 'function Sync-ClusterNodeTime'
+    $moduleSource | Should -Match 'w32tm /resync'
+    $moduleSource | Should -Match "reportedProperties\.nodes\[\]\.name"
+    $orchestratorSource | Should -Match 'function Invoke-NodeTimePreflight'
+    $orchestratorSource | Should -Match 'Sync-ClusterNodeTime -Config \$Config'
+    # the preflight must run for every VHD-creating stage
+    $orchestratorSource | Should -Match "'ws2025' \{\s+Invoke-NodeTimePreflight"
+  }
+
   It 'points at the self-hosted vm.bicep' {
     $moduleSource | Should -Match 'infra/bicep/azlocal-selfhosted/workloads/vm\.bicep'
     $moduleSource | Should -Not -Match 'azlocal-js/workloads/vm\.bicep'

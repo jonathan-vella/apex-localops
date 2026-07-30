@@ -183,6 +183,36 @@ function Invoke-ArcRunCommand {
     }
 }
 
+function Sync-ClusterNodeTime {
+    <# Force a w32tm time resync on every Azure Local cluster node (via the Arc run-command
+       API) so client<->node clock skew can't break image/VM/VHD creation. Azure Local stores
+       VHDs on the cluster CSV over SMB/Kerberos; when a node's clock drifts >5 min from the
+       client the CreateFile fails with "There is a time and/or date difference between the
+       client and server", failing the deployment. Running this as a preflight makes image +
+       VM creation reliable in constrained (nested / high-latency) labs. Resolves the cluster
+       and its nodes generically (no hard-coded name prefix, reusable across tenants).
+       Non-fatal: warns per node that can't be resynced. Returns the number of nodes resynced. #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param([Parameter(Mandatory)]$Config)
+    $cluster = ([string](Invoke-Az -Args @('stack-hci', 'cluster', 'list', '-g', $Config.ResourceGroup, '--query', '[0].name', '-o', 'tsv') -Raw)).Trim()
+    if (-not $cluster) { Write-Step 'No Azure Local cluster found in the resource group - skipping node time sync.' 'WARN'; return 0 }
+    $nodes = @(Invoke-Az -Args @('stack-hci', 'cluster', 'show', '-g', $Config.ResourceGroup, '-n', $cluster, '--query', 'reportedProperties.nodes[].name', '-o', 'json'))
+    if (-not $nodes -or $nodes.Count -eq 0) { Write-Step "No nodes reported for cluster '$cluster' - skipping node time sync." 'WARN'; return 0 }
+    $script = 'Start-Service w32time -ErrorAction SilentlyContinue; w32tm /resync /rediscover /force | Out-Null; Start-Sleep -Seconds 2; (Get-Date).ToUniversalTime().ToString("o")'
+    $count = 0
+    foreach ($node in $nodes) {
+        if ($PSCmdlet.ShouldProcess($node, 'w32tm /resync (clock-skew preflight)')) {
+            try {
+                $t = Invoke-ArcRunCommand -Config $Config -VmName $node -Script $script -TimeoutSeconds 120
+                Write-Step "Node '$node' time resynced => $(([string]$t).Trim())" 'OK'
+                $count++
+            }
+            catch { Write-Step "Node '$node' time resync failed (continuing): $($_.Exception.Message)" 'WARN' }
+        }
+    }
+    return $count
+}
+
 # -----------------------------------------------------------------------------
 # Phase 1 - Marketplace images (idempotent)
 # -----------------------------------------------------------------------------
@@ -529,4 +559,5 @@ Write-Output 'AVD_AGENT_INSTALLED'
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
     New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Wait-VmAgentConnected, Set-SqlStoragePaths, `
-    Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, Invoke-ArcRunCommand
+    Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
+    Invoke-ArcRunCommand, Sync-ClusterNodeTime

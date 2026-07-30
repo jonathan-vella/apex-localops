@@ -110,6 +110,14 @@ function Invoke-StageVm([string]$VmKey, [string]$pw, [int]$spIndex) {
     return $vm.Name
 }
 
+function Invoke-NodeTimePreflight {
+    # Preflight for every stage that creates VHDs on the cluster CSV: resync node clocks so
+    # client<->node skew can't fail the create with an SMB/Kerberos time error. Non-fatal.
+    if ($WhatIfPreference) { return }
+    Write-Banner 'Preflight: sync cluster node clocks (avoid VHD create skew)'
+    Sync-ClusterNodeTime -Config $Config | Out-Null
+}
+
 # --- Main --------------------------------------------------------------------
 # With [CmdletBinding(SupportsShouldProcess)], passing -WhatIf automatically sets the
 # built-in $WhatIfPreference (defaults to $false otherwise), which flows into the
@@ -121,14 +129,16 @@ if ($Stage -in @('ws2025', 'sql', 'avd-host', 'all') -and -not $WhatIfPreference
 }
 
 switch ($Stage) {
-    'images' { Invoke-StageImages $cl }
+    'images' { Invoke-NodeTimePreflight; Invoke-StageImages $cl }
     'network' { Invoke-StageNetwork $cl }
     'wait' { Invoke-StageWait }
     'ws2025' {
+        Invoke-NodeTimePreflight
         Invoke-StageVm 'WindowsServer2025_1' $pw 0 | Out-Null
         Invoke-StageVm 'WindowsServer2025_2' $pw 0 | Out-Null
     }
     'sql' {
+        Invoke-NodeTimePreflight
         $name = Invoke-StageVm 'Sql2022' $pw 1
         if (-not $WhatIfPreference) {
             Write-Host "  (run 'sql-postconfig' after the VM finishes domain-join reboot)" -ForegroundColor DarkGray
@@ -136,6 +146,7 @@ switch ($Stage) {
     }
     'avd-host' {
         if (-not $RegistrationToken) { throw "Stage 'avd-host' requires -RegistrationToken (from the AVD host pool)." }
+        Invoke-NodeTimePreflight
         $name = Invoke-StageVm 'AvdHost' $pw 2
         if (-not $WhatIfPreference) {
             Add-AvdSessionHost -Config $Config -VmName $name -RegistrationToken $RegistrationToken | Out-Null
@@ -145,6 +156,7 @@ switch ($Stage) {
         Invoke-StageImages $cl
         Invoke-StageNetwork $cl
         Invoke-StageWait
+        Invoke-NodeTimePreflight
         Invoke-StageVm 'WindowsServer2025_1' $pw 0 | Out-Null
         Invoke-StageVm 'WindowsServer2025_2' $pw 0 | Out-Null
         Write-Host "  SQL VM and AVD session host are intentionally NOT part of 'all' (separate stages/plans)." -ForegroundColor Yellow
