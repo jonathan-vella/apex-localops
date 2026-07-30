@@ -47,11 +47,11 @@ Describe 'Self-hosted workloads config' {
   }
 
   It 'defines two domain-joined WS2025 VMs with static tenant-lnet IPs' {
-    $config.Vms.WindowsServer2025_1.Name | Should -Be 'apexws01'
-    $config.Vms.WindowsServer2025_1.PrivateIp | Should -Be '192.168.1.60'
+    $config.Vms.WindowsServer2025_1.Name | Should -Be 'apexws04'
+    $config.Vms.WindowsServer2025_1.PrivateIp | Should -Be '192.168.1.64'
     $config.Vms.WindowsServer2025_1.LogicalNetworkName | Should -BeNullOrEmpty
-    $config.Vms.WindowsServer2025_2.Name | Should -Be 'apexws02'
-    $config.Vms.WindowsServer2025_2.PrivateIp | Should -Be '192.168.1.61'
+    $config.Vms.WindowsServer2025_2.Name | Should -Be 'apexws05'
+    $config.Vms.WindowsServer2025_2.PrivateIp | Should -Be '192.168.1.65'
     foreach ($k in 'WindowsServer2025_1', 'WindowsServer2025_2', 'AvdHost') {
       $config.Vms[$k].DomainJoin | Should -BeTrue
     }

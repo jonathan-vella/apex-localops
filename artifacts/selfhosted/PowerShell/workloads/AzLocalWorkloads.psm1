@@ -665,7 +665,7 @@ if ($svc) {
 function Add-AvdSessionHost {
     <# Install the AVD agent + boot loader in-guest with the host-pool registration token.
        Assumes the VM exists, is domain-joined, and the Connected Machine agent is present
-       (enabled at create via --enable-agent). Idempotent: skips if agent already installed. #>
+       (enabled at create via --enable-agent). Idempotent: skips if the agent is already registered. #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]$Config,
@@ -673,18 +673,27 @@ function Add-AvdSessionHost {
         [Parameter(Mandatory)][string]$RegistrationToken
     )
     $script = @"
-`$ErrorActionPreference='Stop'
-# Skip if already registered (boot loader present).
-if (Get-Service -Name 'RDAgentBootLoader' -ErrorAction SilentlyContinue) {
-    Write-Output 'AVD_AGENT_ALREADY_INSTALLED'; return
-}
+`$ErrorActionPreference = 'Stop'
+# Idempotent: skip only when the agent has actually registered (a half-installed boot loader is not enough).
+`$reg = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\RDInfraAgent' -ErrorAction SilentlyContinue
+if (`$reg -and `$reg.IsRegistered -eq 1) { Write-Output 'AVD_AGENT_ALREADY_REGISTERED'; return }
 `$tmp = 'C:\AVDAgent'; New-Item -ItemType Directory -Force -Path `$tmp | Out-Null
 `$agent = Join-Path `$tmp 'RDAgent.msi'
 `$boot  = Join-Path `$tmp 'RDBootLoader.msi'
-Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2310011' -OutFile `$agent -UseBasicParsing
-Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2311028' -OutFile `$boot  -UseBasicParsing
-Start-Process msiexec -ArgumentList "/i `$agent /quiet /qn REGISTRATIONTOKEN=$RegistrationToken" -Wait
-Start-Process msiexec -ArgumentList "/i `$boot /quiet /qn" -Wait
+# curl.exe (built into Win11) with a hard --max-time: Invoke-WebRequest has no cap and can hang the
+# runCommand, leaving a truncated MSI that then fails msiexec with 1620. Always re-download fresh.
+function Get-Msi(`$url, `$out) {
+    Remove-Item `$out -Force -ErrorAction SilentlyContinue
+    & curl.exe -L --fail --silent --show-error --max-time 180 --retry 3 --retry-delay 5 --retry-all-errors -o `$out `$url 2>&1 | Out-Null
+    if (`$LASTEXITCODE -ne 0) { throw "download failed (`$url): curl exit `$LASTEXITCODE" }
+}
+Get-Msi 'https://go.microsoft.com/fwlink/?linkid=2310011' `$agent
+Get-Msi 'https://go.microsoft.com/fwlink/?linkid=2311028' `$boot
+`$a = Start-Process msiexec -ArgumentList ('/i "{0}" /quiet /qn /norestart REGISTRATIONTOKEN=$RegistrationToken' -f `$agent) -Wait -PassThru
+if (`$a.ExitCode -ne 0) { throw "RDAgent install failed: msiexec `$(`$a.ExitCode)" }
+`$b = Start-Process msiexec -ArgumentList ('/i "{0}" /quiet /qn /norestart' -f `$boot) -Wait -PassThru
+if (`$b.ExitCode -ne 0) { throw "RDBootLoader install failed: msiexec `$(`$b.ExitCode)" }
+Restart-Service RDAgentBootLoader -Force -ErrorAction SilentlyContinue
 Write-Output 'AVD_AGENT_INSTALLED'
 "@
     Write-Step "Installing AVD agent on '$VmName'..."

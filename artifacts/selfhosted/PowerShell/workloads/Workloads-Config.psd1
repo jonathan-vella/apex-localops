@@ -102,24 +102,25 @@
   # PrivateIp assigns a static address on the dedicated tenant VM lnet (same subnet as the DC).
   # LogicalNetworkName blank => the resolved VmLogicalNetworkName (the tenant VM lnet).
   Vms                  = @{
+    # apexws01-03 (.60/.61/.63) were abandoned after a moc-operator wedge left their VMIs stuck 'Failed'; the live pair is apexws04/05.
     WindowsServer2025_1 = @{
-      Name               = 'apexws01'          # <=15 chars for NetBIOS/domain join
+      Name               = 'apexws04'          # <=15 chars for NetBIOS/domain join
       ImageKey           = 'WindowsServer2025'
       VCpus              = 2
       MemoryMb           = 8192                # 8 GB
       DomainJoin         = $true
       LogicalNetworkName = ''
-      PrivateIp          = '192.168.1.60'
+      PrivateIp          = '192.168.1.64'
       DataDisks          = @()
     }
     WindowsServer2025_2 = @{
-      Name               = 'apexws02'
+      Name               = 'apexws05'
       ImageKey           = 'WindowsServer2025'
       VCpus              = 2
       MemoryMb           = 8192
       DomainJoin         = $true
       LogicalNetworkName = ''
-      PrivateIp          = '192.168.1.61'
+      PrivateIp          = '192.168.1.65'
       DataDisks          = @()
     }
     # Defined for the FUTURE SQL plan (not deployed by this plan's stages).
