@@ -5,8 +5,9 @@
   # (rg-apexlocal / apexlocal, registered canadacentral, domain apexlocal.local).
   #
   # Consumed by AzLocalWorkloads.psm1 + Deploy-AzLocalWorkloads.ps1, run FROM THE
-  # DEV CONTAINER with operator `az login`. NO SECRETS: the VM/domain admin password
-  # is read at runtime from $LOCALSELF_ADMIN_PASSWORD (never stored).
+  # DEV CONTAINER with operator `az login`. NO SECRETS IN THE REPO: the VM/domain admin password
+  # is read at runtime from $LOCALSELF_ADMIN_PASSWORD, or a local git-ignored file
+  # ($LOCALSELF_ADMIN_PASSWORD_FILE, default ~/.apex-localops/admin-password); never committed.
   #
   # REUSABLE ACROSS TENANTS: identity/cluster-specific values below are left BLANK and
   # RESOLVED at runtime from the target resource group (subscription from `az login`, the

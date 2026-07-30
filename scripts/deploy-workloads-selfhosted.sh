@@ -30,7 +30,8 @@
 #   all-vms    images + network + wait + ws2025 (NOT sql/avd).
 #
 # Prereqs: az login (operator) with rights on the resource group; pwsh available. VM-creating
-# stages need the admin password in LOCALSELF_ADMIN_PASSWORD (never written to disk/committed).
+# stages need the admin password: export LOCALSELF_ADMIN_PASSWORD, or write it to a local
+# git-ignored file (LOCALSELF_ADMIN_PASSWORD_FILE, default ~/.apex-localops/admin-password).
 
 set -euo pipefail
 
@@ -96,12 +97,29 @@ run_stage_local() {
   pwsh -NoProfile -File "$ORCHESTRATOR" -Stage "$stage" $whatif_flag $extra
 }
 
-# VM-creating stages need the admin password in the environment (never on disk).
+# VM-creating stages need the admin password. Resolve it from LOCALSELF_ADMIN_PASSWORD, else a
+# local git-ignored file (LOCALSELF_ADMIN_PASSWORD_FILE, default ~/.apex-localops/admin-password).
+# The lab is gated by Azure MFA; the file is never committed and the env var is scrubbed on exit.
+ADMIN_PASSWORD_FILE_DEFAULT="${HOME}/.apex-localops/admin-password"
 require_password() {
   $WHATIF && return 0
-  if [[ -z "${LOCALSELF_ADMIN_PASSWORD:-}" && -z "${WORKLOADS_ADMIN_PASSWORD:-}" ]]; then
-    echo "ERROR: export LOCALSELF_ADMIN_PASSWORD before VM stages (never committed)." >&2; return 1
+  if [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" || -n "${WORKLOADS_ADMIN_PASSWORD:-}" ]]; then
+    return 0
   fi
+  local pw_file="${LOCALSELF_ADMIN_PASSWORD_FILE:-$ADMIN_PASSWORD_FILE_DEFAULT}"
+  if [[ ! -f "$pw_file" ]]; then
+    echo "ERROR: set LOCALSELF_ADMIN_PASSWORD, or write it to '$pw_file' (never committed)." >&2
+    return 1
+  fi
+  local pw
+  pw="$(tr -d '\r\n' < "$pw_file")"
+  if (( ${#pw} < 12 || ${#pw} > 123 )); then
+    echo "ERROR: admin password in '$pw_file' must be 12-123 characters." >&2
+    return 1
+  fi
+  export LOCALSELF_ADMIN_PASSWORD="$pw"
+  trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT
+  echo "Using admin password from file: $pw_file"
 }
 
 # --- Operator-side: Phase 0 prerequisites ------------------------------------

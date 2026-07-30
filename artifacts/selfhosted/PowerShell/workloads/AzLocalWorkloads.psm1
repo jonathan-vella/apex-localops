@@ -14,9 +14,10 @@
     when the target already exists, so the whole module is safe to re-run and never
     modifies the cluster or its infrastructure logical network.
 
-    No secrets are stored. The VM/domain admin password is supplied by the caller, sourced
-    from the LOCALSELF_ADMIN_PASSWORD (or WORKLOADS_ADMIN_PASSWORD) environment variable -
-    never written to disk or committed.
+    No secrets are stored in the repo. The VM/domain admin password is supplied by the caller:
+    from the LOCALSELF_ADMIN_PASSWORD (or WORKLOADS_ADMIN_PASSWORD) environment variable, or a
+    local git-ignored password file (LOCALSELF_ADMIN_PASSWORD_FILE, default
+    ~/.apex-localops/admin-password) - never committed, never logged.
 
     Dependencies:
       az CLI + extensions: customlocation, stack-hci-vm
@@ -63,14 +64,26 @@ function Invoke-Az {
 }
 
 function Resolve-AdminPassword {
-    <# Resolve the VM/domain admin password from the environment (never stored on disk).
-       Mirrors deploy-selfhosted.sh's LOCALSELF_ADMIN_PASSWORD convention. #>
+    <# Resolve the VM/domain admin password in priority order:
+         1. LOCALSELF_ADMIN_PASSWORD / WORKLOADS_ADMIN_PASSWORD environment variable.
+         2. A local password FILE that is never committed - the path in
+            LOCALSELF_ADMIN_PASSWORD_FILE, else the default ~/.apex-localops/admin-password.
+       The file lets an operator type the lab password once into a git-ignored file (the lab is
+       already gated by Azure MFA) instead of re-exporting it in every new shell. Trailing
+       newlines are trimmed; the value is never logged or written back to disk. #>
     param()
     foreach ($var in 'LOCALSELF_ADMIN_PASSWORD', 'WORKLOADS_ADMIN_PASSWORD') {
         $val = [Environment]::GetEnvironmentVariable($var)
         if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
     }
-    throw "Admin password not set. Export LOCALSELF_ADMIN_PASSWORD (or WORKLOADS_ADMIN_PASSWORD) before running."
+    $file = [Environment]::GetEnvironmentVariable('LOCALSELF_ADMIN_PASSWORD_FILE')
+    if ([string]::IsNullOrWhiteSpace($file)) { $file = Join-Path $HOME '.apex-localops/admin-password' }
+    if (Test-Path -LiteralPath $file) {
+        $val = (Get-Content -LiteralPath $file -Raw -ErrorAction Stop).TrimEnd("`r", "`n")
+        if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
+        throw "Admin password file '$file' is empty."
+    }
+    throw "Admin password not set. Export LOCALSELF_ADMIN_PASSWORD, or write it to a local file (LOCALSELF_ADMIN_PASSWORD_FILE, default ~/.apex-localops/admin-password) that is never committed."
 }
 
 function Resolve-ClusterContext {

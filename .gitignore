@@ -20,6 +20,12 @@ coverage.xml
 *.pem
 .env
 .env.*
+# Local lab admin-password files (typed once, read by the workloads tooling, never committed)
+.secrets/
+**/.secrets/
+*.secret
+.alw_pw
+**/admin-password
 
 # OS / editor cruft
 .DS_Store

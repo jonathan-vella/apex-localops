@@ -67,9 +67,11 @@ Describe 'Self-hosted workloads config' {
 }
 
 Describe 'Self-hosted workloads module + orchestrator' {
-  It 'reads the self-hosted password env var' {
+  It 'reads the self-hosted password env var or a local git-ignored file' {
     $moduleSource | Should -Match "LOCALSELF_ADMIN_PASSWORD"
     $moduleSource | Should -Not -Match "'LOCALBOX_ADMIN_PASSWORD'"
+    $moduleSource | Should -Match 'LOCALSELF_ADMIN_PASSWORD_FILE'
+    $moduleSource | Should -Match '\.apex-localops/admin-password'
   }
 
   It 'supports multi-lnet with ReuseExisting and per-VM static IP' {
@@ -160,6 +162,7 @@ Describe 'Self-hosted workloads wrapper' {
   It 'exposes the insights stage and self-hosted paths + env' {
     $wrapperSource | Should -Match 'insights\)\s+do_insights'
     $wrapperSource | Should -Match 'LOCALSELF_ADMIN_PASSWORD'
+    $wrapperSource | Should -Match 'LOCALSELF_ADMIN_PASSWORD_FILE'
     $wrapperSource | Should -Match 'artifacts/selfhosted/PowerShell/workloads'
     $wrapperSource | Should -Match 'azlocal-selfhosted/mgmt/insights\.bicep'
     $wrapperSource | Should -Match 'RESOURCE_GROUP="rg-apexlocal"'
