@@ -101,7 +101,7 @@ param governResourceTags bool = false
   'southeastasia'
   'westeurope'
 ])
-param azureLocalInstanceLocation string = 'westeurope'
+param azureLocalInstanceLocation string = 'canadacentral'
 
 @description('Object id of the operator or group allowed to read the stored lab password, so resume and recover need no retyping. Resolved at deploy time by scripts/deploy-selfhosted.sh; empty skips the assignment.')
 param operatorPrincipalId string = ''

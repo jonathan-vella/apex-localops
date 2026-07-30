@@ -17,7 +17,9 @@ az storage blob list --account-name <staging-account> --container-name logs \
 ```
 
 Keep deployment and Environment Checker reports private. Do not place passwords, access tokens,
-answer files, or unredacted customer identifiers in an issue or release note.
+answer files, or unredacted customer identifiers in an issue or release note. See
+[Self-hosted validation](validation.md) for the full evidence schema and the redacted-versus-private
+rules.
 
 ## Recovery decision
 

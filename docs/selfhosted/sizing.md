@@ -75,7 +75,7 @@ fails fast; request an increase if you are short.
   `germanywestcentral` as the explicit fallback. This covers the host VM, jumpbox,
   Bastion, and NAT Gateway.
 - **Azure Local instance** (`azureLocalInstanceLocation`) is separate and defaults to
-  `westeurope`. Keep these two distinct, matching the LocalBox profile. The allowed values
+  `canadacentral`. Keep the infrastructure and instance regions distinct. The allowed values
   are the public regions that support clusters deployed anywhere in the world: East US,
   West Europe, Australia East, Southeast Asia, India Central, Canada Central, Japan East,
   and South Central US. `uksouth`, `ukwest` and `germanywestcentral` are not on that list —

@@ -21,6 +21,11 @@ in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
 - **Self-hosted release contracts:** pinned module/image/template dependencies, PowerShell 5.1
   static validation, Pester topology/security/recovery contracts, and immutable candidate-SHA
   preflight before any Azure resource is created.
+- **Self-hosted in-guest smoke gate and validation surface:** `Invoke-ApexGuestSmoke.ps1` builds
+  one throwaway nested guest on the host to prove the guest-facing contract — `unattend.xml`
+  injection into an unlettered partition, Windows Secure Boot template boot, PowerShell Direct,
+  side-loaded module import, and post-promotion AD/ADWS readiness — before any paid run;
+  `docs/selfhosted/validation.md` documents the release gate and the redacted evidence schema.
 
 - **Small Form Factor (SFF) evaluation profile** (`infra/bicep/azlocal-sff/`,
   `artifacts/sff/`, `scripts/*-sff.sh`). A lighter second profile: one nested-virtualization

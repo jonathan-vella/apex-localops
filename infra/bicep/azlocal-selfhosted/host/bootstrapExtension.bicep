@@ -41,7 +41,7 @@ param clusterResourceSuffix string
 param hciResourceProviderObjectId string
 
 @description('Azure region the Azure Local instance and its Arc machines are created in. Must be an Azure Local supported region AND one your subscription is allowed to use: a restricted region fails Arc onboarding with RequestDisallowedByAzure 403 about ninety minutes into the build.')
-param azureLocalInstanceLocation string = 'westeurope'
+param azureLocalInstanceLocation string = 'canadacentral'
 
 @description('Name of the lab Key Vault the host reads its own credential from on resume.')
 param keyVaultName string

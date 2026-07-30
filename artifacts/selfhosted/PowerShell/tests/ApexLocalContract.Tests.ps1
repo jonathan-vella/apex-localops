@@ -23,6 +23,7 @@ BeforeAll {
   $recoveryWrapperPath = Join-Path $repoRoot 'scripts/recover-selfhosted.sh'
   $resumePath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Resume-ApexLocalCluster.ps1'
   $resumeWrapperPath = Join-Path $repoRoot 'scripts/resume-selfhosted.sh'
+  $smokeGatePath = Join-Path $repoRoot 'artifacts/selfhosted/PowerShell/Invoke-ApexGuestSmoke.ps1'
   $deployWrapperPath = Join-Path $repoRoot 'scripts/deploy-selfhosted.sh'
   $providerCheckPath = Join-Path $repoRoot 'scripts/check-providers-selfhosted.sh'
   $isoStagingWrapperPath = Join-Path $repoRoot 'scripts/stage-selfhosted-isos.sh'
@@ -47,6 +48,7 @@ BeforeAll {
   $recoveryWrapperSource = Get-Content -Path $recoveryWrapperPath -Raw
   $resumeSource = Get-Content -Path $resumePath -Raw
   $resumeWrapperSource = Get-Content -Path $resumeWrapperPath -Raw
+  $smokeGateSource = Get-Content -Path $smokeGatePath -Raw
   $deployWrapperSource = Get-Content -Path $deployWrapperPath -Raw
   $providerCheckSource = Get-Content -Path $providerCheckPath -Raw
   $isoStagingWrapperSource = Get-Content -Path $isoStagingWrapperPath -Raw
@@ -332,7 +334,9 @@ Describe 'Self-hosted orchestration safety' {
     $monitorSource | Should -Match 'if \[\[ "\$DONE_REASON" == "failed" \]\]'
     # Success is only ever claimed from the real cluster state.
     $monitorSource | Should -Match 'provisioningState'
-    $monitorSource | Should -Match '\$prov" == "Succeeded" && "\$conn" == "Connected"'
+    $monitorSource | Should -Match '"\$prov" == "Succeeded"'
+    # A healthy cluster settles on 'ConnectedRecently', so success must accept it too.
+    $monitorSource | Should -Match '"\$conn" == "ConnectedRecently"'
     # A resume must clear the previous attempt's terminal tag immediately.
     $resumeWrapperSource | Should -Match 'az tag update --resource-id "\$RG_ID" --operation merge'
     $resumeWrapperSource | Should -Match 'ApexProgress=Building'
@@ -549,11 +553,11 @@ Describe 'Self-hosted orchestration safety' {
     $mainBicep = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/main.bicep') -Raw
     $bootstrapExt = Get-Content -Path (Join-Path $repoRoot 'infra/bicep/azlocal-selfhosted/host/bootstrapExtension.bicep') -Raw
 
-    $mainBicep | Should -Match "param azureLocalInstanceLocation string = 'westeurope'"
+    $mainBicep | Should -Match "param azureLocalInstanceLocation string = 'canadacentral'"
     $mainBicep | Should -Match 'azureLocalInstanceLocation: azureLocalInstanceLocation'
     # The region must no longer be hard-coded into the bootstrap command line.
     $bootstrapExt | Should -Match '-azureLocalInstanceLocation \$\{azureLocalInstanceLocation\}'
-    $bootstrapExt | Should -Not -Match '-azureLocalInstanceLocation westeurope'
+    $bootstrapExt | Should -Not -Match '-azureLocalInstanceLocation canadacentral'
 
     $deployWrapperSource | Should -Match '--azure-local-location\) AZURE_LOCAL_INSTANCE_LOCATION='
     $deployWrapperSource | Should -Match 'azureLocalInstanceLocation=\$AZURE_LOCAL_INSTANCE_LOCATION'
@@ -1006,5 +1010,45 @@ Describe 'Self-hosted orchestration safety' {
     $recoverySource | Should -Match "Properties\.status -ne 'Connected'"
     $recoverySource | Should -Match '\$AdminPassword = \$null'
     $recoverySource | Should -Match "ValidateSet\('ValidateDeploy', 'DeployOnly'\)"
+  }
+}
+
+Describe 'Self-hosted in-guest smoke gate' {
+  It 'exercises the guest-facing contract on one throwaway guest' {
+    # Static gates cannot observe a freshly applied offline image; the gate drives the
+    # real guest-facing functions so those defect classes fail here, not in a paid run.
+    $smokeGateSource | Should -Match 'New-ApexUnattendXml'
+    $smokeGateSource | Should -Match 'New-ApexNestedVM'
+    $smokeGateSource | Should -Match '-EnableTpm'
+    $smokeGateSource | Should -Match 'Wait-ApexVMReady'
+    $smokeGateSource | Should -Match 'Install-ApexGuestModule'
+    # Post-promotion AD/ADWS readiness is the cold-ADWS defect this gate must catch.
+    $smokeGateSource | Should -Match 'Install-ADDSForest'
+    $smokeGateSource | Should -Match 'Get-Service -Name ADWS, DNS, NTDS'
+    # The four named checks map to the six guest-facing contract points.
+    foreach ($check in @('GuestProvisioned', 'SecureBootBoot', 'ModuleSideLoad', 'AdPromotionReady')) {
+      $smokeGateSource | Should -Match "Invoke-ApexSmokeCheck -Name '$check'"
+    }
+  }
+
+  It 'requires the base image and internal switch before building anything' {
+    $smokeGateSource | Should -Match 'windowsserver-base\.vhdx'
+    $smokeGateSource | Should -Match 'Get-VMSwitch -Name \$cfg\.Network\.SwitchName'
+    $smokeGateSource | Should -Match 'run the BaseImages stage first'
+  }
+
+  It 'never runs alongside a real build and cleans up its throwaway guest' {
+    $smokeGateSource | Should -Match "Global\\ApexLocalBuild"
+    $smokeGateSource | Should -Match 'if \(-not \$KeepGuest\)'
+    $smokeGateSource | Should -Match 'Remove-VM -Name \$guestName'
+  }
+
+  It 'blocks promotion on failure and records only redacted evidence' {
+    # A failed check must exit non-zero so it can gate a full run.
+    $smokeGateSource | Should -Match '(?m)^\s*exit 1'
+    $smokeGateSource | Should -Match 'guest-smoke-summary\.json'
+    # The credential is cleared and never serialized into the evidence.
+    $smokeGateSource | Should -Match 'Remove-Variable -Name AdminPassword'
+    $smokeGateSource | Should -Not -Match 'AdminPassword\s*=\s*\$AdminPassword'
   }
 }

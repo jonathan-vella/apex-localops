@@ -43,7 +43,7 @@ param(
   [string]$nodeCpuCount = '16',
   [string]$clusterName = 'apexlocal-cluster',
   [string]$clusterResourceSuffix,
-  [string]$azureLocalInstanceLocation = 'westeurope',
+  [string]$azureLocalInstanceLocation = 'canadacentral',
   [string]$hciResourceProviderObjectId = '',
   [string]$keyVaultName = ''
 )

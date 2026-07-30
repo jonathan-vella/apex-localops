@@ -173,6 +173,7 @@ in the module with `OWNED-SCOPE:` and summarized in
 
 - Plan capacity and cost: [Self-hosted sizing and cost](sizing.md).
 - Deploy the cluster: [Self-hosted quickstart](quickstart.md).
+- Review the release gate and evidence schema: [Self-hosted validation](validation.md).
 
 ---
 

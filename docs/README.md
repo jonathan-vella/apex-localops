@@ -108,6 +108,7 @@ Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
 | [Quickstart](selfhosted/quickstart.md) | Register providers, deploy, stage the two ISOs from the jumpbox, monitor the build, and confirm success. |
 | [Sizing and cost](selfhosted/sizing.md) | Fixed release topology, regional quota, cost control, and the build time budget. |
 | [Troubleshooting](selfhosted/troubleshooting.md) | Evidence collection, supported cluster-only recovery, secret cleanup, and full redeployment boundaries. |
+| [Validation](selfhosted/validation.md) | The release gate, the per-run evidence schema, and where release evidence is published. |
 
 ### Small Form Factor profile
 

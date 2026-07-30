@@ -10,6 +10,11 @@ main.json
 .azure/
 *.log
 
+# Test output (Pester / analyzer results)
+testResults.xml
+*.TestResults.xml
+coverage.xml
+
 # Secrets — defense in depth (the repo never stores these by design)
 *.pfx
 *.pem

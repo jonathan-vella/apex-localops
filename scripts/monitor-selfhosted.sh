@@ -89,7 +89,9 @@ is_done() {
   [[ "$progress" != "Completed" ]] && return 1
   prov=$(az stack-hci cluster list -g "$RESOURCE_GROUP" --query "[0].provisioningState" -o tsv 2>/dev/null || echo "")
   conn=$(az stack-hci cluster list -g "$RESOURCE_GROUP" --query "[0].status" -o tsv 2>/dev/null || echo "")
-  if [[ "$prov" == "Succeeded" && "$conn" == "Connected" ]]; then
+  # 'status' reports connection recency: a healthy cluster settles on 'ConnectedRecently',
+  # so requiring exactly 'Connected' never completes. Mirror the module's connected states.
+  if [[ "$prov" == "Succeeded" && ( "$conn" == "Connected" || "$conn" == "ConnectedRecently" ) ]]; then
     DONE_REASON="succeeded"
     return 0
   fi

@@ -100,7 +100,7 @@ mandatory. Sweden Central is primary. Use `--location germanywestcentral` only a
 capacity fallback.
 
 The **Azure Local instance region is separate** from the infrastructure region and supports far
-fewer locations. It defaults to West Europe and is set with `--azure-local-location`. The
+fewer locations. It defaults to Canada Central and is set with `--azure-local-location`. The
 allowed values are the public regions that support clusters deployed anywhere in the world:
 `australiaeast`, `canadacentral`, `centralindia`, `eastus`, `japaneast`, `southcentralus`,
 `southeastasia`, `westeurope`.
@@ -191,6 +191,7 @@ az stack-hci cluster list -g rg-apexlocal -o table
 # expect: ProvisioningState=Succeeded, ConnectivityStatus=Connected
 az stack-hci cluster list -g rg-apexlocal \
   --query "[0].{prov:provisioningState, conn:status}" -o tsv
+# expect: Succeeded, then Connected or ConnectedRecently (both are healthy).
 ```
 
 ## Customization
@@ -308,6 +309,7 @@ For failure evidence and supported recovery points, see
 
 - Plan capacity and cost: [Self-hosted sizing and cost](sizing.md).
 - Review the topology and RBAC model: [Self-hosted overview](overview.md).
+- See the release gate and evidence schema: [Self-hosted validation](validation.md).
 
 ---
 

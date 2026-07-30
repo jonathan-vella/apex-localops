@@ -28,7 +28,7 @@ AZURE_LOCAL_RELEASE_CODE="2607"
 WINDOWS_SERVER_ISO_ALIAS='https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=us'
 # Region the Azure Local instance and its Arc machines are created in. Separate from
 # the infrastructure region because Azure Local supports far fewer regions.
-AZURE_LOCAL_INSTANCE_LOCATION="westeurope"
+AZURE_LOCAL_INSTANCE_LOCATION="canadacentral"
 # The public Azure Local regions that support clusters deployed anywhere in the world.
 # uksouth, ukwest and germanywestcentral are not on that list; germanywestcentral also
 # lacks the ARB extension microsoft.hybridaksoperator, which fails ~3 hours in.
