@@ -480,7 +480,8 @@ function Wait-VmAgentConnected {
     $status = $null
     do {
         $m = Invoke-Az -Args @('rest', '--method', 'get', '--url', $url)
-        $status = if ($m -and $m.properties) { $m.properties.status } else { $null }
+        # StrictMode-safe: a machine with a failed/absent VMI has no 'status' member yet.
+        $status = if ($m -and $m.properties -and $m.properties.PSObject.Properties['status']) { $m.properties.status } else { $null }
         if ($status -eq 'Connected') {
             Write-Step "VM '$VmName' Arc agent = Connected (agent $($m.properties.agentVersion))." 'OK'
             return $true
