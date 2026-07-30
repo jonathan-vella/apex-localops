@@ -98,6 +98,19 @@ Describe 'Self-hosted workloads module + orchestrator' {
     $orchestratorSource | Should -Match "'ws2025' \{\s+Invoke-NodeTimePreflight"
   }
 
+  It 'provides a PowerShell-Direct domain-join fallback for when the Arc agent is absent' {
+    $moduleSource | Should -Match 'function Get-VmHostNode'
+    $moduleSource | Should -Match 'function Invoke-GuestDomainJoin'
+    $moduleSource | Should -Match 'Invoke-Command -VMName'                 # PowerShell Direct into the guest
+    $moduleSource | Should -Match 'Add-Computer @p'                        # the domain join itself
+    # secrets go through runCommand protectedParameters (never the script text)
+    $moduleSource | Should -Match '-ProtectedParameters \$protected'
+    $moduleSource | Should -Match '\$props\.protectedParameters'
+    # New-WorkloadVm falls back to the host join when the agent doesn't connect, with an opt-out
+    $moduleSource | Should -Match 'Invoke-GuestDomainJoin -Config \$Config -VmName \$Vm\.Name -AdminPassword \$AdminPassword'
+    $moduleSource | Should -Match '\[switch\]\$NoHostJoinFallback'
+  }
+
   It 'points at the self-hosted vm.bicep' {
     $moduleSource | Should -Match 'infra/bicep/azlocal-selfhosted/workloads/vm\.bicep'
     $moduleSource | Should -Not -Match 'azlocal-js/workloads/vm\.bicep'

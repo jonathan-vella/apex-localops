@@ -129,15 +129,20 @@ function Resolve-CustomLocationId {
 }
 
 function Invoke-ArcRunCommand {
-    <# Execute a PowerShell script inside an Azure Local Arc VM via the HybridCompute
+    <# Execute a PowerShell script inside an Azure Local Arc machine via the HybridCompute
        machines/runCommands API - works from any client with ARM access (no in-guest
        agent CLI, no `az vm run-command` wedge). Synchronous: submits the runCommand,
        polls to a terminal executionState, returns combined stdout+stderr, then deletes
-       the runCommand resource (cleanup). API version = latest GA (2025-01-13). #>
+       the runCommand resource (cleanup). API version = latest GA (2025-01-13). Optional
+       -Parameters / -ProtectedParameters (name=value hashtables) are passed to the script's
+       param() block by name; ProtectedParameters are encrypted and never returned in GET,
+       so use them for secrets (passwords, tokens). #>
     param(
         [Parameter(Mandatory)]$Config,
         [Parameter(Mandatory)][string]$VmName,
         [Parameter(Mandatory)][string]$Script,
+        [hashtable]$Parameters = @{},
+        [hashtable]$ProtectedParameters = @{},
         [int]$TimeoutSeconds = 600,
         [int]$PollSeconds = 15,
         [string]$ApiVersion = '2025-01-13'
@@ -148,14 +153,18 @@ function Invoke-ArcRunCommand {
     $idBase = "https://management.azure.com/subscriptions/$sub/resourceGroups/$rg/providers/Microsoft.HybridCompute/machines/$VmName/runCommands/$rcName"
     $putUrl = "$idBase`?api-version=$ApiVersion"
     $getUrl = "$idBase`?api-version=$ApiVersion&`$expand=instanceView"
-    $body = @{
-        location   = $Config.Location
-        properties = @{
-            source           = @{ script = $Script }
-            asyncExecution   = $false
-            timeoutInSeconds = $TimeoutSeconds
-        }
-    } | ConvertTo-Json -Depth 8
+    $props = @{
+        source           = @{ script = $Script }
+        asyncExecution   = $false
+        timeoutInSeconds = $TimeoutSeconds
+    }
+    if ($Parameters.Count) {
+        $props.parameters = @($Parameters.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
+    }
+    if ($ProtectedParameters.Count) {
+        $props.protectedParameters = @($ProtectedParameters.GetEnumerator() | ForEach-Object { @{ name = $_.Key; value = [string]$_.Value } })
+    }
+    $body = @{ location = $Config.Location; properties = $props } | ConvertTo-Json -Depth 8
     $tmp = New-TemporaryFile
     Set-Content -Path $tmp -Value $body -Encoding utf8
     try {
@@ -183,24 +192,33 @@ function Invoke-ArcRunCommand {
     }
 }
 
+function Get-ClusterNodeNames {
+    <# Resolve the single Azure Local cluster in the resource group and return an object with its
+       name (.Cluster) and node names (.Nodes, from reportedProperties.nodes[].name). Generic and
+       reusable - no hard-coded cluster/node name prefix, so it works in any tenant. #>
+    param([Parameter(Mandatory)]$Config)
+    $cluster = ([string](Invoke-Az -Args @('stack-hci', 'cluster', 'list', '-g', $Config.ResourceGroup, '--query', '[0].name', '-o', 'tsv') -Raw)).Trim()
+    if (-not $cluster) { return [pscustomobject]@{ Cluster = $null; Nodes = @() } }
+    $nodes = @(Invoke-Az -Args @('stack-hci', 'cluster', 'show', '-g', $Config.ResourceGroup, '-n', $cluster, '--query', 'reportedProperties.nodes[].name', '-o', 'json'))
+    return [pscustomobject]@{ Cluster = $cluster; Nodes = $nodes }
+}
+
 function Sync-ClusterNodeTime {
     <# Force a w32tm time resync on every Azure Local cluster node (via the Arc run-command
        API) so client<->node clock skew can't break image/VM/VHD creation. Azure Local stores
        VHDs on the cluster CSV over SMB/Kerberos; when a node's clock drifts >5 min from the
        client the CreateFile fails with "There is a time and/or date difference between the
        client and server", failing the deployment. Running this as a preflight makes image +
-       VM creation reliable in constrained (nested / high-latency) labs. Resolves the cluster
-       and its nodes generically (no hard-coded name prefix, reusable across tenants).
-       Non-fatal: warns per node that can't be resynced. Returns the number of nodes resynced. #>
+       VM creation reliable in constrained (nested / high-latency) labs. Non-fatal: warns per
+       node that can't be resynced. Returns the number of nodes resynced. #>
     [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)]$Config)
-    $cluster = ([string](Invoke-Az -Args @('stack-hci', 'cluster', 'list', '-g', $Config.ResourceGroup, '--query', '[0].name', '-o', 'tsv') -Raw)).Trim()
-    if (-not $cluster) { Write-Step 'No Azure Local cluster found in the resource group - skipping node time sync.' 'WARN'; return 0 }
-    $nodes = @(Invoke-Az -Args @('stack-hci', 'cluster', 'show', '-g', $Config.ResourceGroup, '-n', $cluster, '--query', 'reportedProperties.nodes[].name', '-o', 'json'))
-    if (-not $nodes -or $nodes.Count -eq 0) { Write-Step "No nodes reported for cluster '$cluster' - skipping node time sync." 'WARN'; return 0 }
+    $ctx = Get-ClusterNodeNames -Config $Config
+    if (-not $ctx.Cluster) { Write-Step 'No Azure Local cluster found in the resource group - skipping node time sync.' 'WARN'; return 0 }
+    if (-not $ctx.Nodes -or $ctx.Nodes.Count -eq 0) { Write-Step "No nodes reported for cluster '$($ctx.Cluster)' - skipping node time sync." 'WARN'; return 0 }
     $script = 'Start-Service w32time -ErrorAction SilentlyContinue; w32tm /resync /rediscover /force | Out-Null; Start-Sleep -Seconds 2; (Get-Date).ToUniversalTime().ToString("o")'
     $count = 0
-    foreach ($node in $nodes) {
+    foreach ($node in $ctx.Nodes) {
         if ($PSCmdlet.ShouldProcess($node, 'w32tm /resync (clock-skew preflight)')) {
             try {
                 $t = Invoke-ArcRunCommand -Config $Config -VmName $node -Script $script -TimeoutSeconds 120
@@ -211,6 +229,96 @@ function Sync-ClusterNodeTime {
         }
     }
     return $count
+}
+
+function Get-VmHostNode {
+    <# Find which Azure Local cluster node currently hosts a given VM (matched by Hyper-V VM
+       name), so the guest can be reached over PowerShell Direct (VMBus). Returns the node name,
+       or $null if the VM isn't found on any node. Reusable across tenants. #>
+    param([Parameter(Mandatory)]$Config, [Parameter(Mandatory)][string]$VmName)
+    $ctx = Get-ClusterNodeNames -Config $Config
+    if (-not $ctx.Nodes -or $ctx.Nodes.Count -eq 0) { return $null }
+    $probe = "if (Get-VM -Name '$VmName' -ErrorAction SilentlyContinue) { 'FOUND' } else { 'no' }"
+    foreach ($node in $ctx.Nodes) {
+        try {
+            $r = [string](Invoke-ArcRunCommand -Config $Config -VmName $node -Script $probe -TimeoutSeconds 90)
+            if ($r -match 'FOUND') { return $node }
+        }
+        catch { Write-Step "Locating '$VmName': probe on node '$node' failed (continuing): $($_.Exception.Message)" 'WARN' }
+    }
+    return $null
+}
+
+function Invoke-GuestDomainJoin {
+    <# Domain-join an Azure Local guest via PowerShell Direct from its hosting cluster node - a
+       reliable fallback for when the in-guest Azure Arc agent hasn't onboarded (so the declarative
+       JsonADDomainExtension can't run). It runs over the Hyper-V VMBus, so it needs NO guest->Azure
+       network path; the join itself only needs the guest to reach the domain controller on its own
+       subnet. Secrets (the guest local-admin password and the domain join password) are passed to
+       the node via runCommand *protectedParameters* (encrypted, write-only, never returned in GET) -
+       never embedded in the script text. Idempotent: a guest already in the domain returns success
+       with no change. Non-fatal: returns $false and warns if the join can't be completed. Reusable
+       across tenants (all names/identities come from $Config). Returns $true on success. #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]$Config,
+        [Parameter(Mandatory)][string]$VmName,
+        [Parameter(Mandatory)][string]$AdminPassword
+    )
+    $node = Get-VmHostNode -Config $Config -VmName $VmName
+    if (-not $node) { Write-Step "Could not locate VM '$VmName' on any cluster node - cannot host-join." 'WARN'; return $false }
+    $guestUser = $Config.AdminUsername
+    $joinUser = if ($Config.Domain.JoinUsername) { $Config.Domain.JoinUsername } else { 'Administrator' }
+    $fqdn = $Config.Domain.Fqdn
+    $ou = if ($Config.Domain.OuPath) { [string]$Config.Domain.OuPath } else { '' }
+    if (-not $PSCmdlet.ShouldProcess($VmName, "domain join $fqdn via PowerShell Direct on node '$node'")) { return $false }
+    # This script runs ON the node; it opens PowerShell Direct into the guest and joins the domain.
+    # The guest credential form varies (plain / .\ / <computer>\), so it tries the common forms.
+    $nodeScript = @'
+param([string]$GuestUser,[string]$Fqdn,[string]$JoinUser,[string]$Ou,[string]$Vm,[string]$GuestPass,[string]$JoinPass)
+$ErrorActionPreference = 'Stop'
+$secGuest = ConvertTo-SecureString $GuestPass -AsPlainText -Force
+$dcred = New-Object System.Management.Automation.PSCredential("$Fqdn\$JoinUser", (ConvertTo-SecureString $JoinPass -AsPlainText -Force))
+$inner = {
+    param($d, $c, $o)
+    $cs = Get-CimInstance Win32_ComputerSystem
+    if ($cs.PartOfDomain -and $cs.Domain -eq $d) { return 'ALREADY_JOINED' }
+    $p = @{ DomainName = $d; Credential = $c; Force = $true; ErrorAction = 'Stop' }
+    if ($o) { $p['OUPath'] = $o }
+    Add-Computer @p
+    return 'JOIN_STAGED'
+}
+$result = $null; $lastErr = $null
+foreach ($u in @($GuestUser, "$Vm\$GuestUser", ".\$GuestUser")) {
+    try {
+        $local = New-Object System.Management.Automation.PSCredential($u, $secGuest)
+        $result = Invoke-Command -VMName $Vm -Credential $local -ScriptBlock $inner -ArgumentList $Fqdn, $dcred, $Ou -ErrorAction Stop
+        break
+    }
+    catch { $lastErr = $_.Exception.Message }
+}
+if (-not $result) { Write-Output "JOIN_FAILED: $lastErr"; return }
+Write-Output $result
+if ($result -eq 'JOIN_STAGED') {
+    try {
+        $local = New-Object System.Management.Automation.PSCredential($GuestUser, $secGuest)
+        Invoke-Command -VMName $Vm -Credential $local -ScriptBlock { Restart-Computer -Force } -ErrorAction SilentlyContinue
+    }
+    catch { }
+    Write-Output 'REBOOT_ISSUED'
+}
+'@
+    $params = @{ GuestUser = $guestUser; Fqdn = $fqdn; JoinUser = $joinUser; Ou = $ou; Vm = $VmName }
+    $protected = @{ GuestPass = $AdminPassword; JoinPass = $AdminPassword }
+    try {
+        $out = [string](Invoke-ArcRunCommand -Config $Config -VmName $node -Script $nodeScript -Parameters $params -ProtectedParameters $protected -TimeoutSeconds 300)
+    }
+    catch {
+        Write-Step "Host-based domain join of '$VmName' failed: $($_.Exception.Message)" 'WARN'; return $false
+    }
+    if ($out -match 'ALREADY_JOINED') { Write-Step "VM '$VmName' already domain-joined to $fqdn (host check)." 'SKIP'; return $true }
+    if ($out -match 'JOIN_STAGED') { Write-Step "VM '$VmName' domain-joined to $fqdn via PowerShell Direct on '$node' (rebooting to finalize)." 'OK'; return $true }
+    Write-Step "Host-based domain join of '$VmName' did not complete: $out" 'WARN'; return $false
 }
 
 # -----------------------------------------------------------------------------
@@ -372,9 +480,11 @@ function New-WorkloadVm {
        network + data disks + a correctly-sized VM instance. When $Vm.DomainJoin is set, the AD
        domain join (JsonADDomainExtension) is applied as a SEPARATE second phase, DECOUPLED from
        VM creation: the in-guest Arc agent onboards only after the VM instance exists, so the
-       function first creates the VM, then waits (bounded) for the agent and applies the join.
-       If the agent never connects the join is deferred (not fatal) and a later re-run retries
-       it - VM creation is therefore never blocked by a slow/absent guest agent. Declarative
+       function first creates the VM, then waits (bounded) for the agent and applies the join. If
+       the agent never connects, it falls back to a host-based join over PowerShell Direct (from the
+       hosting node, via the Hyper-V VMBus); if that too is unavailable the join is deferred (not
+       fatal) and a later re-run retries it - VM creation is therefore never blocked by a slow or
+       absent guest agent. Declarative
        and idempotent (ARM no-ops unchanged resources; each phase is skipped when already done).
        Returns the VM name.
 
@@ -388,7 +498,8 @@ function New-WorkloadVm {
         [string]$AdminPassword,                    # resolved by caller (not stored)
         [int]$StoragePathIndex = 0,
         [switch]$SkipDomainJoin,
-        [int]$JoinAgentTimeoutMinutes = 15,        # bounded wait for the in-guest Arc agent
+        [switch]$NoHostJoinFallback,               # disable the PowerShell-Direct host-join fallback
+        [int]$JoinAgentTimeoutMinutes = 5,         # bounded wait for the in-guest Arc agent before falling back
         [string]$TemplateFile
     )
     if (-not $TemplateFile) {
@@ -472,7 +583,15 @@ function New-WorkloadVm {
                 else { Write-Step "VM '$($Vm.Name)' domain-join extension state = $state - verify before dependent steps." 'WARN' }
             }
             else {
-                Write-Step "VM '$($Vm.Name)' domain join DEFERRED (Arc agent not connected). Re-run this stage later to complete it." 'WARN'
+                # The Arc agent didn't onboard in time - fall back to a host-based join over
+                # PowerShell Direct (VMBus), which needs no guest->Azure path (only guest->DC on
+                # the local subnet). Still non-fatal: defer if the fallback is disabled or fails.
+                if (-not $NoHostJoinFallback -and $AdminPassword -and (Invoke-GuestDomainJoin -Config $Config -VmName $Vm.Name -AdminPassword $AdminPassword)) {
+                    Write-Step "VM '$($Vm.Name)' domain joined via PowerShell Direct fallback (Arc agent absent)." 'OK'
+                }
+                else {
+                    Write-Step "VM '$($Vm.Name)' domain join DEFERRED (Arc agent not connected; host fallback disabled/failed). Re-run this stage later to complete it." 'WARN'
+                }
             }
         }
     }
@@ -560,4 +679,4 @@ Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
     New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Wait-VmAgentConnected, Set-SqlStoragePaths, `
     Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
-    Invoke-ArcRunCommand, Sync-ClusterNodeTime
+    Invoke-ArcRunCommand, Sync-ClusterNodeTime, Get-ClusterNodeNames, Get-VmHostNode, Invoke-GuestDomainJoin
