@@ -59,17 +59,17 @@
   Images               = @{
     WindowsServer2025 = @{
       ImageName = 'ws2025-azure-edition-smalldisk'
-      Urn       = 'microsoftwindowsserver:windowsserver:2025-datacenter-azure-edition-smalldisk'
+      Urn       = 'microsoftwindowsserver:windowsserver:2025-datacenter-azure-edition-smalldisk:latest'
       OsType    = 'Windows'
     }
     Sql2022           = @{
       ImageName = 'sql2022-std-ws2022'
-      Urn       = 'microsoftsqlserver:sql2022-ws2022:standard-gen2'
+      Urn       = 'microsoftsqlserver:sql2022-ws2022:standard-gen2:latest'
       OsType    = 'Windows'
     }
     Win11Avd          = @{
       ImageName = 'win11-25h2-avd-m365'
-      Urn       = 'microsoftwindowsdesktop:office-365:win11-25h2-avd-m365'
+      Urn       = 'microsoftwindowsdesktop:office-365:win11-25h2-avd-m365:latest'
       OsType    = 'Windows'
     }
   }

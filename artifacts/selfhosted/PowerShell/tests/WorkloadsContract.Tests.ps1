@@ -39,9 +39,9 @@ Describe 'Self-hosted workloads config' {
   }
 
   It 'defines the three Gen2 marketplace images (WS2025 smalldisk)' {
-    $config.Images.WindowsServer2025.Urn | Should -Be 'microsoftwindowsserver:windowsserver:2025-datacenter-azure-edition-smalldisk'
-    $config.Images.Sql2022.Urn | Should -Be 'microsoftsqlserver:sql2022-ws2022:standard-gen2'
-    $config.Images.Win11Avd.Urn | Should -Be 'microsoftwindowsdesktop:office-365:win11-25h2-avd-m365'
+    $config.Images.WindowsServer2025.Urn | Should -Be 'microsoftwindowsserver:windowsserver:2025-datacenter-azure-edition-smalldisk:latest'
+    $config.Images.Sql2022.Urn | Should -Be 'microsoftsqlserver:sql2022-ws2022:standard-gen2:latest'
+    $config.Images.Win11Avd.Urn | Should -Be 'microsoftwindowsdesktop:office-365:win11-25h2-avd-m365:latest'
   }
 
   It 'defines two domain-joined WS2025 VMs with static InfraLNET IPs' {
