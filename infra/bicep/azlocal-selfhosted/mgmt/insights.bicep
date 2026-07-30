@@ -20,15 +20,22 @@ param workspaceName string
 @description('Resource ID of the existing Log Analytics workspace.')
 param workspaceResourceId string
 
-@description('Azure region for the monitoring resources (the Azure Local instance region).')
+@description('Azure region of the Arc cluster nodes (where the AMA extensions install).')
 param location string
+
+@description('Azure region for the DCR - must match the Log Analytics workspace region. Empty = same as location.')
+param dcrLocation string = ''
 
 @description('Resource tags.')
 param resourceTags object = {}
 
+// The DCR must be co-located with its Log Analytics workspace destination; the AMA
+// extensions install in the node region, which can differ from the workspace region.
+var effectiveDcrLocation = empty(dcrLocation) ? location : dcrLocation
+
 resource dcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
   name: '${workspaceName}-cluster-dcr'
-  location: location
+  location: effectiveDcrLocation
   tags: resourceTags
   properties: {
     dataSources: {

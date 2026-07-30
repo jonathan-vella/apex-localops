@@ -137,7 +137,7 @@ do_prereqs() {
 do_insights() {
   echo "=== Azure Local cluster Insights (Bicep, operator) ==="
   [[ -f "$INSIGHTS_BICEP" ]] || { echo "ERROR: $INSIGHTS_BICEP missing." >&2; return 1; }
-  local wsName wsId nodes loc
+  local wsName wsId nodes loc wsLoc
   wsName="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].name' -o tsv 2>/dev/null || true)"
   wsId="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].id' -o tsv 2>/dev/null || true)"
   [[ -n "$wsName" && -n "$wsId" ]] || { echo "ERROR: Log Analytics workspace not found in $RESOURCE_GROUP." >&2; return 1; }
@@ -145,16 +145,18 @@ do_insights() {
   [[ -n "$nodes" && "$nodes" != "[]" ]] || { echo "ERROR: no Arc cluster nodes (apexlocal-n*) found in $RESOURCE_GROUP." >&2; return 1; }
   loc="$(az connectedmachine list -g "$RESOURCE_GROUP" --query "[?starts_with(name,'apexlocal-n')]|[0].location" -o tsv 2>/dev/null || true)"
   [[ -n "$loc" ]] || loc="canadacentral"
-  echo "Workspace: $wsName  Nodes: $nodes  Region: $loc"
+  wsLoc="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].location' -o tsv 2>/dev/null || true)"
+  [[ -n "$wsLoc" ]] || wsLoc="$loc"
+  echo "Workspace: $wsName ($wsLoc)  Nodes: $nodes  Region: $loc"
   if $WHATIF; then
     az deployment group what-if -g "$RESOURCE_GROUP" --template-file "$INSIGHTS_BICEP" \
-      --parameters nodeNames="$nodes" workspaceName="$wsName" workspaceResourceId="$wsId" location="$loc"
+      --parameters nodeNames="$nodes" workspaceName="$wsName" workspaceResourceId="$wsId" location="$loc" dcrLocation="$wsLoc"
     return 0
   fi
   confirm "Enable cluster Insights (AMA+DCR on nodes) -> $wsName?" || return 1
   az deployment group create -g "$RESOURCE_GROUP" --name "insights-$(date +%Y%m%d-%H%M%S)" \
     --template-file "$INSIGHTS_BICEP" \
-    --parameters nodeNames="$nodes" workspaceName="$wsName" workspaceResourceId="$wsId" location="$loc" -o table
+    --parameters nodeNames="$nodes" workspaceName="$wsName" workspaceResourceId="$wsId" location="$loc" dcrLocation="$wsLoc" -o table
 }
 
 # --- Operator-side: AVD control plane (Bicep) --------------------------------
