@@ -22,16 +22,17 @@ BeforeAll {
 }
 
 Describe 'Self-hosted workloads config' {
-  It 'targets the self-hosted cluster + discovered fabric' {
+  It 'leaves identity/cluster values blank for runtime resolution (reusable)' {
+    $config.SubscriptionId | Should -BeNullOrEmpty
+    $config.Location | Should -BeNullOrEmpty
+    $config.CustomLocationName | Should -BeNullOrEmpty
+    $config.VmLogicalNetworkName | Should -BeNullOrEmpty
     $config.ResourceGroup | Should -Be 'rg-apexlocal'
-    $config.Location | Should -Be 'canadacentral'
-    $config.CustomLocationName | Should -Be 'apexlocal-cl'
     $config.VmSwitchName | Should -Be 'ConvergedSwitch(compute_management)'
-    $config.VmLogicalNetworkName | Should -Be 'apexlocal-InfraLNET'
   }
 
   It 'reuses InfraLNET for VMs and pre-creates the AKS lnet' {
-    $config.LogicalNetworks.Vm.Name | Should -Be 'apexlocal-InfraLNET'
+    $config.LogicalNetworks.Vm.Name | Should -BeNullOrEmpty
     $config.LogicalNetworks.Vm.ReuseExisting | Should -BeTrue
     $config.LogicalNetworks.Aks.ReuseExisting | Should -BeFalse
     $config.LogicalNetworks.Aks.Vlan | Should -Be 110
@@ -47,7 +48,7 @@ Describe 'Self-hosted workloads config' {
   It 'defines two domain-joined WS2025 VMs with static InfraLNET IPs' {
     $config.Vms.WindowsServer2025_1.Name | Should -Be 'apexws01'
     $config.Vms.WindowsServer2025_1.PrivateIp | Should -Be '192.168.1.60'
-    $config.Vms.WindowsServer2025_1.LogicalNetworkName | Should -Be 'apexlocal-InfraLNET'
+    $config.Vms.WindowsServer2025_1.LogicalNetworkName | Should -BeNullOrEmpty
     $config.Vms.WindowsServer2025_2.Name | Should -Be 'apexws02'
     $config.Vms.WindowsServer2025_2.PrivateIp | Should -Be '192.168.1.61'
     foreach ($k in 'WindowsServer2025_1', 'WindowsServer2025_2', 'AvdHost') {
@@ -85,6 +86,14 @@ Describe 'Self-hosted workloads module + orchestrator' {
   It 'deploys two WS2025 VMs in the ws2025 and all stages' {
     $orchestratorSource | Should -Match "Invoke-StageVm 'WindowsServer2025_1'"
     $orchestratorSource | Should -Match "Invoke-StageVm 'WindowsServer2025_2'"
+  }
+
+  It 'resolves subscription + cluster names at runtime (reusable across tenants)' {
+    $moduleSource | Should -Match 'function Resolve-ClusterContext'
+    $moduleSource | Should -Match "ends_with\(name,'InfraLNET'\)"
+    $orchestratorSource | Should -Match 'Resolve-ClusterContext -Config \$Config'
+    $wrapperSource | Should -Match 'reportedProperties\.nodes\[\]\.name'
+    $wrapperSource | Should -Not -Match "starts_with\(name,'apexlocal-n'\)"
   }
 }
 

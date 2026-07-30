@@ -68,11 +68,40 @@ function Resolve-AdminPassword {
     throw "Admin password not set. Export LOCALSELF_ADMIN_PASSWORD (or WORKLOADS_ADMIN_PASSWORD) before running."
 }
 
-function Resolve-CustomLocationId {
+function Resolve-ClusterContext {
+    <# Resolve identity/cluster-specific values from the target resource group so the tooling
+       is reusable across tenants: subscription (from the az context), the single custom
+       location, the Azure Local instance region, and the cluster's *-InfraLNET. Blank config
+       values are filled IN PLACE; any value already set is respected as an override. #>
     param([Parameter(Mandatory)]$Config)
-    $id = Invoke-Az -Args @('customlocation', 'show', '-g', $Config.ResourceGroup, '-n', $Config.CustomLocationName, '--query', 'id', '-o', 'tsv') -Raw
-    if ([string]::IsNullOrWhiteSpace($id)) { throw "Custom location '$($Config.CustomLocationName)' not found in $($Config.ResourceGroup)." }
-    return $id.Trim()
+    if ([string]::IsNullOrWhiteSpace($Config.SubscriptionId)) {
+        $Config.SubscriptionId = ([string](Invoke-Az -MustSucceed -Args @('account', 'show', '--query', 'id', '-o', 'tsv') -Raw)).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($Config.CustomLocationName)) {
+        $Config.CustomLocationName = ([string](Invoke-Az -Args @('customlocation', 'list', '-g', $Config.ResourceGroup, '--query', '[0].name', '-o', 'tsv') -Raw)).Trim()
+        if ([string]::IsNullOrWhiteSpace($Config.CustomLocationName)) { throw "No custom location found in $($Config.ResourceGroup)." }
+    }
+    if ([string]::IsNullOrWhiteSpace($Config.Location)) {
+        $Config.Location = ([string](Invoke-Az -Args @('customlocation', 'show', '-g', $Config.ResourceGroup, '-n', $Config.CustomLocationName, '--query', 'location', '-o', 'tsv') -Raw)).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($Config.VmLogicalNetworkName)) {
+        $Config.VmLogicalNetworkName = ([string](Invoke-Az -Args @('stack-hci-vm', 'network', 'lnet', 'list', '-g', $Config.ResourceGroup, '--query', "[?ends_with(name,'InfraLNET')].name | [0]", '-o', 'tsv') -Raw)).Trim()
+    }
+    Write-Step "Resolved: sub=$($Config.SubscriptionId) rg=$($Config.ResourceGroup) cl=$($Config.CustomLocationName) region=$($Config.Location) vmLnet=$($Config.VmLogicalNetworkName)" 'INFO'
+}
+
+function Resolve-CustomLocationId {
+    <# Return the custom location resource id. Resolves the single custom location in the RG
+       when the config leaves CustomLocationName blank (reusable across deployments). #>
+    param([Parameter(Mandatory)]$Config)
+    if ([string]::IsNullOrWhiteSpace($Config.CustomLocationName)) {
+        $id = ([string](Invoke-Az -Args @('customlocation', 'list', '-g', $Config.ResourceGroup, '--query', '[0].id', '-o', 'tsv') -Raw)).Trim()
+    }
+    else {
+        $id = ([string](Invoke-Az -Args @('customlocation', 'show', '-g', $Config.ResourceGroup, '-n', $Config.CustomLocationName, '--query', 'id', '-o', 'tsv') -Raw)).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($id)) { throw "No custom location found in $($Config.ResourceGroup)." }
+    return $id
 }
 
 function Invoke-ArcRunCommand {
@@ -202,25 +231,27 @@ function Ensure-WorkloadLogicalNetwork {
     param([Parameter(Mandatory)]$Config, [string]$CustomLocationId)
     foreach ($key in $Config.LogicalNetworks.Keys) {
         $ln = $Config.LogicalNetworks[$key]
+        # Blank Name on a reused entry => the resolved InfraLNET (VmLogicalNetworkName).
+        $lnName = if ($ln.Name) { $ln.Name } else { $Config.VmLogicalNetworkName }
         $found = Invoke-Az -Args @('stack-hci-vm', 'network', 'lnet', 'list', '-g', $Config.ResourceGroup,
-            '--query', "[?name=='$($ln.Name)'].name", '-o', 'tsv') -Raw
+            '--query', "[?name=='$lnName'].name", '-o', 'tsv') -Raw
         $exists = -not [string]::IsNullOrWhiteSpace(($found | Out-String).Trim())
         if ($ln.ReuseExisting) {
-            if ($exists) { Write-Step "Logical network '$($ln.Name)' exists (reused for VMs) - not modified." 'SKIP' }
-            else { throw "Reused logical network '$($ln.Name)' not found; the cluster must create it first." }
+            if ($exists) { Write-Step "Logical network '$lnName' exists (reused for VMs) - not modified." 'SKIP' }
+            else { throw "Reused logical network '$lnName' not found; the cluster must create it first." }
             continue
         }
-        if ($exists) { Write-Step "Logical network '$($ln.Name)' already exists - skipping create." 'SKIP'; continue }
+        if ($exists) { Write-Step "Logical network '$lnName' already exists - skipping create." 'SKIP'; continue }
         if (-not $CustomLocationId) { $CustomLocationId = Resolve-CustomLocationId -Config $Config }
-        Write-Step "Creating logical network '$($ln.Name)' (vlan $($ln.Vlan), $($ln.AddressPrefix))..."
-        if ($PSCmdlet.ShouldProcess($ln.Name, "create logical network")) {
+        Write-Step "Creating logical network '$lnName' (vlan $($ln.Vlan), $($ln.AddressPrefix))..."
+        if ($PSCmdlet.ShouldProcess($lnName, "create logical network")) {
             $null = Invoke-Az -MustSucceed -Args @('stack-hci-vm', 'network', 'lnet', 'create',
                 '-g', $Config.ResourceGroup, '--custom-location', $CustomLocationId, '--location', $Config.Location,
-                '--name', $ln.Name, '--vm-switch-name', $Config.VmSwitchName,
+                '--name', $lnName, '--vm-switch-name', $Config.VmSwitchName,
                 '--ip-allocation-method', 'static', '--address-prefixes', $ln.AddressPrefix,
                 '--gateway', $ln.Gateway, '--dns-servers', ($ln.DnsServers -join ' '), '--vlan', "$($ln.Vlan)",
                 '--ip-pool-start', $ln.IpPoolStart, '--ip-pool-end', $ln.IpPoolEnd)
-            Write-Step "Logical network '$($ln.Name)' created." 'OK'
+            Write-Step "Logical network '$lnName' created." 'OK'
         }
     }
 }
@@ -416,4 +447,4 @@ Write-Output 'AVD_AGENT_INSTALLED'
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
     New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Set-SqlStoragePaths, `
-    Add-AvdSessionHost, Resolve-CustomLocationId, Resolve-AdminPassword, Invoke-ArcRunCommand
+    Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, Invoke-ArcRunCommand

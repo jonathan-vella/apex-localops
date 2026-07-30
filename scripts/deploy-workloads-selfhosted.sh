@@ -137,14 +137,18 @@ do_prereqs() {
 do_insights() {
   echo "=== Azure Local cluster Insights (Bicep, operator) ==="
   [[ -f "$INSIGHTS_BICEP" ]] || { echo "ERROR: $INSIGHTS_BICEP missing." >&2; return 1; }
-  local wsName wsId nodes loc wsLoc
+  local wsName wsId nodes loc wsLoc cluster
   wsName="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].name' -o tsv 2>/dev/null || true)"
   wsId="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].id' -o tsv 2>/dev/null || true)"
   [[ -n "$wsName" && -n "$wsId" ]] || { echo "ERROR: Log Analytics workspace not found in $RESOURCE_GROUP." >&2; return 1; }
-  nodes="$(az connectedmachine list -g "$RESOURCE_GROUP" --query "[?starts_with(name,'apexlocal-n')].name" -o json 2>/dev/null || echo '[]')"
-  [[ -n "$nodes" && "$nodes" != "[]" ]] || { echo "ERROR: no Arc cluster nodes (apexlocal-n*) found in $RESOURCE_GROUP." >&2; return 1; }
-  loc="$(az connectedmachine list -g "$RESOURCE_GROUP" --query "[?starts_with(name,'apexlocal-n')]|[0].location" -o tsv 2>/dev/null || true)"
-  [[ -n "$loc" ]] || loc="canadacentral"
+  # Resolve the cluster + its nodes generically (no hard-coded name prefix) so this works
+  # for any self-hosted deployment.
+  cluster="$(az stack-hci cluster list -g "$RESOURCE_GROUP" --query '[0].name' -o tsv 2>/dev/null || true)"
+  [[ -n "$cluster" ]] || { echo "ERROR: no Azure Local cluster found in $RESOURCE_GROUP." >&2; return 1; }
+  nodes="$(az stack-hci cluster show -g "$RESOURCE_GROUP" -n "$cluster" --query 'reportedProperties.nodes[].name' -o json 2>/dev/null || echo '[]')"
+  [[ -n "$nodes" && "$nodes" != "[]" ]] || { echo "ERROR: no cluster nodes found for '$cluster' in $RESOURCE_GROUP." >&2; return 1; }
+  loc="$(az connectedmachine list -g "$RESOURCE_GROUP" --query '[0].location' -o tsv 2>/dev/null || true)"
+  [[ -n "$loc" ]] || loc="$(az group show -n "$RESOURCE_GROUP" --query location -o tsv 2>/dev/null || echo '')"
   wsLoc="$(az resource list -g "$RESOURCE_GROUP" --resource-type Microsoft.OperationalInsights/workspaces --query '[0].location' -o tsv 2>/dev/null || true)"
   [[ -n "$wsLoc" ]] || wsLoc="$loc"
   echo "Workspace: $wsName ($wsLoc)  Nodes: $nodes  Region: $loc"

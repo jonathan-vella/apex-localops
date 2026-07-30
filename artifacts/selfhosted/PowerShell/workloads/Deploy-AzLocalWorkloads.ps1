@@ -68,11 +68,13 @@ function Initialize-Context {
     Write-Banner "Context: verify operator login + extensions"
     $who = (& az account show --query 'user.name' -o tsv 2>$null)
     if ([string]::IsNullOrWhiteSpace($who)) { throw "Not logged in. Run 'az login' (operator) before this script." }
-    & az account set --subscription $Config.SubscriptionId 2>&1 | Out-Null
     & az config set extension.use_dynamic_install=yes_without_prompt 2>&1 | Out-Null
     foreach ($ext in @('customlocation', 'stack-hci-vm')) {
         & az extension add --name $ext 2>&1 | Out-Null
     }
+    # Resolve subscription + cluster-derived names from the RG so the tooling is reusable.
+    Resolve-ClusterContext -Config $Config
+    & az account set --subscription $Config.SubscriptionId 2>&1 | Out-Null
     Write-Host "  Authenticated as: $who  Subscription: $($Config.SubscriptionId)" -ForegroundColor DarkGray
     return (Resolve-CustomLocationId -Config $Config)
 }

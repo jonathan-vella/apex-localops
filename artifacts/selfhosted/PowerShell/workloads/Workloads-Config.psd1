@@ -8,36 +8,37 @@
   # DEV CONTAINER with operator `az login`. NO SECRETS: the VM/domain admin password
   # is read at runtime from $LOCALSELF_ADMIN_PASSWORD (never stored).
   #
-  # Values captured from the live cluster on 2026-07-30 (read-only discovery):
-  #   custom location = apexlocal-cl ; compute switch = ConvergedSwitch(compute_management) ;
-  #   apexlocal-InfraLNET owns 192.168.1.0/24 VLAN 0 (infra pools .21-.23).
-  # Everything here is ADDITIVE - it never modifies the cluster or InfraLNET config.
+  # REUSABLE ACROSS TENANTS: identity/cluster-specific values below are left BLANK and
+  # RESOLVED at runtime from the target resource group (subscription from `az login`, the
+  # single custom location, the instance region, and the cluster's *-InfraLNET). Point the
+  # tooling at your RG with --resource-group; only the lab choices (VM names/IPs/sizes,
+  # image + AVD names) are hard defaults you can override. Everything is ADDITIVE.
   # =============================================================================
 
-  # --- Target scope -----------------------------------------------------------
-  SubscriptionId       = 'b47d2942-f5ad-4d3c-b28e-c23e4f83d97e'
-  ResourceGroup        = 'rg-apexlocal'
-  Location             = 'canadacentral'       # region the Azure Local instance is registered in
-  CustomLocationName   = 'apexlocal-cl'        # id resolved at runtime
+  # --- Target scope (blank = resolved at runtime; set a value to pin it) ------
+  SubscriptionId       = ''    # resolved from `az account show`
+  ResourceGroup        = 'rg-apexlocal'    # the self-hosted deploy default; override with --resource-group
+  Location             = ''    # resolved from the custom location (the Azure Local instance region)
+  CustomLocationName   = ''    # resolved: the single custom location in the resource group
 
-  # --- Existing fabric (already provisioned; referenced, never recreated) -----
+  # --- Existing fabric (referenced, never recreated) --------------------------
+  # The default compute switch Azure Local creates for the Compute_Management intent.
   VmSwitchName         = 'ConvergedSwitch(compute_management)'
 
-  # Tenant VMs reuse the cluster's existing infrastructure logical network with
-  # STATIC IPs (see Vms[].PrivateIp). This needs no VLAN and no nested-router change:
-  # the VMs sit on 192.168.1.0/24 alongside the DC (.254) and router (.1).
-  VmLogicalNetworkName = 'apexlocal-InfraLNET'
+  # Tenant VMs reuse the cluster's own infrastructure logical network (*-InfraLNET) with
+  # STATIC IPs (see Vms[].PrivateIp) - no VLAN and no nested-router change needed.
+  VmLogicalNetworkName = ''    # resolved: the cluster's *-InfraLNET
 
   # Logical networks the 'network' stage ensures. InfraLNET is reused (verified, never
   # created); the AKS network is pre-created for the future AKS plan (its router route
   # and VIP wiring land with that plan). VLAN 110 is inside the node trunk range 0-1000.
   LogicalNetworks      = @{
     Vm  = @{
-      Name          = 'apexlocal-InfraLNET'
+      Name          = ''    # resolved to VmLogicalNetworkName (the *-InfraLNET)
       ReuseExisting = $true
     }
     Aks = @{
-      Name          = 'apexlocal-aks-lnet-vlan110'
+      Name          = 'aks-lnet-vlan110'
       AddressPrefix = '10.10.0.0/24'
       Gateway       = '10.10.0.1'
       DnsServers    = @('192.168.1.254')
@@ -89,8 +90,8 @@
 
   # --- Workload VM definitions ------------------------------------------------
   # Azure Local sizes VMs by EXPLICIT vCPU + memory (vm.bicep sets vmSize='Custom').
-  # PrivateIp assigns a static address on the reused InfraLNET (outside its .21-.23
-  # infra pool). LogicalNetworkName selects the target lnet per VM.
+  # PrivateIp assigns a static address on the reused InfraLNET (outside its infra pool).
+  # LogicalNetworkName blank => the resolved VmLogicalNetworkName (the *-InfraLNET).
   Vms                  = @{
     WindowsServer2025_1 = @{
       Name               = 'apexws01'          # <=15 chars for NetBIOS/domain join
@@ -98,7 +99,7 @@
       VCpus              = 2
       MemoryMb           = 8192                # 8 GB
       DomainJoin         = $true
-      LogicalNetworkName = 'apexlocal-InfraLNET'
+      LogicalNetworkName = ''
       PrivateIp          = '192.168.1.60'
       DataDisks          = @()
     }
@@ -108,7 +109,7 @@
       VCpus              = 2
       MemoryMb           = 8192
       DomainJoin         = $true
-      LogicalNetworkName = 'apexlocal-InfraLNET'
+      LogicalNetworkName = ''
       PrivateIp          = '192.168.1.61'
       DataDisks          = @()
     }
@@ -119,7 +120,7 @@
       VCpus              = 4
       MemoryMb           = 16384               # 16 GB
       DomainJoin         = $true
-      LogicalNetworkName = 'apexlocal-InfraLNET'
+      LogicalNetworkName = ''
       PrivateIp          = '192.168.1.62'
       DataDisks          = @(
         @{ Name = 'apexsql01-data'; SizeGb = 128; Purpose = 'data' }
@@ -132,7 +133,7 @@
       VCpus              = 4
       MemoryMb           = 16384               # 16 GB
       DomainJoin         = $true
-      LogicalNetworkName = 'apexlocal-InfraLNET'
+      LogicalNetworkName = ''
       PrivateIp          = '192.168.1.70'
       DataDisks          = @()
     }
