@@ -14,8 +14,8 @@ applyTo: "infra/bicep/**/*.bicep"
 
 ## Scope
 
-Owned templates live under `infra/bicep/` (`azlocal-js`, `azlocal-selfhosted`, `azlocal-sff`,
-`aks-baremetal`). Each profile has a `main.bicep` plus `host/`, `network/`, `mgmt/` modules.
+Owned templates live under `infra/bicep/` (`azlocal-selfhosted`, `azlocal-sff`,
+`aks-baremetal`, `azlocal-vm`). Each profile has a `main.bicep` plus `host/`, `network/`, `mgmt/` modules.
 
 ## Authoring rules
 
@@ -51,7 +51,7 @@ az bicep build --file infra/bicep/<profile>/main.bicep --stdout > /dev/null
 az bicep lint  --file infra/bicep/<profile>/main.bicep
 ```
 
-[.github/workflows/validate.yml](../workflows/validate.yml) builds + lints `azlocal-js`,
+[.github/workflows/validate.yml](../workflows/validate.yml) builds + lints `azlocal-selfhosted`,
 `azlocal-sff`, and `aks-baremetal` and fails on any Error-level diagnostic.
 
 ## Anti-patterns

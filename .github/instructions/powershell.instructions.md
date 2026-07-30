@@ -1,6 +1,6 @@
 ---
 description: "PowerShell cmdlet and scripting best practices (Microsoft guidelines) for owned workload and self-hosted automation."
-applyTo: "artifacts/PowerShell/workloads/**/*.ps1, artifacts/PowerShell/workloads/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.psd1"
+applyTo: "artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.psd1"
 ---
 
 # PowerShell Cmdlet & Scripting Guidelines
@@ -9,11 +9,9 @@ applyTo: "artifacts/PowerShell/workloads/**/*.ps1, artifacts/PowerShell/workload
 > `.github/instructions/powershell.instructions.md`, retargeted for apex-localops.
 
 > [!IMPORTANT]
-> **Scope is owned code only** (`artifacts/PowerShell/workloads/` and
-> `artifacts/selfhosted/PowerShell/`). The rest of `artifacts/PowerShell/`,
-> `artifacts/PowerShell/dsc/`, and `artifacts/sff/vendor/` is **vendored** from upstream
-> (Arc Jumpstart LocalBox / Azure-Samples, CC BY 4.0 / MIT) — do **not** reformat it to these
-> rules; see [ATTRIBUTION.md](../../ATTRIBUTION.md).
+> **Scope is owned code only** (`artifacts/selfhosted/PowerShell/`). The vendored
+> `artifacts/sff/vendor/` tree (Azure-Samples, MIT) is out of scope — do **not** reformat it to
+> these rules; see [ATTRIBUTION.md](../../ATTRIBUTION.md).
 
 ## Quick reference
 
@@ -23,7 +21,7 @@ applyTo: "artifacts/PowerShell/workloads/**/*.ps1, artifacts/PowerShell/workload
 | Parameters | PascalCase, singular; use `ValidateSet`/`ValidateNotNullOrEmpty` |
 | Variables | PascalCase (public), camelCase (private); no cryptic abbreviations |
 | Aliases | Never in scripts — full cmdlet + parameter names |
-| Indentation | Preserve the tree: 4 spaces in `workloads/`, 2 spaces in `selfhosted/`; opening `{` on the same line |
+| Indentation | Preserve each file's existing indentation; opening `{` on the same line |
 | Compatibility | Self-hosted bootstrap/runtime code must parse and run in Windows PowerShell 5.1 |
 
 ## Mandatory patterns
@@ -44,8 +42,7 @@ that changes system state.
   advanced pipeline function.
 - `try`/`catch` with specific exception types; prefer `$PSCmdlet.ThrowTerminatingError()`.
 - `Write-Verbose` for operational detail, `Write-Warning` for warnings. Avoid `Write-Host`
-  except for genuine console UI (note: vendored LocalBox scripts use `Write-Host` heavily — that
-  is upstream style and out of scope here).
+  except for genuine console UI.
 
 ### Non-interactive design
 
@@ -55,7 +52,6 @@ unattended deploy contexts). Document all required inputs.
 ## Validation
 
 ```bash
-pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path artifacts/PowerShell/workloads -Recurse"
 pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path artifacts/selfhosted/PowerShell -Recurse -Settings .github/psscriptanalyzer-settings.psd1"
 pwsh -NoProfile -Command "Invoke-Pester -Path artifacts/selfhosted/PowerShell/tests -CI"
 ```

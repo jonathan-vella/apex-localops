@@ -39,8 +39,6 @@ Editing them directly will be overwritten or will break provenance. **Do not mod
 
 - `docs/upstream/**` and `docs/azure-local-sff/upstream/**` — synced from Microsoft docs.
 - `artifacts/sff/vendor/**` — vendored from `Azure-Samples/AzureLocal`.
-- The Arc Jumpstart LocalBox artifacts vendored under `artifacts/` — derived from
-  `microsoft/azure_arc`.
 
 If a change is needed there, fix it upstream and re-sync, or change the owned file that
 references it. See [ATTRIBUTION.md](ATTRIBUTION.md) for exact sources and pinned commits.
@@ -52,8 +50,8 @@ request. Run the relevant checks before you open a PR:
 
 ```bash
 # Bicep: build + lint (per profile)
-az bicep build --file infra/bicep/azlocal-js/main.bicep --stdout > /dev/null
-az bicep lint  --file infra/bicep/azlocal-js/main.bicep
+az bicep build --file infra/bicep/azlocal-selfhosted/main.bicep --stdout > /dev/null
+az bicep lint  --file infra/bicep/azlocal-selfhosted/main.bicep
 
 # Shell: syntax + lint
 bash -n scripts/<your-script>.sh

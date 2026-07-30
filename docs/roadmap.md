@@ -12,8 +12,7 @@ the [CHANGELOG](../CHANGELOG.md); for per-profile maturity at a glance, see
 
 | Profile | Maturity | Status |
 | --- | --- | --- |
-| [LocalBox](localbox/overview.md) | Most mature | Tagged releases exist; pin `githubBranch` to a tag for reproducible deploys. |
-| [Self-hosted](selfhosted/overview.md) | Preview | Functional clean-room build; still being validated across regions and Azure Local builds. |
+| [Self-hosted](selfhosted/overview.md) | Primary | Functional clean-room build; being validated across regions and Azure Local builds. Pin `githubBranch` to a release tag for reproducible deploys. |
 | [SFF](sff/overview.md) | Preview | Evaluation only; flows and artifact names may change. |
 | [AKS on bare metal](sff/aks-baremetal.md) | Preview | East US only, single-node, Cilium; depends on preview Azure APIs. |
 

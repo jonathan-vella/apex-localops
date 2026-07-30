@@ -1,6 +1,6 @@
 ---
 description: "Code quality: commenting best practices (WHY not WHAT) and review priorities with security checks, scoped to owned source."
-applyTo: "scripts/**/*.sh, infra/bicep/**/*.bicep, artifacts/PowerShell/workloads/**/*.ps1, artifacts/PowerShell/workloads/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.psd1, .github/workflows/*.yml"
+applyTo: "scripts/**/*.sh, infra/bicep/**/*.bicep, artifacts/selfhosted/PowerShell/**/*.ps1, artifacts/selfhosted/PowerShell/**/*.psm1, artifacts/selfhosted/PowerShell/**/*.psd1, .github/workflows/*.yml"
 ---
 
 # Code Quality Guidelines
@@ -53,7 +53,7 @@ Language files take precedence over this general guidance:
 ## Project context
 
 - **IaC**: Azure Bicep under `infra/bicep/`. **Scripts**: bash (`scripts/`) and owned
-  PowerShell under `artifacts/PowerShell/workloads/` and `artifacts/selfhosted/PowerShell/`.
+  PowerShell under `artifacts/selfhosted/PowerShell/`.
 - **CI**: [.github/workflows/validate.yml](../workflows/validate.yml) — Bicep, shell,
   PowerShell, skill, and documentation validation.
 - **Style**: Conventional Commits; LF line endings; ASCII in workflow YAML.

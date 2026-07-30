@@ -15,7 +15,6 @@ body:
       label: Profile
       description: Which deployment profile does this affect?
       options:
-        - LocalBox
         - Self-hosted (zero Jumpstart)
         - Small Form Factor (SFF)
         - AKS on bare metal
@@ -36,8 +35,8 @@ body:
       label: Steps to reproduce
       description: The exact commands or portal steps you ran, in order.
       placeholder: |
-        1. ./scripts/check-providers.sh
-        2. ./scripts/deploy.sh -g rg-localbox -l swedencentral
+        1. ./scripts/check-providers-selfhosted.sh
+        2. ./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal --location swedencentral
         3. ...
     validations:
       required: true
@@ -66,7 +65,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I read the relevant guide and the [troubleshooting docs](https://github.com/jonathan-vella/apex-localops/blob/main/docs/localbox/troubleshooting.md).
+        - label: I read the relevant guide and the [troubleshooting docs](https://github.com/jonathan-vella/apex-localops/blob/main/docs/selfhosted/troubleshooting.md).
           required: true
         - label: I searched existing issues for a duplicate.
           required: true

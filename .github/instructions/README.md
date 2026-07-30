@@ -15,7 +15,7 @@ to **owned** source — vendored trees are excluded.
 | File | applyTo (owned scope) | Purpose |
 | --- | --- | --- |
 | [shell.instructions.md](shell.instructions.md) | `scripts/**/*.sh` | Bash conventions (safety, quoting, `mktemp`, ShellCheck) |
-| [powershell.instructions.md](powershell.instructions.md) | `artifacts/PowerShell/workloads/**` | PowerShell cmdlet style for owned modules (vendored LocalBox excluded) |
+| [powershell.instructions.md](powershell.instructions.md) | `artifacts/selfhosted/PowerShell/**` | PowerShell cmdlet style for owned self-hosted modules |
 | [iac-bicep-best-practices.instructions.md](iac-bicep-best-practices.instructions.md) | `infra/bicep/**/*.bicep` | Bicep naming, secure params, `az bicep` validation |
 | [github-actions.instructions.md](github-actions.instructions.md) | `.github/workflows/*.yml` | Workflow pinning (`@v5`), least-privilege, sync-mirror pattern |
 | [markdown.instructions.md](markdown.instructions.md) | owned `docs/` + root `*.md` | Doc formatting (vendored mirrors excluded) |
@@ -28,7 +28,7 @@ to **owned** source — vendored trees are excluded.
 ## Conventions
 
 - **Scope to owned roots, never `**`.** `applyTo` globs cannot reliably negate, so owned paths are
-  enumerated explicitly. Vendored trees are never targeted: `artifacts/PowerShell/` (except
-  `workloads/`), `artifacts/sff/vendor/`, `docs/upstream/**`, `docs/azure-local-sff/upstream/**`.
+  enumerated explicitly. Vendored trees are never targeted: `artifacts/sff/vendor/`,
+  `docs/upstream/**`, `docs/azure-local-sff/upstream/**`.
 - **Docs-only.** These files are guidance; no new CI gate enforces them. The existing
   [validate.yml](../workflows/validate.yml) covers Bicep, shell, and skills.

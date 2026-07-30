@@ -10,10 +10,10 @@ grouped by area. Each guide links here on first use of an unfamiliar term.
 | Term | Definition |
 | --- | --- |
 | **apex-localops** | This repository. It deploys nested Azure Local evaluation environments inside a single Azure virtual machine (VM). |
-| **LocalBox profile** | The vendored, Jumpstart-based profile. It builds a nested 2- or 3-node Azure Local cluster plus a management host from prebaked Arc Jumpstart artifacts. See [LocalBox overview](localbox/overview.md). |
-| **Self-hosted profile** | The clean-room profile (also called *zero-Jumpstart*). It builds the same nested cluster from operator-staged ISOs, with no prebaked Jumpstart images or modules. See [Self-hosted overview](selfhosted/overview.md). |
+| **LocalBox profile** | The original Jumpstart-based profile, **retired in v2.0.0** (last release [v1.3.0](https://github.com/jonathan-vella/apex-localops/releases/tag/v1.3.0)). Superseded by the clean-room [Self-hosted profile](selfhosted/overview.md). |
+| **Self-hosted profile** | The primary, clean-room profile (also called *zero-Jumpstart*). It builds a nested 3-node Azure Local cluster from operator-staged ISOs, with no prebaked Jumpstart images or modules. See [Self-hosted overview](selfhosted/overview.md). |
 | **SFF profile** | The Small Form Factor profile. It builds a single nested edge test VM at roughly one-tenth the cost of the cluster profiles. See [SFF overview](sff/overview.md). |
-| **Jumpstart (Arc Jumpstart)** | A Microsoft project of ready-to-deploy sandbox environments. The LocalBox profile is derived from its LocalBox sandbox. |
+| **Jumpstart (Arc Jumpstart)** | A Microsoft project of ready-to-deploy sandbox environments. apex-localops originated from its LocalBox sandbox (the LocalBox profile, retired in v2.0.0). |
 | **Profile** | One of the three deployment paths above. Each profile has its own quickstart, sizing guide, and Bicep templates. |
 
 ## Azure Local and clustering
@@ -63,7 +63,7 @@ grouped by area. Each guide links here on first use of an unfamiliar term.
 | **Managed identity (MI)** | An Entra identity assigned to an Azure resource so it can authenticate without stored secrets. The host and jumpbox VMs use one to read storage. |
 | **UAA (User Access Administrator)** | The role that allows creating role assignments. The self-hosted in-VM deploy needs it because it both creates resources and assigns roles. |
 | **Resource provider (RP)** | The Azure service that supplies a resource type. Each profile registers the RPs it needs before deploying. |
-| **Service principal object ID** | The directory object ID of a resource provider's identity. The LocalBox deploy resolves the Azure Local RP object ID at runtime. |
+| **Service principal object ID** | The directory object ID of a resource provider's identity. The deploy resolves the Azure Local RP object ID at runtime. |
 | **Ownership voucher** | A signed `.pem` document that proves ownership of an SFF device and authorizes provisioning it into Azure. |
 
 ## Kubernetes and edge
@@ -96,7 +96,7 @@ grouped by area. Each guide links here on first use of an unfamiliar term.
 | **ARM (Azure Resource Manager)** | The Azure deployment and management layer that Bicep compiles to. |
 | **what-if** | An Azure deployment preview that reports the changes a template would make before you apply it. |
 | **CSE (Custom Script Extension)** | A VM extension that runs a setup script (`Bootstrap.ps1`) after the VM is created. |
-| **DSC (Desired State Configuration)** | A PowerShell configuration system used by the in-VM LocalBox build. |
+| **DSC (Desired State Configuration)** | A PowerShell configuration system used by in-VM build automation. |
 | **Preflight** | The fast local checks `deploy*.sh` runs before a deployment to fail early on misconfiguration. |
 | **Progress tag** | A resource-group tag (for example `DeploymentProgress`, `SffProgress`, `ApexProgress`) the in-VM scripts update at each milestone so the monitor scripts can track the build without signing in. |
 

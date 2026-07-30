@@ -7,9 +7,32 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [semantic-ish versioning](https://semver.org/) via git tags. Pin `githubBranch` to a tag
-in `infra/bicep/azlocal-js/main.bicepparam` for reproducible deploys.
+in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ## [Unreleased]
+
+## [v2.0.0] - 2026-07-30
+
+### Removed
+
+- **The LocalBox (Arc Jumpstart) profile has been retired.** Removed `docs/localbox/**` (a
+  redirect stub remains), the in-VM build tree `artifacts/PowerShell/**`, the root Jumpstart
+  artifacts (`settingsTemplate.json`, `sqlmi*`, `dataController*`, `adConnector*`, `azlocal*`,
+  `jumpstart-user-secret.yaml`, `LogInstructions.txt`), the `infra/bicep/azlocal-js/**` IaC, and
+  the six LocalBox scripts (`deploy.sh`, `deploy-workloads.sh`, `check-providers.sh`,
+  `cleanup.sh`, `monitor.sh`, `recover-cluster.sh`). **The last release that includes LocalBox
+  is [v1.3.0](https://github.com/jonathan-vella/apex-localops/releases/tag/v1.3.0)** —
+  `git checkout v1.3.0` to use it.
+
+### Changed
+
+- **Self-hosted is now the primary profile.** The README, documentation hub, profile chooser,
+  glossary, roadmap, and issue template were rewritten around the two remaining profiles
+  (**Self-hosted** and **SFF**). `ATTRIBUTION.md` is trimmed to the current tree but keeps the
+  CC BY 4.0 LocalBox derivation (the self-hosted profile was forked from it). The `validate`
+  workflow no longer builds the removed `azlocal-js` templates.
+
+> **Breaking:** anyone deploying LocalBox from `main` must pin to `v1.3.0`.
 
 ## [v1.3.0] - 2026-07-30
 
@@ -186,6 +209,7 @@ Initial release - a self-contained packaging of the Arc Jumpstart **LocalBox** s
 - Docs, CC BY 4.0 `LICENSE` + `ATTRIBUTION.md`, and a `validate` CI workflow (Bicep
   build/lint + ShellCheck).
 
+[v2.0.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v2.0.0
 [v1.3.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.3.0
 [v1.2.1]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.1
 [v1.2.0]: https://github.com/jonathan-vella/apex-localops/releases/tag/v1.2.0

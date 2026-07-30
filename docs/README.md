@@ -15,14 +15,13 @@ profile, and follow its guide.
 
 ## Choose a profile
 
-apex-localops ships three evaluation profiles. Each one builds a nested Azure Local
+apex-localops ships two evaluation profiles. Each one builds a nested Azure Local
 environment inside one Azure VM and deploys into a Bastion-only resource group with no public
 IP on the VMs.
 
 | Profile | What it builds | Est. cost (24×7) | Start here |
 | --- | --- | --- | --- |
-| **LocalBox** | A nested 2- or 3-node Azure Local cluster plus a management host, from Arc Jumpstart artifacts | ~$7,850/mo | [LocalBox quickstart](localbox/quickstart.md) |
-| **Self-hosted** | The same nested cluster, built clean-room from operator-staged ISOs (no Jumpstart dependency) | ~$7,850/mo | [Self-hosted quickstart](selfhosted/quickstart.md) |
+| **Self-hosted** | A nested 3-node Azure Local cluster, built clean-room from operator-staged ISOs (no Arc Jumpstart dependency) | ~$7,850/mo | [Self-hosted quickstart](selfhosted/quickstart.md) |
 | **Small Form Factor (SFF)** | A single nested edge test VM (Maintenance OS / ROE) at roughly one-tenth the cost | ~$700–900/mo | [SFF quickstart](sff/quickstart.md) |
 
 For a feature-by-feature comparison and a decision guide, see [Choose a profile](choose-a-profile.md).
@@ -33,36 +32,36 @@ For a feature-by-feature comparison and a decision guide, see [Choose a profile]
 
 ## Architecture at a glance
 
-The LocalBox profile builds a nested 3-node cluster and a management host inside one Hyper-V
-host VM. The self-hosted profile uses the same topology, built from ISOs across two VMs; SFF
-uses a lighter single-host topology.
+The Self-hosted profile builds a nested 3-node cluster with a domain controller and router
+inside one Hyper-V host VM, from OS ISOs staged through a jumpbox. SFF uses a lighter
+single-host topology. See each profile's overview for its detailed diagram.
 
 ```mermaid
 flowchart TB
     User(["Operator"])
 
-    subgraph RG["Azure subscription · resource group rg-localbox"]
+    subgraph RG["Azure subscription · resource group rg-apexlocal"]
         direction TB
 
-        subgraph Edge["Edge / network — no public IP on the VM"]
+        subgraph Edge["Edge / network — no public IP on the VMs"]
             Bastion["Azure Bastion"]
             NAT["NAT Gateway"]
         end
 
         KV["Key Vault"]
         LAW["Log Analytics"]
-        Jump["LocalBox-Mgmt<br/>Windows 11 jumpbox<br/>(optional)"]
+        Jump["ISO-staging jumpbox<br/>(stages the two OS ISOs)"]
 
-        subgraph Host["LocalBox-Client · Standard_E64s_v6 · Hyper-V host"]
+        subgraph Host["Self-hosted host · Standard_E64s_v6 · Hyper-V"]
             direction TB
             subgraph Cluster["Nested Azure Local cluster — 3 nodes, no witness"]
                 direction LR
-                H1["AzLHOST1"]
-                H2["AzLHOST2"]
-                H3["AzLHOST3"]
+                H1["node 1"]
+                H2["node 2"]
+                H3["node 3"]
             end
-            Mgmt["AzLMGMT<br/>Domain Controller · RRAS/BGP router · Windows Admin Center"]
-            Pool["12 × 256 GB P30 disks<br/>Storage Spaces pool V: (3 TB)"]
+            Mgmt["Domain Controller · RRAS/BGP router<br/>(nested VMs built from ISOs)"]
+            Pool["12 × 256 GB P30 disks<br/>Storage Spaces Direct pool"]
         end
     end
 
@@ -75,30 +74,20 @@ flowchart TB
 **Diagram key:** solid arrows are network paths; the dotted arrow is the Storage Spaces Direct
 (S2D) data path that pools the host disks. The operator reaches the host only through Azure
 Bastion. Per-profile diagrams live in each profile's overview:
-[LocalBox](localbox/overview.md) · [Self-hosted](selfhosted/overview.md) · [SFF](sff/overview.md).
+[Self-hosted](selfhosted/overview.md) · [SFF](sff/overview.md).
 
 ## Cost at a glance
 
 Every profile bills for **disks, Bastion, and NAT Gateway even when the VMs are stopped**.
 Delete the resource group to stop all charges. Figures are retail pay-as-you-go in Sweden
-Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
+Central (self-hosted and the SFF host), with Azure Hybrid Benefit on.
 
 | Profile | Always-on (24×7) | Deallocated floor | Full breakdown |
 | --- | --- | --- | --- |
-| LocalBox | ~$7,850/mo | ~$1,933/mo | [LocalBox sizing](localbox/sizing.md) |
 | Self-hosted | ~$7,850/mo | meaningful floor | [Self-hosted sizing](selfhosted/sizing.md) |
 | SFF | ~$700–900/mo | ~$250/mo | [SFF sizing](sff/sizing.md) |
 
 ## Documentation index
-
-### LocalBox profile
-
-| Guide | What's inside |
-| --- | --- |
-| [Overview](localbox/overview.md) | Topology, what gets deployed, and when to use this profile. |
-| [Quickstart](localbox/quickstart.md) | Prerequisites, register providers, deploy, monitor the in-VM build, connect, and clean up. |
-| [Sizing and cost](localbox/sizing.md) | VM and disk sizing, the full cost breakdown, and the 2- vs 3-node topology rationale. |
-| [Troubleshooting](localbox/troubleshooting.md) | Deployment and build failures, witness and policy issues, and recovery steps. |
 
 ### Self-hosted profile
 
@@ -119,7 +108,7 @@ Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
 | [Runbook](sff/runbook.md) | Download the ownership voucher and provision the machine from the Azure portal. |
 | [Zero-touch deployment](sff/zero-touch.md) | Chain every stage — providers through AKS — with one orchestrator. |
 | [AKS on bare metal](sff/aks-baremetal.md) | Deploy a single-node, Arc-connected Kubernetes cluster onto the provisioned machine. |
-| [Sizing and cost](sff/sizing.md) | Host SKU options, nested VM count, cost, and the LocalBox-vs-SFF comparison. |
+| [Sizing and cost](sff/sizing.md) | Host SKU options, nested VM count, cost, and the cluster-vs-SFF comparison. |
 
 ### Reference
 
@@ -134,11 +123,9 @@ Central (LocalBox, self-hosted, and the SFF host), with Azure Hybrid Benefit on.
 
 Each journey starts at a quickstart and ends with a running environment.
 
-- **Evaluate the full cluster (fastest):** [Choose a profile](choose-a-profile.md) →
-  [LocalBox overview](localbox/overview.md) → [LocalBox quickstart](localbox/quickstart.md) →
-  [Troubleshooting](localbox/troubleshooting.md) if needed.
-- **Build the cluster clean-room (no Jumpstart):** [Self-hosted overview](selfhosted/overview.md) →
-  [Self-hosted sizing](selfhosted/sizing.md) → [Self-hosted quickstart](selfhosted/quickstart.md).
+- **Build the full cluster (clean-room):** [Choose a profile](choose-a-profile.md) →
+  [Self-hosted overview](selfhosted/overview.md) → [Self-hosted sizing](selfhosted/sizing.md) →
+  [Self-hosted quickstart](selfhosted/quickstart.md) → [Troubleshooting](selfhosted/troubleshooting.md) if needed.
 - **Evaluate an edge device:** [SFF overview](sff/overview.md) →
   [SFF quickstart](sff/quickstart.md) → [SFF runbook](sff/runbook.md) →
   [AKS on bare metal](sff/aks-baremetal.md). For the hands-off path, use
