@@ -45,13 +45,14 @@ flowchart TB
         NAT["NAT Gateway + static PIP<br/>(all egress)"]
         SA["Storage account (OAuth-only)<br/>Blob private endpoint<br/>iso-images/ + logs/"]
         LA["Log Analytics workspace"]
+        ARM["Azure Local instance<br/>(Arc-projected)"]
     end
     OP["Operator"] -->|RDP over Bastion| BASTION --> MGMT
     MGMT -->|Upload-Isos.ps1 (MI)| SA
     HOST -->|pull ISOs + write logs (MI)| SA
     HOST -->|Azure Monitor Agent + DCR| LA
     WL -->|egress| NAT
-    HOST -. progress tags / cluster .-> ARM["Azure Local instance<br/>(Arc-projected)"]
+    HOST -. progress tags / cluster .-> ARM
 ```
 
 **Diagram key:** solid arrows are network and data paths; the dotted arrow is the Arc
@@ -88,17 +89,23 @@ flowchart TB
             HNAT["host 192.168.128.1 + New-NetNat"]
         end
     end
+    subgraph EXTERNAL["External (Azure + Internet)"]
+        INET["Internet / Azure"]
+        ARC["Arc-enabled servers"]
+        CLUSTER["Azure Local cluster<br/>(validate -> deploy)"]
+    end
     N1 & N2 & N3 -->|gw .1| RTR
     DC -->|gw .1| RTR
-    RTR -->|.10 -> .1| HNAT -->|host Azure NIC| INET["Internet / Azure"]
-    N1 & N2 & N3 -->|Arc connect| ARC["Arc-enabled servers"]
-    ARC --> CLUSTER["Azure Local cluster<br/>(validate -> deploy)"]
+    RTR -->|.10 -> .1| HNAT -->|host Azure NIC| INET
+    N1 & N2 & N3 -->|Arc connect| ARC
+    ARC --> CLUSTER
     DC -. DNS/NTP/OU .-> N1 & N2 & N3
 ```
 
-**Diagram key:** the two `subgraph` boxes are the host's internal and NAT-uplink Hyper-V
-switches. Solid arrows are routed traffic; the dotted arrow is the DNS, NTP, and organizational
-unit (OU) configuration the domain controller applies to the nodes.
+**Diagram key:** the nested host (left) contains two Hyper-V virtual switches: the internal
+management/fabric switch and the NAT-uplink switch. Solid arrows show routed traffic; dotted
+arrows show DNS, NTP, and organizational unit (OU) configuration. The external group (right)
+shows the Arc projection and cluster deployment context.
 
 The router VM (`apexlocal-rtr`) is the management subnet's default gateway (`192.168.1.1`),
 exactly as Jumpstart's `vm-router` is. It has a second network interface on the
