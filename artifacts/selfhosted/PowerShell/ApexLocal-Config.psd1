@@ -115,7 +115,10 @@
     NodeCpuCount    = 16
     Generation      = 2
     DataDiskCount   = 4
-    DataDiskSizeGB  = 170
+    # 4 x 600 GB per node => a ~7.2 TB nested S2D pool. After 3-way mirror and the fixed
+    # Infrastructure_1 + performance-history volumes that leaves ~2.1 TB usable for images,
+    # workload VMs and AKS. Thin CSV "free space" lies, so size the POOL, not the volume.
+    DataDiskSizeGB  = 600
     FabricAdapter   = 'FABRIC'
     StorageAdapterA = 'StorageA'
     StorageAdapterB = 'StorageB'

@@ -146,8 +146,8 @@ if (-not (Test-Path 'V:\')) {
   Write-Output 'Pooling the data disks into drive V:...'
   $poolName = 'ApexLocalPool'
   $vdiskName = 'ApexLocalDisk'
-  $expectedDataDiskCount = 12
-  $expectedDataDiskSize = 256GB
+  $expectedDataDiskCount = 8
+  $expectedDataDiskSize = 1024GB
   $canPool = @(
     foreach ($physicalDisk in Get-PhysicalDisk -CanPool $true -ErrorAction SilentlyContinue) {
       $disk = Get-Disk -UniqueId $physicalDisk.UniqueId -ErrorAction SilentlyContinue
@@ -174,7 +174,7 @@ if (-not (Test-Path 'V:\')) {
     Write-Output 'Data disks pooled and mounted as V:.'
   }
   else {
-    throw "Expected exactly $expectedDataDiskCount raw, non-system 256-GB data disks; found $($canPool.Count)."
+    throw "Expected exactly $expectedDataDiskCount raw, non-system 1024-GB data disks; found $($canPool.Count)."
   }
 }
 else {

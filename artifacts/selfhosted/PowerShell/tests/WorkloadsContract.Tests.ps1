@@ -31,13 +31,22 @@ Describe 'Self-hosted workloads config' {
     $config.VmSwitchName | Should -Be 'ConvergedSwitch(compute_management)'
   }
 
-  It 'creates a dedicated tenant VM lnet and pre-creates the AKS lnet' {
+  It 'creates a dedicated tenant VM lnet and an AKS lnet on the same derived L2' {
     $config.LogicalNetworks.Vm.Name | Should -Be 'apexlocal-vmlnet'
     $config.LogicalNetworks.Vm.ReuseExisting | Should -BeFalse
     $config.LogicalNetworks.Vm.AddressPrefix | Should -BeNullOrEmpty
+    $config.LogicalNetworks.Aks.Name | Should -Be 'apexlocal-akslnet'
     $config.LogicalNetworks.Aks.ReuseExisting | Should -BeFalse
-    $config.LogicalNetworks.Aks.Vlan | Should -Be 110
-    $config.LogicalNetworks.Aks.AddressPrefix | Should -Be '10.10.0.0/24'
+    # Derived from the InfraLNET at runtime: an unroutable tagged network cannot reach the DC or Azure.
+    $config.LogicalNetworks.Aks.AddressPrefix | Should -BeNullOrEmpty
+    $config.LogicalNetworks.Aks.Vlan | Should -BeNullOrEmpty
+  }
+
+  It 'defines the AKS cluster with a control-plane IP outside the node pool' {
+    $config.Aks.ClusterName | Should -Be 'apexlocal-aks'
+    $config.Aks.LogicalNetworkKey | Should -Be 'Aks'
+    $config.Aks.ControlPlaneIp | Should -BeNullOrEmpty   # derived: .129, just below the .130-.150 pool
+    $config.Aks.NodeCount | Should -BeGreaterThan 0
   }
 
   It 'defines the three Gen2 marketplace images (WS2025 smalldisk)' {

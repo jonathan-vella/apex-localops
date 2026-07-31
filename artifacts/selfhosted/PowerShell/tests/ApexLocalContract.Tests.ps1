@@ -91,9 +91,9 @@ Describe 'Self-hosted release topology' {
     $hostBicepSource | Should -Not -Match "Standard_E32s_v[56]|Standard_E48s_v[56]"
   }
 
-  It 'creates four blank 170 GB S2D disks per node' {
+  It 'creates four blank 600 GB S2D disks per node' {
     $config.Cluster.DataDiskCount | Should -Be 4
-    $config.Cluster.DataDiskSizeGB | Should -Be 170
+    $config.Cluster.DataDiskSizeGB | Should -Be 600
     $nodeFunctionSource | Should -Match 'DataDiskSizeGB'
     $nodeFunctionSource | Should -Match 'Add-VMHardDiskDrive'
     $nodeFunctionSource | Should -Match 'DataDiskCount'
@@ -343,7 +343,7 @@ Describe 'Self-hosted orchestration safety' {
   }
 
   It 'resolves both perishable ISO pins before anything starts billing' {
-    # A dead pin discovered during staging means the host and its 12 Premium disks
+    # A dead pin discovered during staging means the host and its 8 Premium disks
     # have already been billing for ~20 minutes.
     $deployWrapperSource | Should -Match 'aka\.ms/hcireleaseimage/\$\{AZURE_LOCAL_RELEASE_CODE\}'
     $deployWrapperSource | Should -Match 'WINDOWS_SERVER_ISO_ALIAS'
@@ -937,11 +937,11 @@ Describe 'Self-hosted orchestration safety' {
   }
 
   It 'fails fast without the data volume and allows the full build window' {
-    $bootstrapSource | Should -Match '\$expectedDataDiskCount = 12'
-    $bootstrapSource | Should -Match '\$expectedDataDiskSize = 256GB'
+    $bootstrapSource | Should -Match '\$expectedDataDiskCount = 8'
+    $bootstrapSource | Should -Match '\$expectedDataDiskSize = 1024GB'
     $bootstrapSource | Should -Match '-not \$disk\.IsBoot -and -not \$disk\.IsSystem'
     $bootstrapSource | Should -Match "PartitionStyle -eq 'RAW'"
-    $bootstrapSource | Should -Match 'Expected exactly \$expectedDataDiskCount raw, non-system 256-GB data disks'
+    $bootstrapSource | Should -Match 'Expected exactly \$expectedDataDiskCount raw, non-system 1024-GB data disks'
     $bootstrapSource | Should -Match "throw 'Required V: drive is unavailable"
     $bootstrapSource | Should -Match 'ExecutionTimeLimit \(New-TimeSpan -Hours 24\)'
     $answerDirectoryIndex = $bootstrapSource.IndexOf('$cfg.Paths.AnswerDir')

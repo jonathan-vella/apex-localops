@@ -16,6 +16,7 @@ VM, with a separate small jumpbox for ISO staging. To deploy, see the
 - [Default footprint (3-node)](#default-footprint-3-node)
 - [2-node alternative](#2-node-alternative)
 - [Host SKU allow-list](#host-sku-allow-list)
+- [Nested storage capacity](#nested-storage-capacity)
 - [Quota](#quota)
 - [Regions](#regions)
 - [Azure Hybrid Benefit](#azure-hybrid-benefit)
@@ -28,7 +29,7 @@ VM, with a separate small jumpbox for ISO staging. To deploy, see the
 | --- | --- | --- |
 | Cluster host `apex-host` | `Standard_E64s_v6` (64 vCPU / 512 GB) | Hosts 3 × 96 GB nodes plus the domain controller and the router. |
 | Host OS disk | 1 × Premium 1024 GB | |
-| Host data disks | 12 × Premium 256 GB (P30 tier) | Pooled into `V:` for nested storage. |
+| Host data disks | 8 × Premium 1024 GB (P30 tier) | Pooled into `V:` for nested storage. Sized so the nested S2D pool yields ~2.1 TB usable — see [Nested storage capacity](#nested-storage-capacity). |
 | Jumpbox `apex-mgmt` | `Standard_D4s_v5` (4 vCPU / 16 GB) | ISO download and upload only. |
 | Jumpbox OS disk | 1 × Premium 256 GB | Holds two multi-GB ISOs before upload. |
 | Storage account | Standard_LRS | `iso-images/` (two ISOs) plus `logs/`. |
@@ -47,7 +48,7 @@ and Arc agents. The nested VMs add no Azure cost — they live on the host.
 | --- | --- |
 | `hostVmSize` | `Standard_E32s_v6` (32 vCPU / 256 GB) |
 | `clusterNodeCount` | `2` |
-| `hostDataDiskCount` | `8` |
+| `hostDataDiskCount` | `6` |
 | `witnessType` (config) | `Cloud` (required for an even node count) |
 
 A 2-node cluster needs a cloud witness for quorum — set `witnessType = 'Cloud'` in
@@ -60,7 +61,32 @@ nodes plus a domain controller fit within 256 GB.
 nested-virtualization-capable SKUs:
 
 The release host is fixed to `Standard_E64s_v6`. Each of the three nested nodes receives 96 GB
-RAM, 16 vCPUs, and four 170-GB capacity disks. These values are not deployment parameters.
+RAM, 16 vCPUs, and four 600-GB capacity disks. These values are not deployment parameters.
+
+## Nested storage capacity
+
+The nested cluster's usable capacity is **not** what the CSVs report. The volumes are thin
+provisioned, so `Get-ClusterSharedVolume` happily shows hundreds of free GB while writes fail with
+`There is not enough space on the disk` because the underlying pool is exhausted. Size the **pool**:
+
+```text
+host V:          = 8 × 1024 GB            = 8192 GB   (Simple space - Azure disks are already replicated)
+nested S2D pool  = 3 nodes × 4 × 600 GB   = 7200 GB
+fixed volumes    ~ Infrastructure_1 (252 GB) + performance history (24 GB), 3-way mirrored
+usable           = (7200 - ~830) / 3      ≈ 2.1 TB
+```
+
+Everything is 3-way mirrored, so **every 1 GB of guest data costs 3 GB of pool**. Budget roughly:
+
+| Consumer | Actual | Pool footprint |
+| --- | --- | --- |
+| Marketplace images (WS2025 smalldisk 30 GB, SQL 2022 and Win11 AVD 127 GB each) | ~300 GB | ~900 GB |
+| Each VM cloned from the SQL or Win11 image (127 GB OS disk) | 127 GB | ~380 GB |
+| Each VM cloned from the WS2025 smalldisk image | 30 GB | ~90 GB |
+| An AKS cluster (1 control plane + 2 nodes) | ~60 GB | ~180 GB |
+
+Prefer the WS2025 **smalldisk** image where possible: the SQL and Win11 images are 127 GB fixed
+VHDs, so a single VM built from either costs more pool than four smalldisk VMs.
 
 ## Quota
 
@@ -108,7 +134,7 @@ entitlement before enabling it. Reference:
 
 ## Cost control
 
-The host, its 12 Premium data disks, Bastion, and the NAT Gateway bill continuously — even when
+The host, its 8 Premium data disks, Bastion, and the NAT Gateway bill continuously — even when
 the nested VMs are powered off.
 
 - **Between runs:** deallocating the host stops compute charges, but the disks, Bastion, and NAT

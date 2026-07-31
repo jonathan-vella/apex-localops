@@ -264,7 +264,7 @@ anything is uploaded, so a changed pin cannot silently substitute an untrusted i
 ./scripts/cleanup-selfhosted.sh --resource-group rg-apexlocal
 ```
 
-The host, its 12 Premium disks, Bastion, and the NAT Gateway bill continuously even when the
+The host, its 8 Premium disks, Bastion, and the NAT Gateway bill continuously even when the
 nested VMs are off — deleting the resource group is the only way to reach $0.
 
 ## Resume a failed build at its stage

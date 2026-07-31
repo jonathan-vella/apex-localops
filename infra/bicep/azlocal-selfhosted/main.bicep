@@ -120,8 +120,8 @@ var resourceTags = governResourceTags
 
 var templateBaseUrl = 'https://raw.githubusercontent.com/${githubAccount}/${githubRepo}/${artifactRef}/'
 var hostVmSize = 'Standard_E64s_v6'
-var hostDataDiskCount = 12
-var hostDataDiskSizeGB = 256
+var hostDataDiskCount = 8
+var hostDataDiskSizeGB = 1024
 
 // Deterministic resource names (calculable at the start of the deployment) so that
 // resource-scoped role-assignment names/scopes don't depend on runtime module outputs.

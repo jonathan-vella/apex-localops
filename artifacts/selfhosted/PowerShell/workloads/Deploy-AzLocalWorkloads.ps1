@@ -15,8 +15,10 @@
     It never self-launches and never runs as a background/autopilot job.
 
 .PARAMETER Stage
-    One of: images, network, wait, ws2025, sql, avd-host, all.
+    One of: images, network, wait, ws2025, sql, avd-host, aks, all.
     'avd-host' installs the AVD agent and requires -RegistrationToken.
+    'aks' creates the AKS (Arc) cluster; deploy the sample app afterwards with
+    scripts/deploy-aks-sample-app.sh --name <cluster> -g <rg>.
     The AVD control plane (host pool/workspace/app group) is deployed separately by the
     operator via Bicep - this script only handles the in-cluster session host.
 
@@ -39,7 +41,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('images', 'network', 'wait', 'ws2025', 'sql', 'avd-host', 'all')]
+    [ValidateSet('images', 'network', 'wait', 'ws2025', 'sql', 'avd-host', 'aks', 'all')]
     [string]$Stage,
 
     [string]$RegistrationToken,
@@ -150,6 +152,15 @@ switch ($Stage) {
         $name = Invoke-StageVm 'AvdHost' $pw 2
         if (-not $WhatIfPreference) {
             Add-AvdSessionHost -Config $Config -VmName $name -RegistrationToken $RegistrationToken | Out-Null
+        }
+    }
+    'aks' {
+        # AKS nodes come from the AKS logical network, so ensure it before creating the cluster.
+        Write-Banner 'Stage: AKS (Arc) cluster'
+        Ensure-WorkloadLogicalNetwork -Config $Config -CustomLocationId $cl -WhatIf:$WhatIfPreference | Out-Null
+        New-WorkloadAksCluster -Config $Config -CustomLocationId $cl -WhatIf:$WhatIfPreference | Out-Null
+        if (-not $WhatIfPreference) {
+            Write-Host "  Sample app: ./scripts/deploy-aks-sample-app.sh --name $($Config.Aks.ClusterName) -g $($Config.ResourceGroup)" -ForegroundColor DarkGray
         }
     }
     'all' {

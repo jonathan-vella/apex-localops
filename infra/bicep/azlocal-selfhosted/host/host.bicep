@@ -54,17 +54,17 @@ param deployBastion bool = true
 
 @description('Number of Premium data disks to pool into drive V: for nested storage.')
 @allowed([
-  12
+  8
 ])
-param dataDiskCount int = 12
+param dataDiskCount int = 8
 
-@description('Size (GB) of each Premium data disk.')
+@description('Size (GB) of each Premium data disk. 1024 GB is natively P30.')
 @allowed([
-  256
+  1024
 ])
-param dataDiskSizeGB int = 256
+param dataDiskSizeGB int = 1024
 
-@description('Performance tier for each data disk (P30 = 5000 IOPS / 200 MBps even at 256 GB).')
+@description('Performance tier for each data disk (P30 = 5000 IOPS / 200 MBps, the native tier at 1024 GB).')
 param dataDiskTier string = 'P30'
 
 @description('Apply Windows Server Azure Hybrid Benefit (licenseType=Windows_Server). On by default; set false for license-included (PAYG).')
@@ -113,9 +113,9 @@ resource publicIpAddress 'Microsoft.Network/publicIPAddresses@2024-10-01' = if (
   tags: resourceTags
 }
 
-// Pool of Premium data disks. Pinned to a performance tier (default P30) so the
-// 256 GB disks deliver P30 IOPS/throughput regardless of their size — the nested
-// Storage Spaces Direct pool needs the bandwidth.
+// Pool of Premium data disks. 1024 GB is the native P30 size, so the pinned tier costs nothing
+// extra - the previous 256 GB disks were billed at the P30 tier anyway for the IOPS the nested
+// Storage Spaces Direct pool needs, while giving a quarter of the capacity.
 resource dataDisks 'Microsoft.Compute/disks@2025-01-02' = [
   for i in range(0, dataDiskCount): {
     name: '${vmName}-DataDisk-${i}'

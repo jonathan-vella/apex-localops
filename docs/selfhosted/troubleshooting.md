@@ -28,7 +28,8 @@ rules.
 | Artifact fetch | CSE log reports an unreachable immutable URL | Push a corrected candidate, clean up, and redeploy with its SHA. |
 | Public IP creation reports `AllowBringYourOwnPublicIpAddress` not registered | ARM fails in `networkDeployment` before either VM exists | Run `check-providers-selfhosted.sh`; it registers the required Network feature and re-registers `Microsoft.Network`. Then clean up and redeploy. |
 | ISO staging or integrity | `AwaitingIsos`, missing manifest, byte-length mismatch, or SHA-256 mismatch | Re-run `Upload-Isos.ps1` with both ISOs. Do not use raw blob upload. |
-| `V:` or host disk geometry | Bootstrap fails before nested VMs exist | Confirm 12 host P30 disks, then clean up and redeploy. |
+| `V:` or host disk geometry | Bootstrap fails before nested VMs exist | Confirm 8 host P30 (1024 GB) disks, then clean up and redeploy. |
+| Nested VM `PausedCritical` / "critical IO errors" | A VM pauses and its API/agent goes unreachable | The S2D **pool** is full — thin CSV free space is misleading. Check `Get-StoragePool` `AllocatedSize` vs `Size`, then delete unused images/VMs (see [sizing](sizing.md#nested-storage-capacity)). |
 | VHDX conversion | Partial VHDX removed or boot validation fails | Correct the ISO/build issue, then clean up and redeploy from a new candidate if code changed. |
 | Router, NIC, Network ATC, AD, or time | Readiness log fails before all Arc machines connect | Use the private logs to fix the root cause, then clean up and redeploy. |
 | Environment Checker or ARM Validate | Three Arc machines are `Connected`; validation report identifies the blocker | Fix external policy/RBAC if possible, then run `recover-selfhosted.sh --mode ValidateDeploy`. Code/config changes require a new candidate and clean RG. |

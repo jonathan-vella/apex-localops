@@ -11,6 +11,24 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ## [Unreleased]
 
+### Added
+
+- **AKS (Arc) is now a workloads stage.** `./scripts/deploy-workloads-selfhosted.sh --stage aks`
+  creates the cluster on a routable logical network (derived from the cluster's `*-InfraLNET`,
+  node pool `.130-.150`, control-plane IP `.129` outside the pool as AKS requires). Deploy the
+  sample app afterwards with `scripts/deploy-aks-sample-app.sh --name <cluster> -g <rg>`.
+
+### Changed
+
+- **Host storage resized so the nested cluster has usable capacity.** The host now pools
+  **8 × 1024 GB** Premium data disks (was 12 × 256 GB) and each nested node gets **4 × 600 GB**
+  capacity disks (was 4 × 170 GB). That lifts usable nested capacity from ~400 GB to **~2.1 TB**.
+  The old geometry could not hold the marketplace images plus the workload VMs plus an AKS
+  cluster: the Storage Spaces Direct pool hit 100% allocation and VMs paused with
+  `Disk(s) encountered critical IO errors`. Because the previous 256 GB disks were already pinned
+  to the **P30 performance tier**, the larger disks cost *less* per month while quadrupling
+  capacity. See [Nested storage capacity](docs/selfhosted/sizing.md#nested-storage-capacity).
+
 ## [v2.0.0] - 2026-07-30
 
 ### Removed

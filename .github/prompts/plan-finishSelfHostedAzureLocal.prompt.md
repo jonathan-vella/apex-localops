@@ -1,5 +1,11 @@
 ## Plan: Finish Self-Hosted Azure Local
 
+> [!NOTE]
+> **PARKED (2026-07-31).** Deferred until the current sequence completes: (1) deploy AKS + sample
+> app, (2) restart all Azure VMs and verify the cluster returns (manual), (3) delete everything if
+> it survives, (4) redeploy end to end with zero human input beyond launching it, (5) then apply
+> this hardening plan **on a separate branch**.
+
 Turn the existing self-hosted profile into a **reproducible evaluation lab** for one supported 3-node nested topology — a lab that unrelated individuals can redeploy successfully, unassisted, from their own Azure subscriptions. The current profile is not only under-tested: it lacks node capacity disks, does not establish the NIC/VLAN contract sent to Azure Local, passes an invalid witness value, uses generic Arc registration instead of the supported Azure Local bootstrap, and does not prepare Active Directory with the required LCM account/OU structure. The recommended path fixes those root causes, locks all runtime dependencies, adds failure-safe secret cleanup and stage-level recovery, hardens the in-guest automation until it survives unattended reruns, proves repeatability across independent operators, then publishes `v1.3.0-rc.1` as the stable default artifact ref those operators consume.
 
 **Deliverable: a working lab, not a release artifact.** A single successful deployment proves nothing. The release gate is repeatable, unassisted success by operators who cannot read a PowerShell stack trace, deploying into subscriptions and tenants we do not control.

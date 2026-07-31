@@ -86,6 +86,25 @@ function Resolve-AdminPassword {
     throw "Admin password not set. Export LOCALSELF_ADMIN_PASSWORD, or write it to a local file (LOCALSELF_ADMIN_PASSWORD_FILE, default ~/.apex-localops/admin-password) that is never committed."
 }
 
+function Resolve-LnetFromInfra {
+    <# Fill one logical-network entry's blank L2 fields from the cluster's *-InfraLNET so tenant
+       networks share the DC's subnet (domain join and egress then need no routing change), and
+       default its IP pool to the given host-octet range. Returns the subnet's /24 base prefix. #>
+    param($Entry, $Infra, [int]$PoolStartOctet, [int]$PoolEndOctet)
+    $sp = $Infra.properties.subnets[0].properties
+    if ([string]::IsNullOrWhiteSpace($Entry.AddressPrefix)) { $Entry.AddressPrefix = [string]$sp.addressPrefix }
+    if ([string]::IsNullOrWhiteSpace("$($Entry.Vlan)")) { $Entry.Vlan = [int]$sp.vlan }
+    if ([string]::IsNullOrWhiteSpace($Entry.Gateway)) {
+        $def = @($sp.routeTable.properties.routes) | Where-Object { $_.properties.addressPrefix -in '0.0.0.0', '0.0.0.0/0' } | Select-Object -First 1
+        if ($def) { $Entry.Gateway = [string]$def.properties.nextHopIpAddress }
+    }
+    if (-not $Entry.DnsServers -or @($Entry.DnsServers).Count -eq 0) { $Entry.DnsServers = @($Infra.properties.dhcpOptions.dnsServers) }
+    $base = ([string]$sp.addressPrefix -split '/')[0] -replace '\.\d+$', ''
+    if ([string]::IsNullOrWhiteSpace($Entry.IpPoolStart)) { $Entry.IpPoolStart = "$base.$PoolStartOctet" }
+    if ([string]::IsNullOrWhiteSpace($Entry.IpPoolEnd)) { $Entry.IpPoolEnd = "$base.$PoolEndOctet" }
+    return $base
+}
+
 function Resolve-ClusterContext {
     <# Resolve identity/cluster-specific values from the target resource group so the tooling
        is reusable across tenants: subscription (from the az context), the single custom
@@ -110,17 +129,14 @@ function Resolve-ClusterContext {
         $infra = Invoke-Az -Args @('stack-hci-vm', 'network', 'lnet', 'list', '-g', $Config.ResourceGroup,
             '--query', "[?ends_with(name,'InfraLNET')] | [0]", '-o', 'json')
         if ($infra -and $infra.properties.subnets) {
-            $sp = $infra.properties.subnets[0].properties
-            if ([string]::IsNullOrWhiteSpace($vm.AddressPrefix)) { $vm.AddressPrefix = [string]$sp.addressPrefix }
-            if ([string]::IsNullOrWhiteSpace("$($vm.Vlan)")) { $vm.Vlan = [int]$sp.vlan }
-            if ([string]::IsNullOrWhiteSpace($vm.Gateway)) {
-                $def = @($sp.routeTable.properties.routes) | Where-Object { $_.properties.addressPrefix -in '0.0.0.0', '0.0.0.0/0' } | Select-Object -First 1
-                if ($def) { $vm.Gateway = [string]$def.properties.nextHopIpAddress }
+            $base = Resolve-LnetFromInfra -Entry $vm -Infra $infra -PoolStartOctet 60 -PoolEndOctet 120
+            # AKS shares the same L2 for the same reason; .129 sits just below its .130-.150 pool.
+            if ($Config.LogicalNetworks.Aks) {
+                $null = Resolve-LnetFromInfra -Entry $Config.LogicalNetworks.Aks -Infra $infra -PoolStartOctet 130 -PoolEndOctet 150
             }
-            if (-not $vm.DnsServers -or @($vm.DnsServers).Count -eq 0) { $vm.DnsServers = @($infra.properties.dhcpOptions.dnsServers) }
-            $base = ([string]$sp.addressPrefix -split '/')[0] -replace '\.\d+$', ''
-            if ([string]::IsNullOrWhiteSpace($vm.IpPoolStart)) { $vm.IpPoolStart = "$base.60" }
-            if ([string]::IsNullOrWhiteSpace($vm.IpPoolEnd)) { $vm.IpPoolEnd = "$base.120" }
+            if ($Config.Aks -and [string]::IsNullOrWhiteSpace($Config.Aks.ControlPlaneIp)) {
+                $Config.Aks.ControlPlaneIp = "$base.129"
+            }
         }
         $Config.VmLogicalNetworkName = $vm.Name
     }
@@ -703,8 +719,47 @@ Write-Output 'AVD_AGENT_INSTALLED'
     }
 }
 
+function New-WorkloadAksCluster {
+    <# Create the AKS (Arc) cluster on the AKS logical network. Idempotent: a Succeeded cluster is
+       left untouched. Inputs are validated first because the create itself runs for ~30 minutes. #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param([Parameter(Mandatory)]$Config, [string]$CustomLocationId)
+    $aks = $Config.Aks
+    $state = ([string](Invoke-Az -Raw -Args @('aksarc', 'show', '-g', $Config.ResourceGroup,
+                '-n', $aks.ClusterName, '--query', 'provisioningState', '-o', 'tsv'))).Trim()
+    if ($state -eq 'Succeeded') {
+        Write-Step "AKS cluster '$($aks.ClusterName)' already exists (Succeeded) - skipping create." 'SKIP'
+        return $aks.ClusterName
+    }
+    if ($state) { Write-Step "AKS cluster '$($aks.ClusterName)' is in state '$state' - re-running create." 'INFO' }
+
+    if (-not $CustomLocationId) { $CustomLocationId = Resolve-CustomLocationId -Config $Config }
+    $lnetName = $Config.LogicalNetworks[$aks.LogicalNetworkKey].Name
+    $lnetId = ([string](Invoke-Az -MustSucceed -Raw -Args @('stack-hci-vm', 'network', 'lnet', 'show',
+                '-g', $Config.ResourceGroup, '--name', $lnetName, '--query', 'id', '-o', 'tsv'))).Trim()
+
+    $createArgs = @('aksarc', 'create', '-g', $Config.ResourceGroup, '-n', $aks.ClusterName,
+        '--custom-location', $CustomLocationId, '--vnet-ids', $lnetId,
+        '--control-plane-ip', $aks.ControlPlaneIp, '--control-plane-count', "$($aks.ControlPlaneCount)",
+        '--node-count', "$($aks.NodeCount)", '--node-vm-size', $aks.NodeVmSize,
+        '--location', $Config.Location, '--generate-ssh-keys')
+    # Azure RBAC/AAD admin can only be set at create time; blank => omit and use cluster-user creds.
+    if ($aks.AdminGroupObjectId) { $createArgs += @('--aad-admin-group-object-ids', $aks.AdminGroupObjectId) }
+
+    Write-Step "Validating AKS inputs (cluster '$($aks.ClusterName)', control plane $($aks.ControlPlaneIp), lnet '$lnetName')..."
+    $null = Invoke-Az -MustSucceed -Args ($createArgs + '--validate')
+    Write-Step 'AKS input validation passed.' 'OK'
+
+    Write-Step "Creating AKS cluster '$($aks.ClusterName)' ($($aks.ControlPlaneCount) control plane + $($aks.NodeCount) nodes); expect ~30 min..."
+    if ($PSCmdlet.ShouldProcess($aks.ClusterName, 'create AKS Arc cluster')) {
+        $null = Invoke-Az -MustSucceed -Args $createArgs
+        Write-Step "AKS cluster '$($aks.ClusterName)' created." 'OK'
+    }
+    return $aks.ClusterName
+}
+
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
     New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Wait-VmAgentConnected, Set-SqlStoragePaths, `
-    Add-AvdSessionHost, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
+    Add-AvdSessionHost, New-WorkloadAksCluster, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
     Invoke-ArcRunCommand, Sync-ClusterNodeTime, Get-ClusterNodeNames, Get-VmHostNode, Invoke-GuestDomainJoin

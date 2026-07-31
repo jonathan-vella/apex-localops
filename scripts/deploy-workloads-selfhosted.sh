@@ -27,7 +27,9 @@
 #   avd-cp     Deploy the AVD control plane (host pool/workspace/app group) via Bicep (operator).
 #   avd-host   Create + domain-join the Win11 session host and install the AVD agent.
 #              Requires the registration token (auto-pulled from the host pool, or --token).
-#   all-vms    images + network + wait + ws2025 (NOT sql/avd).
+#   aks        Create the AKS (Arc) cluster on the AKS logical network (~30 min).
+#              Deploy the sample app after it with scripts/deploy-aks-sample-app.sh.
+#   all-vms    images + network + wait + ws2025 (NOT sql/avd/aks).
 #
 # Prereqs: az login (operator) with rights on the resource group; pwsh available. VM-creating
 # stages need the admin password: export LOCALSELF_ADMIN_PASSWORD, or write it to a local
@@ -203,6 +205,7 @@ case "$STAGE" in
   images|network|wait)
                   run_stage_local "$STAGE" ;;
   ws2025|sql)     require_password; run_stage_local "$STAGE" ;;
+  aks)            run_stage_local "$STAGE" ;;
   all-vms)        require_password; run_stage_local "all" ;;
   avd-cp)         do_avd_cp ;;
   avd-host)

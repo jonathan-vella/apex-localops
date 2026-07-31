@@ -46,14 +46,17 @@
       IpPoolEnd     = ''    # derived: .120 of the InfraLNET /24
       ReuseExisting = $false
     }
+    # AKS nodes share the DC's L2 (blank fields derived from the *-InfraLNET at runtime, pool
+    # .130-.150). The earlier vlan110/10.10.0.0/24 design needed a nested-router route that was
+    # never wired, so AKS nodes there could reach neither the DC nor Azure.
     Aks = @{
-      Name          = 'aks-lnet-vlan110'
-      AddressPrefix = '10.10.0.0/24'
-      Gateway       = '10.10.0.1'
-      DnsServers    = @('192.168.1.254')
-      Vlan          = 110
-      IpPoolStart   = '10.10.0.101'
-      IpPoolEnd     = '10.10.0.199'
+      Name          = 'apexlocal-akslnet'
+      AddressPrefix = ''    # derived from *-InfraLNET (same subnet as the DC)
+      Gateway       = ''    # derived from InfraLNET default-route next-hop
+      DnsServers    = @()   # derived from InfraLNET DNS (the DC)
+      Vlan          = ''    # derived from InfraLNET (untagged 0 in this lab)
+      IpPoolStart   = ''    # derived: .130 of the InfraLNET /24
+      IpPoolEnd     = ''    # derived: .150 of the InfraLNET /24
       ReuseExisting = $false
     }
   }
@@ -161,5 +164,20 @@
     ManagementType        = 'Standard'         # NOT "session host configuration" (unsupported on Azure Local)
     MaxSessionLimit       = 5
     SessionHostVmKey      = 'AvdHost'
+  }
+
+  # --- AKS (Arc) cluster on the Azure Local instance ---------------------------
+  # Needs the hybridaksextension cluster extension on the custom location (installed with the
+  # instance). ControlPlaneIp is a single reserved address OUTSIDE the lnet pool, per the AKS
+  # requirement that it not overlap the pool, infra IPs, or load-balancer addresses.
+  Aks                  = @{
+    ClusterName        = 'apexlocal-aks'
+    LogicalNetworkKey  = 'Aks'
+    ControlPlaneIp     = ''          # derived: .129 of the InfraLNET /24 (just below the .130-.150 pool)
+    ControlPlaneCount  = 1
+    NodeCount          = 2
+    NodeVmSize         = 'Standard_A4_v2'
+    AdminGroupObjectId = ''          # optional Entra group for Kubernetes admin; blank => omitted
+    SampleAppManifest  = 'artifacts/aks/sample-app/hello-app.yaml'
   }
 }

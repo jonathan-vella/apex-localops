@@ -36,7 +36,7 @@ flowchart TB
         subgraph VNet["VNet 172.16.0.0/16"]
             subgraph WL["Workload subnet 172.16.1.0/24 · NSG closed inbound · defaultOutbound off"]
                 MGMT["apex-mgmt jumpbox<br/>WS2025 · D4s_v5<br/>MI · no public IP"]
-                HOST["apex-host cluster host<br/>WS2025 · E64s_v6<br/>12x P30 -> V: · MI · no public IP"]
+                HOST["apex-host cluster host<br/>WS2025 · E64s_v6<br/>8x P30 -> V: · MI · no public IP"]
             end
             subgraph BAS["AzureBastionSubnet 172.16.3.64/26"]
                 BASTION["Azure Bastion (Standard)"]
