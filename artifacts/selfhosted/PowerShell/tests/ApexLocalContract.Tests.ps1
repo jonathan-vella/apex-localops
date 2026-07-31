@@ -312,6 +312,12 @@ Describe 'Self-hosted orchestration safety' {
     ([regex]::Matches($moduleSource, '-VmConfigDir \$paths\.VmDir')).Count | Should -Be 3
   }
 
+  It 'cold-boots nested guests after a host restart instead of saving state' {
+    # Hyper-V defaults to Save, which resumes with a stale clock and never proves the cluster
+    # can re-form. Every nested guest is created through this one function.
+    $moduleSource | Should -Match 'Set-VM -Name \$VmName -AutomaticStopAction ShutDown'
+  }
+
   It 'applies IMDS deny ACLs idempotently across every nested adapter' {
     # Hyper-V rejects a duplicate port ACL with 0x800700B7. Nodes inherit an
     # already-denied fabric adapter and then add storage adapters.

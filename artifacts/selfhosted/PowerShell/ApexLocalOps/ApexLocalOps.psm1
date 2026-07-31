@@ -948,6 +948,12 @@ function New-ApexNestedVM {
 
   Set-VM -Name $VmName -AutomaticCheckpointsEnabled $false -ErrorAction SilentlyContinue
 
+  # ShutDown, not Hyper-V's default Save: a host reboot must cold-boot the guests. Saved state
+  # resumes with a stale clock (this build fails VHD writes on Kerberos/SMB time skew) and hides
+  # whether the cluster can actually re-form. AutomaticStartAction stays StartIfRunning, so
+  # guests that were running come back automatically.
+  Set-VM -Name $VmName -AutomaticStopAction ShutDown
+
   # OWNED-SCOPE M4: deny the Azure-VM IMDS endpoint on the nested adapter BEFORE boot.
   $adapter = (Get-VMNetworkAdapter -VMName $VmName)[0]
   Add-ApexImdsDenyAcl -VMNetworkAdapter $adapter -RemoteIPAddress $ImdsAddress
