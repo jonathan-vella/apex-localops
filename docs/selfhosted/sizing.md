@@ -20,7 +20,7 @@ VM, with a separate small jumpbox for ISO staging. To deploy, see the
 - [Quota](#quota)
 - [Regions](#regions)
 - [Azure Hybrid Benefit](#azure-hybrid-benefit)
-- [Monthly cost](#monthly-cost)
+- [Cost](#cost)
 - [Cost control](#cost-control)
 - [Time budget](#time-budget)
 
@@ -133,42 +133,57 @@ organization holds qualifying licenses, deploy with `--disable-azure-hybrid-bene
 entitlement before enabling it. Reference:
 [Azure Hybrid Benefit for Windows Server](https://learn.microsoft.com/azure/virtual-machines/windows/hybrid-use-benefit-licensing).
 
-## Monthly cost
+## Cost
 
-Retail pay-as-you-go in `swedencentral`, 730 hours, priced from the
+Retail pay-as-you-go in `swedencentral`, priced from the
 [Azure Retail Prices API](https://learn.microsoft.com/rest/api/cost-management/retail-prices/azure-retail-prices)
 on **2026-07-31**. Azure Hybrid Benefit is **on** (the project default), so compute is billed at
 the base rate with no Windows license component.
 
-| Component | Qty | Rate | /month |
+This is a lab, so the figures below are per **hour** and per **40-hour working week**. Note the
+`Billed` column: only the two VMs stop costing money when you deallocate them. Disks, Bastion,
+and the NAT Gateway bill continuously until the resource group is deleted. Disks are priced
+monthly by Azure and are converted here at 730 h to give a comparable hourly figure.
+
+| Component | Qty | Billed | $/hour |
 | --- | --- | --- | --- |
-| Cluster host `Standard_E64s_v6` | 1 | $4.502/h | $3,286 |
-| Host data disks, P30 1024 GB | 8 | $148.68 | $1,189 |
-| Host OS disk, P30 1024 GB | 1 | $148.68 | $149 |
-| Jumpbox `Standard_D4s_v5` | 1 | $0.204/h | $149 |
-| Jumpbox OS disk, P15 256 GB | 1 | $41.81 | $42 |
-| Bastion Standard | 1 | $0.29/h | $212 |
-| NAT Gateway | 1 | $0.045/h | $33 |
-| Static public IP | 1 | $0.005/h | $4 |
-| **Total** | | | **~$5,060** |
+| Cluster host `Standard_E64s_v6` | 1 | while running | 4.502 |
+| Jumpbox `Standard_D4s_v5` | 1 | while running | 0.204 |
+| Host data disks, P30 1024 GB | 8 | until deleted | 1.629 |
+| Host OS disk, P30 1024 GB | 1 | until deleted | 0.204 |
+| Jumpbox OS disk, P15 256 GB | 1 | until deleted | 0.057 |
+| Bastion Standard | 1 | until deleted | 0.290 |
+| NAT Gateway | 1 | until deleted | 0.045 |
+| Static public IP | 1 | until deleted | 0.005 |
+| **Everything running** | | | **~$6.94/h** |
+| **Host and jumpbox deallocated** | | | **~$2.23/h** |
 
 Storage account, Key Vault, Log Analytics ingestion, and Bastion/NAT data processing are usage
-based and add a small amount on top — call it **~$5,100/month** all in.
+based and add a small amount on top.
 
-| Scenario | Approx. /month |
+A working week is 40 hours of use inside a 168-hour week, so what you do with the other 128
+hours dominates the bill:
+
+| Usage pattern over one week | 40 h of use |
 | --- | --- |
-| Full default, Hybrid Benefit **on** | **~$5,100** |
-| Full default, Hybrid Benefit **off** (`--disable-azure-hybrid-benefit`) | **~$7,350** |
-| Host and jumpbox **deallocated** (disks, Bastion, NAT still bill) | **~$1,630 floor** |
-| Resource group deleted | **$0** |
+| Deallocate host and jumpbox when not in use | **~$563** |
+| Deallocate, Hybrid Benefit **off** (`--disable-azure-hybrid-benefit`) | ~$688 |
+| Leave everything running 24×7 | ~$1,165 |
+| Delete the resource group after each session | **~$277** |
+
+> [!IMPORTANT]
+> Deallocating is only half the saving. In the ~$563 week above, **~$375 — two thirds — buys you
+> nothing**: it is disks, Bastion, and NAT billing through the 128 hours you are not using the
+> lab. Deleting the resource group between sessions is the real lever, and the converted base
+> VHDXs are the only thing you lose (see [Cost control](#cost-control)).
 
 > [!NOTE]
 > Earlier versions of these docs quoted ~$7,850/month, a figure inherited from the retired
 > LocalBox profile. It was never recalculated for this profile and is close to the **Hybrid
 > Benefit off** number, so it overstated the default configuration by roughly 35%. Storage also
 > got cheaper when the host moved to 8 × 1024 GB disks: the previous 12 × 256 GB disks were
-> pinned to the P30 performance tier, so they were already billed at the P30 rate
-> (~$1,784/month) for a quarter of the capacity.
+> pinned to the P30 performance tier, so they were already billed at the P30 rate for a quarter
+> of the capacity.
 
 ## Cost control
 
@@ -176,12 +191,13 @@ The host, its 8 Premium data disks, Bastion, and the NAT Gateway bill continuous
 the nested VMs are powered off.
 
 - **Between runs:** deallocating the host stops compute charges, but the disks, Bastion, and NAT
-  keep billing (**~$1,630/month**).
+  keep billing (**~$2.23/h**, about **$375** across a full week).
 - **To reach $0:** delete the resource group with
   [cleanup-selfhosted.sh](../../scripts/cleanup-selfhosted.sh).
 - **Faster re-iteration:** the converted base VHDXs live on `V:`; a redeploy reuses them (and
   the already-staged ISOs), so you skip the multi-GB download and the DISM conversion on
-  subsequent builds.
+  subsequent builds. This is the one thing deleting costs you — weigh a ~20 minute rebuild
+  against ~$375/week of idle charges.
 
 ## Time budget
 

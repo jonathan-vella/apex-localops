@@ -38,16 +38,18 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ### Changed
 
-- **Cost figures recalculated from the Azure Retail Prices API (2026-07-31, Sweden Central).**
-  Self-hosted was quoted at ~$7,850/mo, a figure inherited from the retired LocalBox profile and
-  never recalculated; it is close to the *Hybrid-Benefit-off* number and so overstated the
-  default (Hybrid Benefit on) by ~35%. The real figures are **~$5,100/mo** running,
-  **~$7,350/mo** with `--disable-azure-hybrid-benefit`, and a **~$1,630/mo** deallocated floor.
-  SFF was understated at ~$700–900/mo: it is **~$1,225/mo** with a **~$480/mo** floor, mostly
-  because Bastion Standard (~$212/mo) was unaccounted for. The two profiles differ by roughly
-  4×, not 10×, so the "one-tenth the cost" claims are corrected throughout.
-  [Self-hosted sizing](docs/selfhosted/sizing.md#monthly-cost) now carries a dated, itemized
-  breakdown instead of a single unsourced number.
+- **Cost figures recalculated from the Azure Retail Prices API (2026-07-31, Sweden Central) and
+  restated per hour and per 40-hour working week**, which is how a lab is actually used; the
+  monthly framing implied 24×7 running and hid the fact that disks, Bastion, and NAT keep
+  billing when the VMs are stopped. Self-hosted is **~$6.94/h** running, **~$2.23/h**
+  deallocated, **~$563** for a 40-hour week; SFF is **~$1.68/h**, **~$0.66/h**, **~$151**.
+  The previous ~$7,850/mo was inherited from the retired LocalBox profile, never recalculated,
+  and close to the *Hybrid-Benefit-off* number, so it overstated the default (Hybrid Benefit on)
+  by ~35%. SFF was understated at ~$700–900/mo, mostly because Bastion Standard ($0.29/h) was
+  unaccounted for. The two profiles differ by roughly 4×, not 10×, so the "one-tenth the cost"
+  claims are corrected throughout. [Self-hosted sizing](docs/selfhosted/sizing.md#cost) now
+  carries a dated, itemized breakdown with a `Billed` column separating charges that stop on
+  deallocation from those that run until the resource group is deleted.
 - **The CI shell checks now cover `.devcontainer/`.** `bash -n` and ShellCheck only scanned
   `scripts/`, so the dev container's `post-create.sh` and `post-start.sh` were never validated.
 - **The CI relative-link check no longer scans fenced code blocks.** It matched `](` inside code

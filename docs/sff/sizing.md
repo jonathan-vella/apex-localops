@@ -14,7 +14,7 @@ example for a 2-node Azure Local instance); set `nestedVmCount = 1` for one. To 
 - [Default footprint](#default-footprint)
 - [Host SKU options](#host-sku-options)
 - [Nested VM count](#nested-vm-count)
-- [Monthly cost](#monthly-cost)
+- [Cost](#cost)
 - [Azure Hybrid Benefit (on by default)](#azure-hybrid-benefit-on-by-default)
 - [Cost guidance](#cost-guidance)
 - [Comparison with the Self-hosted profile](#comparison-with-the-self-hosted-profile)
@@ -67,24 +67,40 @@ secret.
 > [!NOTE]
 > Guests are built **sequentially**, so a two-VM run takes roughly twice as long as one.
 
-## Monthly cost
+## Cost
 
-Figures are for 24×7 in the host region (`swedencentral`), retail pay-as-you-go, priced from the
+Retail pay-as-you-go in the host region (`swedencentral`), priced from the
 [Azure Retail Prices API](https://learn.microsoft.com/rest/api/cost-management/retail-prices/azure-retail-prices)
-on **2026-07-31**.
+on **2026-07-31**, with **Azure Hybrid Benefit on** (the project default), so the Windows license
+component is excluded.
 
-| Scenario | Approx. /month |
+SFF runs are bursty, so the figures are per **hour** and per **40-hour working week**. Only the
+two VMs stop billing when deallocated; disks, Bastion, and NAT bill until the resource group is
+deleted. Disk prices are monthly and converted at 730 h.
+
+| Component | Billed | $/hour |
+| --- | --- | --- |
+| Host `Standard_D16s_v5` | while running | 0.816 |
+| Jumpbox `Standard_D4s_v5` | while running | 0.204 |
+| Disks (1 × P30 data, 2 × P15 OS) | until deleted | 0.318 |
+| Bastion Standard | until deleted | 0.290 |
+| NAT Gateway + static public IP | until deleted | 0.050 |
+| **Everything running** | | **~$1.68/h** |
+| **Host and jumpbox deallocated** | | **~$0.66/h** |
+
+| Usage pattern over one week | 40 h of use |
 | --- | --- |
-| Full default (host + jumpbox + Bastion + NAT + disks) | **~$1,225** |
-| Host **deallocated** between runs (Bastion + NAT + disks still bill) | **~$480 floor** |
-| Resource group deleted | **$0** |
+| Deallocate host and jumpbox when not in use | **~$151** |
+| Leave everything running 24×7 | ~$282 |
+| Delete the resource group after each session | **~$67** |
 
-The host VM (~$596) and Bastion (~$212) dominate. Dropping the optional jumpbox saves ~$190/month,
-and `Standard_D8s_v5` with `nestedVmCount = 1` roughly halves the host line.
+The host VM and Bastion dominate. Dropping the optional jumpbox saves ~$0.26/h, and
+`Standard_D8s_v5` with `nestedVmCount = 1` roughly halves the host line.
 
-> [!NOTE]
-> The cost figures above assume **Azure Hybrid Benefit (AHB) is on** (the project default), so
-> they exclude the Windows license component — you pay only for the base compute and storage.
+> [!IMPORTANT]
+> As with the Self-hosted profile, deallocating leaves ~$111 of the ~$151 week billing for time
+> you are not using the lab — Bastion alone is $0.29/h whether or not anything is running.
+> Deleting the resource group between runs is what actually gets you to $0.
 
 ## Azure Hybrid Benefit (on by default)
 
@@ -135,7 +151,7 @@ Verify with: `az vm show -g rg-sff-host-swc01 -n LocalSFF-Host --query licenseTy
 | --- | --- | --- |
 | Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D16s_v5` (16 / 64) |
 | Data disks | 8 × 1024 GB P30 (8 TB) | 1 × 1024 GB Premium |
-| Est. 24×7 | ~$5,100/mo | ~$1,225/mo (~1/4) |
+| Est. per 40-hour week | ~$563 | ~$151 (~1/4) |
 | Nested payload | 3-node Azure Local cluster + DC + router | One or two ROE SFF test VMs (two by default) |
 
 ## Next steps

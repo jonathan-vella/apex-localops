@@ -39,7 +39,7 @@ matches your scenario.
 | **Default host SKU** | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_D16s_v5` (2 VMs, default) or `Standard_D8s_v5` (1 VM) |
 | **Default region** | `swedencentral` (infra) + `canadacentral` (instance) | `swedencentral` (host) + `eastus` (Azure Local + AKS) |
 | **Time to first result** | Half-day (first run) | ~10–15 min deploy + nested build |
-| **Est. cost (24×7)** | ~$5,100/mo | ~$1,225/mo |
+| **Est. cost (40-h week)** | ~$563 | ~$151 |
 | **AKS on bare metal** | Not applicable | Supported (preview) |
 | **Jumpstart dependency** | None | None |
 | **Status** | Primary | Preview |

@@ -19,10 +19,10 @@ apex-localops ships two evaluation profiles. Each one builds a nested Azure Loca
 environment inside one Azure VM and deploys into a Bastion-only resource group with no public
 IP on the VMs.
 
-| Profile | What it builds | Est. cost (24×7) | Start here |
+| Profile | What it builds | Est. cost (40-h week) | Start here |
 | --- | --- | --- | --- |
-| **Self-hosted** | A nested 3-node Azure Local cluster, built clean-room from operator-staged ISOs (no Arc Jumpstart dependency) | ~$5,100/mo | [Self-hosted quickstart](selfhosted/quickstart.md) |
-| **Small Form Factor (SFF)** | A single nested edge test VM (Maintenance OS / ROE) at roughly a quarter of the cost | ~$1,225/mo | [SFF quickstart](sff/quickstart.md) |
+| **Self-hosted** | A nested 3-node Azure Local cluster, built clean-room from operator-staged ISOs (no Arc Jumpstart dependency) | ~$563 | [Self-hosted quickstart](selfhosted/quickstart.md) |
+| **Small Form Factor (SFF)** | A single nested edge test VM (Maintenance OS / ROE) at roughly a quarter of the cost | ~$151 | [SFF quickstart](sff/quickstart.md) |
 
 For a feature-by-feature comparison and a decision guide, see [Choose a profile](choose-a-profile.md).
 
@@ -82,10 +82,14 @@ Every profile bills for **disks, Bastion, and NAT Gateway even when the VMs are 
 Delete the resource group to stop all charges. Figures are retail pay-as-you-go in Sweden
 Central (self-hosted and the SFF host), with Azure Hybrid Benefit on.
 
-| Profile | Always-on (24×7) | Deallocated floor | Full breakdown |
-| --- | --- | --- | --- |
-| Self-hosted | ~$5,100/mo | ~$1,630/mo | [Self-hosted sizing](selfhosted/sizing.md) |
-| SFF | ~$1,225/mo | ~$480/mo | [SFF sizing](sff/sizing.md) |
+| Profile | Running | Deallocated | 40-hour week | Full breakdown |
+| --- | --- | --- | --- | --- |
+| Self-hosted | ~$6.94/h | ~$2.23/h | ~$563 | [Self-hosted sizing](selfhosted/sizing.md) |
+| SFF | ~$1.68/h | ~$0.66/h | ~$151 | [SFF sizing](sff/sizing.md) |
+
+The 40-hour-week column assumes you deallocate the VMs outside working hours. Two thirds of it
+is still disks, Bastion, and NAT billing through the 128 hours you are not using the lab, so
+deleting the resource group between sessions saves far more than deallocating does.
 
 ## Documentation index
 
