@@ -551,9 +551,9 @@ function New-WorkloadVm {
     if (-not $AdminPassword -and -not $WhatIfPreference) { $AdminPassword = Resolve-AdminPassword }
 
     # Data-disk parameter as a JSON array matching vm.bicep's dataDiskType ({name,diskSizeGB,dynamic}).
-    # Guard the empty case: an unguarded foreach yields [[]] which fails template validation.
+    # Pipe $disks (not -InputObject): -AsArray with -InputObject on an existing array double-wraps to [[...]].
     $disks = @(foreach ($d in $Vm.DataDisks) { [ordered]@{ name = $d.Name; diskSizeGB = $d.SizeGb; dynamic = $true } })
-    $disksJson = if ($disks.Count) { ConvertTo-Json -InputObject $disks -AsArray -Compress -Depth 5 } else { '[]' }
+    $disksJson = if ($disks.Count) { $disks | ConvertTo-Json -AsArray -Compress -Depth 5 } else { '[]' }
 
     # Per-VM target logical network (defaults to the dedicated tenant lnet) + optional static IP.
     $lnetName = if ($Vm.LogicalNetworkName) { $Vm.LogicalNetworkName } else { $Config.VmLogicalNetworkName }
