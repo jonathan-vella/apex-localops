@@ -9,6 +9,9 @@ HOST_VM="ApexLocal-Host"
 ARTIFACT_REF=""
 MODE="ValidateDeploy"
 RUN_COMMAND_NAME="ApexLocalClusterRecovery"
+# Artifact source (override via env when recovering from a fork).
+GITHUB_ACCOUNT="${GITHUB_ACCOUNT:-jonathan-vella}"
+GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
 
 usage() {
   printf '%s\n' \
@@ -56,7 +59,7 @@ command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found." >&2; exit 1; 
 az account show >/dev/null 2>&1 || { echo "ERROR: not logged in to Azure." >&2; exit 1; }
 
 VM_LOCATION=$(az vm show -g "$RESOURCE_GROUP" -n "$HOST_VM" --query location -o tsv)
-SCRIPT_URI="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1"
+SCRIPT_URI="https://raw.githubusercontent.com/${GITHUB_ACCOUNT}/${GITHUB_REPO}/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1"
 curl --fail --silent --show-error --location --head "$SCRIPT_URI" >/dev/null || {
   echo "ERROR: recovery artifact is not reachable at the immutable ref: $SCRIPT_URI" >&2
   exit 1

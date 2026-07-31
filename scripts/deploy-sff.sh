@@ -19,6 +19,9 @@
 #   ./deploy-sff.sh --location <region>    # default: swedencentral
 #   ./deploy-sff.sh --help
 #
+# Deploying from a fork? Export GITHUB_ACCOUNT (and GITHUB_REPO) so the in-VM bootstrap
+# pulls runtime artifacts from your fork instead of the upstream repo.
+#
 # The ARM deployment provisions the host VM in ~10-15 min. The host then installs
 # Hyper-V and waits for you to stage the ROE ISO + Configurator App into the staging
 # storage account (all downloads must be initiated from an Azure resource - the
@@ -39,6 +42,12 @@ SKIP_PROVIDERS=false
 ASSUME_YES=false
 SKIP_PREFLIGHT=false
 RUN_MONITOR=true
+# Artifact source: where the in-VM bootstrap pulls runtime scripts from. Defaults to the
+# upstream repo; deploy from a fork by exporting GITHUB_ACCOUNT (and GITHUB_REPO). Exported so
+# the bicepparam's readEnvironmentVariable picks up the same value.
+GITHUB_ACCOUNT="${GITHUB_ACCOUNT:-jonathan-vella}"
+GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
+export GITHUB_ACCOUNT GITHUB_REPO
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -238,6 +247,10 @@ if [[ "$SKIP_PREFLIGHT" != "true" ]]; then
   preflight
 fi
 
+# Thread the CLI region to the template (the .bicepparam pins swedencentral; without this the
+# --location flag would only place the resource group, not the resources it contains).
+DEPLOYMENT_PARAMETERS=("$PARAMS" "location=$LOCATION")
+
 # --- What-if preview (skippable) ---
 if [[ "$SKIP_WHATIF" == "true" && "$WHATIF_ONLY" != "true" ]]; then
   echo "Skipping what-if preview (--skip-whatif)."
@@ -246,7 +259,7 @@ else
   az deployment group what-if \
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$TEMPLATE" \
-    --parameters "$PARAMS"
+    --parameters "${DEPLOYMENT_PARAMETERS[@]}"
 fi
 
 if [[ "$WHATIF_ONLY" == "true" ]]; then
@@ -282,7 +295,7 @@ fi
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$TEMPLATE" \
-  --parameters "$PARAMS" \
+  --parameters "${DEPLOYMENT_PARAMETERS[@]}" \
   --name "$DEPLOY_NAME"
 
 state=$(az deployment group show -g "$RESOURCE_GROUP" -n "$DEPLOY_NAME" \

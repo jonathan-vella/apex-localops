@@ -13,6 +13,12 @@ RUN_MONITOR=true
 ARTIFACT_REF="v1.3.0-rc.1"
 CLUSTER_NAME="apexlocal"
 ENABLE_AZURE_HYBRID_BENEFIT=true
+# Artifact source: where the in-VM bootstrap pulls runtime scripts from. Defaults to the
+# upstream repo; deploy from a fork by exporting GITHUB_ACCOUNT (and GITHUB_REPO). Exported so
+# the bicepparam's readEnvironmentVariable and the staging step inherit the same value.
+GITHUB_ACCOUNT="${GITHUB_ACCOUNT:-jonathan-vella}"
+GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
+export GITHUB_ACCOUNT GITHUB_REPO
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -83,6 +89,8 @@ usage() {
     'still completes and prints the staging command to run yourself.' \
     '' \
     'Set LOCALSELF_ADMIN_PASSWORD before running; it is never written to disk.' \
+    'Deploying from a fork? Export GITHUB_ACCOUNT (and GITHUB_REPO) so the in-VM bootstrap' \
+    'pulls runtime artifacts from your fork instead of the upstream repo.' \
     'Azure Hybrid Benefit is ON by default; enabling it self-attests that you hold qualifying' \
     'Windows Server licenses. See docs/selfhosted/sizing.md#azure-hybrid-benefit.'
 }
@@ -220,7 +228,7 @@ preflight() {
   fi
 
   for artifact_path in "${RUNTIME_ARTIFACTS[@]}"; do
-    artifact_url="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/${artifact_path}"
+    artifact_url="https://raw.githubusercontent.com/${GITHUB_ACCOUNT}/${GITHUB_REPO}/${ARTIFACT_REF}/${artifact_path}"
     if ! curl --fail --silent --show-error --location --head "$artifact_url" >/dev/null; then
       echo "  [FAIL] runtime artifact not reachable: $artifact_url" >&2
       failures=$((failures + 1))
@@ -331,6 +339,7 @@ printf '%s\n' \
   "Resource group       : $RESOURCE_GROUP" \
   "Infrastructure region: $LOCATION" \
   "Cluster name         : $CLUSTER_NAME" \
+  "Artifact source      : $GITHUB_ACCOUNT/$GITHUB_REPO" \
   "Artifact ref         : $ARTIFACT_REF" \
   "Azure Hybrid Benefit : $ENABLE_AZURE_HYBRID_BENEFIT"
 if [[ "$ENABLE_AZURE_HYBRID_BENEFIT" == "true" ]]; then

@@ -91,6 +91,12 @@ Useful flags:
 ```
 
 > [!NOTE]
+> **The resource group and region are examples — change them for your subscription.** Deploying
+> from a fork? Export `GITHUB_ACCOUNT` (and `GITHUB_REPO`) first, so the in-VM bootstrap pulls
+> runtime artifacts from your fork instead of the upstream repo:
+> `export GITHUB_ACCOUNT=<you> GITHUB_REPO=<your-fork>`.
+
+> [!NOTE]
 > **Azure Hybrid Benefit is on by default** (`enableAzureHybridBenefit = true`): the host VM
 > uses `Windows_Server` and the jumpbox uses `Windows_Client`, dropping the Windows license
 > charge. This attests that you hold eligible licenses — set the parameter to `false` for

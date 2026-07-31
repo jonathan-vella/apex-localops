@@ -12,6 +12,9 @@ AZURE_LOCAL_RELEASE_CODE="2607"
 ACCEPT_AZURE_LOCAL_TERMS=false
 ACCEPT_WINDOWS_SERVER_TERMS=false
 RUN_COMMAND_NAME="ApexLocalIsoStaging"
+# Artifact source (override via env when staging from a fork).
+GITHUB_ACCOUNT="${GITHUB_ACCOUNT:-jonathan-vella}"
+GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
 
 usage() {
   printf '%s\n' \
@@ -72,7 +75,7 @@ fi
 }
 
 VM_LOCATION=$(az vm show -g "$RESOURCE_GROUP" -n "$VM_NAME" --query location -o tsv)
-TEMPLATE_BASE_URL="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/"
+TEMPLATE_BASE_URL="https://raw.githubusercontent.com/${GITHUB_ACCOUNT}/${GITHUB_REPO}/${ARTIFACT_REF}/"
 SCRIPT_URI="${TEMPLATE_BASE_URL}artifacts/selfhosted/PowerShell/Stage-ApexIsos.ps1"
 for path in \
   artifacts/selfhosted/PowerShell/Stage-ApexIsos.ps1 \

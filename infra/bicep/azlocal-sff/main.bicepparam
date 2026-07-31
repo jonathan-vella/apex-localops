@@ -65,8 +65,9 @@ param hvGateway = '192.168.200.1'
 // Pin githubBranch to a release tag (e.g. 'v1.0.0') for reproducible deploys.
 param logAnalyticsWorkspaceName = 'LocalSFF-Workspace'
 param stagingArtifactsContainer = 'sff-artifacts'
-param githubAccount = 'jonathan-vella'
-param githubRepo = 'apex-localops'
+// Fork override: export GITHUB_ACCOUNT/GITHUB_REPO to serve runtime artifacts from your fork.
+param githubAccount = readEnvironmentVariable('GITHUB_ACCOUNT', 'jonathan-vella')
+param githubRepo = readEnvironmentVariable('GITHUB_REPO', 'apex-localops')
 param githubBranch = 'main'
 
 // --- Tagging: governResourceTags=false (not a Microsoft-internal lab tenant) ---

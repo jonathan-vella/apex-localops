@@ -64,6 +64,22 @@ export LOCALSELF_HCI_RP_OBJECT_ID=<oid>
 
 ## 2. Deploy the infrastructure
 
+> [!IMPORTANT]
+> **The example values below are the reference lab, not requirements — change them for your
+> environment.** `rg-apexlocal`, `swedencentral`, the `apexlocal` cluster name, and
+> `canadacentral` are defaults; choose your own so nothing collides with another subscription:
+>
+> | Flag | Default | Yours |
+> | --- | --- | --- |
+> | `--resource-group` | `rg-apexlocal` | any new/empty resource group |
+> | `--location` | `swedencentral` | `swedencentral` or `germanywestcentral` (infra region) |
+> | `--cluster-name` | `apexlocal` | 3–15 chars; the Azure Local instance name |
+> | `--azure-local-location` | `canadacentral` | a supported instance region (listed below) |
+>
+> **Deploying from a fork?** Export `GITHUB_ACCOUNT` (and `GITHUB_REPO`) before you run, so the
+> in-VM bootstrap pulls runtime artifacts from your fork instead of the upstream repo:
+> `export GITHUB_ACCOUNT=<you> GITHUB_REPO=<your-fork>`.
+
 If you have already read and accepted both licence terms (step 3 explains them), run the
 whole lab from one command — deployment and ISO staging back to back:
 

@@ -25,7 +25,9 @@ param(
   [ValidateSet('HostFabric', 'Isos', 'BaseImages', 'Router', 'DomainController',
     'ActiveDirectory', 'Nodes', 'Readiness', 'Arc', 'ClusterDeploy')]
   [string]$StartAtStage,
-  [Parameter(Mandatory)] [string]$ArtifactRef
+  [Parameter(Mandatory)] [string]$ArtifactRef,
+  [string]$GitHubAccount = 'jonathan-vella',
+  [string]$GitHubRepo = 'apex-localops'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +36,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $rootDir = 'C:\ApexLocal'
 $orchestrator = Join-Path $rootDir 'New-ApexLocalCluster.ps1'
-$baseUri = "https://raw.githubusercontent.com/jonathan-vella/apex-localops/$ArtifactRef/artifacts/selfhosted/PowerShell"
+$baseUri = "https://raw.githubusercontent.com/$GitHubAccount/$GitHubRepo/$ArtifactRef/artifacts/selfhosted/PowerShell"
 
 # A second build would fight the first over Hyper-V and the progress tag.
 $buildMutex = New-Object System.Threading.Mutex($false, 'Global\ApexLocalBuild')

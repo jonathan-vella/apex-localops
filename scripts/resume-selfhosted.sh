@@ -10,6 +10,9 @@ ARTIFACT_REF=""
 START_AT_STAGE=""
 RUN_COMMAND_NAME="ApexLocalBuildResume"
 STAGES=(HostFabric Isos BaseImages Router DomainController ActiveDirectory Nodes Readiness Arc ClusterDeploy)
+# Artifact source (override via env when resuming from a fork).
+GITHUB_ACCOUNT="${GITHUB_ACCOUNT:-jonathan-vella}"
+GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -78,7 +81,7 @@ else
 fi
 trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT
 
-RAW_BASE="https://raw.githubusercontent.com/jonathan-vella/apex-localops/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell"
+RAW_BASE="https://raw.githubusercontent.com/${GITHUB_ACCOUNT}/${GITHUB_REPO}/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell"
 SCRIPT_URI="${RAW_BASE}/Resume-ApexLocalCluster.ps1"
 
 # Verify every artifact the resume will pull, before touching the host.
@@ -102,7 +105,7 @@ echo "Resuming ${RESOURCE_GROUP}/${HOST_VM} at stage ${START_AT_STAGE} using ${A
 RUN_COMMAND_ARGS=(-g "$RESOURCE_GROUP" --vm-name "$HOST_VM"
   --run-command-name "$RUN_COMMAND_NAME" --location "$VM_LOCATION"
   --script-uri "$SCRIPT_URI"
-  --parameters StartAtStage="$START_AT_STAGE" ArtifactRef="$ARTIFACT_REF"
+  --parameters StartAtStage="$START_AT_STAGE" ArtifactRef="$ARTIFACT_REF" GitHubAccount="$GITHUB_ACCOUNT" GitHubRepo="$GITHUB_REPO"
   --async-execution true --timeout-in-seconds 21600 --output none)
 if [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
   RUN_COMMAND_ARGS+=(--protected-parameters AdminPassword="$LOCALSELF_ADMIN_PASSWORD")

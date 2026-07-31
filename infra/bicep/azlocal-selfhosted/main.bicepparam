@@ -43,8 +43,9 @@ param managementVmSize = 'Standard_D4s_v5'
 param logAnalyticsWorkspaceName = 'ApexLocal-Workspace'
 param isoContainerName = 'iso-images'
 param logsContainerName = 'logs'
-param githubAccount = 'jonathan-vella'
-param githubRepo = 'apex-localops'
+// Fork override: export GITHUB_ACCOUNT/GITHUB_REPO to serve runtime artifacts from your fork.
+param githubAccount = readEnvironmentVariable('GITHUB_ACCOUNT', 'jonathan-vella')
+param githubRepo = readEnvironmentVariable('GITHUB_REPO', 'apex-localops')
 param artifactRef = 'v1.3.0-rc.1'
 
 // --- Identity input (resolved at deploy time; never committed) ---
