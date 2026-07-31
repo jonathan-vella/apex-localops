@@ -35,7 +35,8 @@
         "ms-vscode.powershell",
         "ms-azuretools.azure-dev",
         "GitHub.vscode-pull-request-github",
-        "github.vscode-github-actions"
+        "github.vscode-github-actions",
+        "ms-kubernetes-tools.vscode-kubernetes-tools"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
