@@ -744,7 +744,9 @@ function New-WorkloadAksCluster {
         '--node-count', "$($aks.NodeCount)", '--node-vm-size', $aks.NodeVmSize,
         '--location', $Config.Location, '--generate-ssh-keys')
     # Azure RBAC/AAD admin can only be set at create time; blank => omit and use cluster-user creds.
-    if ($aks.AdminGroupObjectId) { $createArgs += @('--aad-admin-group-object-ids', $aks.AdminGroupObjectId) }
+    $adminGroup = if ($aks.AdminGroupObjectId) { $aks.AdminGroupObjectId } else { $env:LOCALSELF_AKS_ADMIN_GROUP_ID }
+    if ($adminGroup) { $createArgs += @('--aad-admin-group-object-ids', $adminGroup) }
+    else { Write-Step "No Entra admin group set - '$($aks.ClusterName)' will have no Kubernetes admin (cannot be added later)." 'WARN' }
 
     Write-Step "Validating AKS inputs (cluster '$($aks.ClusterName)', control plane $($aks.ControlPlaneIp), lnet '$lnetName')..."
     $null = Invoke-Az -MustSucceed -Args ($createArgs + '--validate')

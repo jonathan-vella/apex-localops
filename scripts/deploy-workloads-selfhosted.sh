@@ -205,7 +205,19 @@ case "$STAGE" in
   images|network|wait)
                   run_stage_local "$STAGE" ;;
   ws2025|sql)     require_password; run_stage_local "$STAGE" ;;
-  aks)            run_stage_local "$STAGE" ;;
+  aks)            # Kubernetes admin access can ONLY be granted at create time, so resolve the Entra
+                  # group first; without it the cluster is created that nobody can use.
+                  if [[ -z "${LOCALSELF_AKS_ADMIN_GROUP_ID:-}" ]]; then
+                    LOCALSELF_AKS_ADMIN_GROUP_ID=$("$SCRIPT_DIR/ensure-admin-group.sh" --name 'ApexLocal-AKS-Admins' 2>/dev/null || true)
+                    export LOCALSELF_AKS_ADMIN_GROUP_ID
+                  fi
+                  if [[ -n "${LOCALSELF_AKS_ADMIN_GROUP_ID:-}" ]]; then
+                    echo "AKS Kubernetes admins: Entra group ${LOCALSELF_AKS_ADMIN_GROUP_ID}"
+                  else
+                    echo "WARNING: no Entra admin group resolved - the cluster will have no Kubernetes admin." >&2
+                    echo "         Set LOCALSELF_AKS_ADMIN_GROUP_ID (or Aks.AdminGroupObjectId) and recreate to fix." >&2
+                  fi
+                  run_stage_local "$STAGE" ;;
   all-vms)        require_password; run_stage_local "all" ;;
   avd-cp)         do_avd_cp ;;
   avd-host)

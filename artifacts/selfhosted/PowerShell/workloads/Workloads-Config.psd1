@@ -177,7 +177,9 @@
     ControlPlaneCount  = 1
     NodeCount          = 2
     NodeVmSize         = 'Standard_A4_v2'
-    AdminGroupObjectId = ''          # optional Entra group for Kubernetes admin; blank => omitted
+    AdminGroupObjectId = ''          # Entra group granted Kubernetes admin. Blank => the wrapper resolves
+                                     # one via scripts/ensure-admin-group.sh (LOCALSELF_AKS_ADMIN_GROUP_ID).
+                                     # Create-time only: it cannot be added to an existing cluster.
     SampleAppManifest  = 'artifacts/aks/sample-app/hello-app.yaml'
   }
 }

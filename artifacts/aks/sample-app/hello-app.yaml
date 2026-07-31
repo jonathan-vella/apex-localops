@@ -14,6 +14,24 @@
 #   kubectl apply -f hello-app.yaml
 # Then browse to  http://<bare-metal-host-ip>:<nodeport>
 # =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-app
+  labels:
+    app: hello-app
+data:
+  # The azurelinux nginx base image ships no default site, so / would return 404 without this.
+  index.html: |
+    <!doctype html>
+    <html>
+      <head><title>apex-localops</title></head>
+      <body style="font-family: system-ui, sans-serif; margin: 3rem">
+        <h1>hello-app is running</h1>
+        <p>Served by nginx on AKS enabled by Azure Arc, on an Azure Local cluster.</p>
+      </body>
+    </html>
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,9 +50,13 @@ spec:
     spec:
       containers:
         - name: hello-app
-          image: mcr.microsoft.com/cbl-mariner/base/nginx:1.24
+          # azurelinux replaced cbl-mariner in MCR; a maintained minor tag avoids a rotting patch pin.
+          image: mcr.microsoft.com/azurelinux/base/nginx:1.28
           ports:
             - containerPort: 80
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html
           resources:
             requests:
               cpu: 100m
@@ -42,6 +64,10 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+      volumes:
+        - name: content
+          configMap:
+            name: hello-app
 ---
 apiVersion: v1
 kind: Service

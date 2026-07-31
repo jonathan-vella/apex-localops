@@ -17,6 +17,7 @@
 #   ./deploy-aks-sample-app.sh --name <cluster> -g <rg>         # target a specific cluster
 #   ./deploy-aks-sample-app.sh --host-ip 192.168.200.50         # print the full access URL
 #   ./deploy-aks-sample-app.sh --manifest <path>                # use a different manifest
+#   ./deploy-aks-sample-app.sh --port 47051                     # if the default proxy port is busy
 #   ./deploy-aks-sample-app.sh --delete                         # remove the sample app
 #   ./deploy-aks-sample-app.sh --help
 #
@@ -32,6 +33,7 @@ CLUSTER_NAME="localsff-aks"
 RESOURCE_GROUP="rg-sff-azl-eus01"
 APP_NAME="hello-app"
 HOST_IP=""
+PROXY_PORT=""
 DELETE=false
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --manifest) MANIFEST="${2:?missing value}"; shift 2 ;;
     --app-name) APP_NAME="${2:?missing value}"; shift 2 ;;
     --host-ip) HOST_IP="${2:?missing value}"; shift 2 ;;
+    --port) PROXY_PORT="${2:?missing value}"; shift 2 ;;
     --delete) DELETE=true; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^#\{1,\} \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
@@ -61,23 +64,40 @@ if ! az extension show --name connectedk8s >/dev/null 2>&1; then
   az extension add --name connectedk8s >/dev/null
 fi
 if ! command -v kubectl >/dev/null 2>&1; then
-  echo "Installing kubectl via 'az aks install-cli'..."
-  az aks install-cli >/dev/null 2>&1 || {
+  # az aks install-cli defaults to a root-owned location, which a dev-container user cannot write.
+  echo "Installing kubectl into $HOME/bin ..."
+  mkdir -p "$HOME/bin"
+  az aks install-cli --install-location "$HOME/bin/kubectl" \
+    --kubelogin-install-location "$HOME/bin/kubelogin" >/dev/null 2>&1 || {
     echo "ERROR: could not auto-install kubectl; install it manually and re-run." >&2
     exit 1
   }
+  export PATH="$HOME/bin:$PATH"
 fi
 
 # --- Start the Arc proxy in the background and wait until it is ready ---
 echo "Starting the Arc proxy for '$CLUSTER_NAME' (background) ..."
 proxy_log="$(mktemp)"
-az connectedk8s proxy --name "$CLUSTER_NAME" --resource-group "$RESOURCE_GROUP" >"$proxy_log" 2>&1 &
+kubecfg="$(mktemp)"
+proxy_args=(--name "$CLUSTER_NAME" --resource-group "$RESOURCE_GROUP" --file "$kubecfg")
+[[ -n "$PROXY_PORT" ]] && proxy_args+=(--port "$PROXY_PORT")
+az connectedk8s proxy "${proxy_args[@]}" >"$proxy_log" 2>&1 &
 proxy_pid=$!
-trap 'kill "$proxy_pid" >/dev/null 2>&1 || true; rm -f "$proxy_log"' EXIT
+cleanup_proxy() {
+  # Killing only the parent leaves the arcProxy child holding the port, which blocks the next run.
+  if [[ -n "${proxy_pid:-}" ]]; then
+    pkill -P "$proxy_pid" >/dev/null 2>&1 || true
+    kill "$proxy_pid" >/dev/null 2>&1 || true
+  fi
+  rm -f "$proxy_log" "$kubecfg"
+}
+trap cleanup_proxy EXIT
 
+# The proxy prints nothing once its output is redirected, so prove readiness with a real API
+# call through the generated kubeconfig instead of scraping its log for a banner.
 ready=false
 for _ in $(seq 1 60); do
-  if grep -qiE "Merged|listening on port" "$proxy_log" 2>/dev/null; then
+  if kubectl --kubeconfig "$kubecfg" version 2>/dev/null | grep -q 'Server Version'; then
     ready=true
     break
   fi
@@ -86,7 +106,7 @@ for _ in $(seq 1 60); do
     cat "$proxy_log" >&2
     exit 1
   fi
-  sleep 1
+  sleep 2
 done
 if [[ "$ready" != "true" ]]; then
   echo "ERROR: timed out waiting for the Arc proxy to become ready. Output:" >&2
@@ -94,9 +114,8 @@ if [[ "$ready" != "true" ]]; then
   exit 1
 fi
 
-# kubectl against the proxied context (named after the cluster); fall back to current.
 kc() {
-  kubectl --context "$CLUSTER_NAME" "$@" 2>/dev/null || kubectl "$@"
+  kubectl --kubeconfig "$kubecfg" "$@"
 }
 
 # --- Delete path ---
@@ -113,9 +132,11 @@ kc apply -f "$MANIFEST"
 
 echo "Waiting for the '$APP_NAME' deployment to become available (up to 5 min) ..."
 if ! kc rollout status "deployment/$APP_NAME" --timeout=300s; then
-  echo "WARNING: rollout did not complete in time. Inspect with:" >&2
-  echo "  kubectl --context $CLUSTER_NAME get pods -l app=$APP_NAME" >&2
-  echo "  kubectl --context $CLUSTER_NAME describe pod -l app=$APP_NAME" >&2
+  # The proxied kubeconfig is deleted on exit, so surface the diagnosis now rather than
+  # pointing at a kubectl command the operator can no longer run.
+  echo "ERROR: rollout did not complete in time." >&2
+  kc get pods -l "app=$APP_NAME" -o wide >&2 || true
+  kc describe pod -l "app=$APP_NAME" 2>/dev/null | sed -n '/Events:/,$p' >&2 || true
   exit 1
 fi
 
