@@ -41,8 +41,8 @@ feature-by-feature comparison and a decision guide, see
 
 | Profile | What it builds | Est. cost (24×7) | Get started |
 | --- | --- | --- | --- |
-| **Self-hosted** | A nested 3-node Azure Local cluster plus a domain controller and router, built clean-room from two operator-staged ISOs — no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*` modules | ~$7,850/mo | [Self-hosted overview →](docs/selfhosted/overview.md) |
-| **Small Form Factor (SFF)** | A lighter single host that builds the SFF Maintenance OS (ROE) test VM — the edge analogue at roughly 1/10th the cost | ~$700–900/mo | [SFF overview →](docs/sff/overview.md) |
+| **Self-hosted** | A nested 3-node Azure Local cluster plus a domain controller and router, built clean-room from two operator-staged ISOs — no prebaked Jumpstart VHDs, no `Azure.Arc.Jumpstart.*` modules | ~$5,100/mo | [Self-hosted overview →](docs/selfhosted/overview.md) |
+| **Small Form Factor (SFF)** | A lighter single host that builds the SFF Maintenance OS (ROE) test VM — the edge analogue at roughly a quarter of the cost | ~$1,225/mo | [SFF overview →](docs/sff/overview.md) |
 
 > [!NOTE]
 > All profiles deploy into a **Bastion-only** resource group (no public IP on the VMs) and
@@ -74,8 +74,8 @@ estimates exclude the Windows licensing surcharge (eligible licenses required).
 
 | Profile | Est. 24×7 | Full breakdown |
 | --- | --- | --- |
-| Self-hosted | ~$7,850/mo (Sweden Central) | [Self-hosted sizing and cost](docs/selfhosted/sizing.md) |
-| SFF | ~$700–900/mo (Sweden Central) | [SFF sizing and cost](docs/sff/sizing.md) |
+| Self-hosted | ~$5,100/mo (Sweden Central) | [Self-hosted sizing and cost](docs/selfhosted/sizing.md) |
+| SFF | ~$1,225/mo (Sweden Central) | [SFF sizing and cost](docs/sff/sizing.md) |
 
 ## Documentation
 

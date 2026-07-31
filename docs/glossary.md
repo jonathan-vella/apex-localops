@@ -12,7 +12,7 @@ grouped by area. Each guide links here on first use of an unfamiliar term.
 | **apex-localops** | This repository. It deploys nested Azure Local evaluation environments inside a single Azure virtual machine (VM). |
 | **LocalBox profile** | The original Jumpstart-based profile, **retired in v2.0.0** (last release [v1.3.0](https://github.com/jonathan-vella/apex-localops/releases/tag/v1.3.0)). Superseded by the clean-room [Self-hosted profile](selfhosted/overview.md). |
 | **Self-hosted profile** | The primary, clean-room profile (also called *zero-Jumpstart*). It builds a nested 3-node Azure Local cluster from operator-staged ISOs, with no prebaked Jumpstart images or modules. See [Self-hosted overview](selfhosted/overview.md). |
-| **SFF profile** | The Small Form Factor profile. It builds a single nested edge test VM at roughly one-tenth the cost of the cluster profiles. See [SFF overview](sff/overview.md). |
+| **SFF profile** | The Small Form Factor profile. It builds a single nested edge test VM at roughly a quarter of the cost of the cluster profiles. See [SFF overview](sff/overview.md). |
 | **Jumpstart (Arc Jumpstart)** | A Microsoft project of ready-to-deploy sandbox environments. apex-localops originated from its LocalBox sandbox (the LocalBox profile, retired in v2.0.0). |
 | **Profile** | One of the three deployment paths above. Each profile has its own quickstart, sizing guide, and Bicep templates. |
 

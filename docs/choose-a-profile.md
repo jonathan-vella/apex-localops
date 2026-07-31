@@ -39,7 +39,7 @@ matches your scenario.
 | **Default host SKU** | `Standard_E64s_v6` (64 vCPU / 512 GB) | `Standard_D16s_v5` (2 VMs, default) or `Standard_D8s_v5` (1 VM) |
 | **Default region** | `swedencentral` (infra) + `canadacentral` (instance) | `swedencentral` (host) + `eastus` (Azure Local + AKS) |
 | **Time to first result** | Half-day (first run) | ~10–15 min deploy + nested build |
-| **Est. cost (24×7)** | ~$7,850/mo | ~$700–900/mo |
+| **Est. cost (24×7)** | ~$5,100/mo | ~$1,225/mo |
 | **AKS on bare metal** | Not applicable | Supported (preview) |
 | **Jumpstart dependency** | None | None |
 | **Status** | Primary | Preview |
@@ -57,7 +57,7 @@ Go to the [Self-hosted overview](selfhosted/overview.md).
 
 ### Small Form Factor (SFF)
 
-A lightweight edge profile at roughly one-tenth the cost. It builds a single nested
+A lightweight edge profile at roughly a quarter of the cost. It builds a single nested
 Maintenance OS (ROE) test VM and drives it to a successful setup, then lets you provision the
 machine into Azure and, optionally, deploy AKS on bare metal onto it. Choose it to evaluate
 edge and Kubernetes-on-bare-metal scenarios.

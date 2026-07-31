@@ -69,16 +69,18 @@ secret.
 
 ## Monthly cost
 
-Figures are for 24×7 in the host region (`swedencentral`), retail pay-as-you-go.
+Figures are for 24×7 in the host region (`swedencentral`), retail pay-as-you-go, priced from the
+[Azure Retail Prices API](https://learn.microsoft.com/rest/api/cost-management/retail-prices/azure-retail-prices)
+on **2026-07-31**.
 
 | Scenario | Approx. /month |
 | --- | --- |
-| Full default (host + jumpbox + Bastion + NAT + disks) | **~$700–900** |
-| Host **deallocated** between runs (Bastion + NAT + disks still bill) | **~$250 floor** |
+| Full default (host + jumpbox + Bastion + NAT + disks) | **~$1,225** |
+| Host **deallocated** between runs (Bastion + NAT + disks still bill) | **~$480 floor** |
 | Resource group deleted | **$0** |
 
-These are approximate; use the Azure Pricing Calculator for an authoritative quote. The host VM
-and Bastion dominate the bill.
+The host VM (~$596) and Bastion (~$212) dominate. Dropping the optional jumpbox saves ~$190/month,
+and `Standard_D8s_v5` with `nestedVmCount = 1` roughly halves the host line.
 
 > [!NOTE]
 > The cost figures above assume **Azure Hybrid Benefit (AHB) is on** (the project default), so
@@ -133,7 +135,7 @@ Verify with: `az vm show -g rg-sff-host-swc01 -n LocalSFF-Host --query licenseTy
 | --- | --- | --- |
 | Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D16s_v5` (16 / 64) |
 | Data disks | 8 × 1024 GB P30 (8 TB) | 1 × 1024 GB Premium |
-| Est. 24×7 | ~$7,850/mo | ~$700–900/mo (~1/10th) |
+| Est. 24×7 | ~$5,100/mo | ~$1,225/mo (~1/4) |
 | Nested payload | 3-node Azure Local cluster + DC + router | One or two ROE SFF test VMs (two by default) |
 
 ## Next steps

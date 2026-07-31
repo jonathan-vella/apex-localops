@@ -38,6 +38,16 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ### Changed
 
+- **Cost figures recalculated from the Azure Retail Prices API (2026-07-31, Sweden Central).**
+  Self-hosted was quoted at ~$7,850/mo, a figure inherited from the retired LocalBox profile and
+  never recalculated; it is close to the *Hybrid-Benefit-off* number and so overstated the
+  default (Hybrid Benefit on) by ~35%. The real figures are **~$5,100/mo** running,
+  **~$7,350/mo** with `--disable-azure-hybrid-benefit`, and a **~$1,630/mo** deallocated floor.
+  SFF was understated at ~$700–900/mo: it is **~$1,225/mo** with a **~$480/mo** floor, mostly
+  because Bastion Standard (~$212/mo) was unaccounted for. The two profiles differ by roughly
+  4×, not 10×, so the "one-tenth the cost" claims are corrected throughout.
+  [Self-hosted sizing](docs/selfhosted/sizing.md#monthly-cost) now carries a dated, itemized
+  breakdown instead of a single unsourced number.
 - **The CI shell checks now cover `.devcontainer/`.** `bash -n` and ShellCheck only scanned
   `scripts/`, so the dev container's `post-create.sh` and `post-start.sh` were never validated.
 - **The CI relative-link check no longer scans fenced code blocks.** It matched `](` inside code

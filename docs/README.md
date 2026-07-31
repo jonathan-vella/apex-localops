@@ -21,8 +21,8 @@ IP on the VMs.
 
 | Profile | What it builds | Est. cost (24×7) | Start here |
 | --- | --- | --- | --- |
-| **Self-hosted** | A nested 3-node Azure Local cluster, built clean-room from operator-staged ISOs (no Arc Jumpstart dependency) | ~$7,850/mo | [Self-hosted quickstart](selfhosted/quickstart.md) |
-| **Small Form Factor (SFF)** | A single nested edge test VM (Maintenance OS / ROE) at roughly one-tenth the cost | ~$700–900/mo | [SFF quickstart](sff/quickstart.md) |
+| **Self-hosted** | A nested 3-node Azure Local cluster, built clean-room from operator-staged ISOs (no Arc Jumpstart dependency) | ~$5,100/mo | [Self-hosted quickstart](selfhosted/quickstart.md) |
+| **Small Form Factor (SFF)** | A single nested edge test VM (Maintenance OS / ROE) at roughly a quarter of the cost | ~$1,225/mo | [SFF quickstart](sff/quickstart.md) |
 
 For a feature-by-feature comparison and a decision guide, see [Choose a profile](choose-a-profile.md).
 
@@ -84,8 +84,8 @@ Central (self-hosted and the SFF host), with Azure Hybrid Benefit on.
 
 | Profile | Always-on (24×7) | Deallocated floor | Full breakdown |
 | --- | --- | --- | --- |
-| Self-hosted | ~$7,850/mo | meaningful floor | [Self-hosted sizing](selfhosted/sizing.md) |
-| SFF | ~$700–900/mo | ~$250/mo | [SFF sizing](sff/sizing.md) |
+| Self-hosted | ~$5,100/mo | ~$1,630/mo | [Self-hosted sizing](selfhosted/sizing.md) |
+| SFF | ~$1,225/mo | ~$480/mo | [SFF sizing](sff/sizing.md) |
 
 ## Documentation index
 

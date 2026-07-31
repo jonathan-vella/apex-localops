@@ -4,8 +4,8 @@
 
 The Small Form Factor (SFF) profile builds an Azure Local edge test environment inside a single
 Azure VM — no physical edge hardware. A nested-virtualization Hyper-V host builds the SFF
-Maintenance OS (ROE) test VM inside itself and drives it to a successful setup. At roughly
-one-tenth the cost of the cluster profiles, it is the lightest way to evaluate edge scenarios,
+Maintenance OS (ROE) test VM inside itself and drives it to a successful setup. At roughly a
+quarter of the cost of the cluster profiles, it is the lightest way to evaluate edge scenarios,
 and it is the only path to AKS on bare metal.
 
 This page explains the topology and what gets deployed. To deploy, go to the

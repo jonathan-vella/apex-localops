@@ -18,7 +18,7 @@ New to this profile? Read the [SFF overview](overview.md) first.
 | **What** | One nested-virtualization host VM that builds a Gen2 ROE test VM (TPM on, Secure Boot off, ≥4 vCPU). |
 | **Deploy time** | ~10–15 min ARM, then the Hyper-V install and nested-VM build. |
 | **Default region** | Host in `swedencentral` (`rg-sff-host-swc01`); the Azure Local site, edge machine, and AKS in `eastus` (`rg-sff-azl-eus01`). |
-| **Est. cost** | ~$700–900/month at 24×7 — see [SFF sizing and cost](sizing.md). |
+| **Est. cost** | ~$1,225/month at 24×7 — see [SFF sizing and cost](sizing.md). |
 | **Access** | Azure Bastion only (no public IP on the VMs). |
 
 ## In this guide
