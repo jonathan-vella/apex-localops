@@ -134,15 +134,15 @@ sequenceDiagram
     participant ARM as Azure ARM
     participant HOST as Cluster host
     participant SA as Storage account
-    participant BOX as Management jumpbox
+    participant JUMP as Management jumpbox
 
     OP->>DEP: Start deployment
     DEP->>ARM: Deploy infrastructure
     ARM->>HOST: Run Bootstrap.ps1
     HOST->>HOST: Configure disks and Hyper-V
     HOST->>HOST: Create switches and wait for ISOs
-    OP->>BOX: Connect through Bastion and download ISOs
-    BOX->>SA: Upload ISOs and checksum manifest
+    OP->>JUMP: Connect through Bastion and download ISOs
+    JUMP->>SA: Upload ISOs and checksum manifest
     HOST->>SA: Validate manifest and download ISOs
     HOST->>HOST: Convert ISOs to bootable VHDXs
     HOST->>HOST: Create router VM
