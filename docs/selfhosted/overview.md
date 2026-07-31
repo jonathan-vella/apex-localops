@@ -32,27 +32,29 @@ use the [SFF profile](../sff/overview.md). For a full comparison, see
 
 ```mermaid
 flowchart TB
-    subgraph RG["Resource group (rg-apexlocal)"]
-        subgraph VNet["VNet 172.16.0.0/16"]
-            subgraph WL["Workload subnet 172.16.1.0/24 · NSG closed inbound · defaultOutbound off"]
-                MGMT["apex-mgmt jumpbox<br/>WS2025 · D4s_v5<br/>MI · no public IP"]
-                HOST["apex-host cluster host<br/>WS2025 · E64s_v6<br/>8x P30 -> V: · MI · no public IP"]
+    subgraph RG["Resource group: rg-apexlocal"]
+        subgraph VNET["VNet: 172.16.0.0/16"]
+            subgraph WORKLOAD["Workload subnet: 172.16.1.0/24"]
+                MGMT["apex-mgmt jumpbox<br>WS2025 · D4s_v5<br>MI · no public IP"]
+                HOST["apex-host cluster host<br>WS2025 · E64s_v6<br>8× P30 to V: · MI · no public IP"]
             end
-            subgraph BAS["AzureBastionSubnet 172.16.3.64/26"]
-                BASTION["Azure Bastion (Standard)"]
+            subgraph BASTION_SUBNET["AzureBastionSubnet: 172.16.3.64/26"]
+                BASTION["Azure Bastion Standard"]
             end
         end
-        NAT["NAT Gateway + static PIP<br/>(all egress)"]
-        SA["Storage account (OAuth-only)<br/>Blob private endpoint<br/>iso-images/ + logs/"]
-        LA["Log Analytics workspace"]
-        ARM["Azure Local instance<br/>(Arc-projected)"]
+        NAT["NAT Gateway + static PIP<br>all egress"]
+        STORAGE["Storage account: OAuth only<br>Blob private endpoint<br>iso-images and logs"]
+        LOGS["Log Analytics workspace"]
+        LOCAL["Azure Local instance<br>Arc-projected"]
     end
-    OP["Operator"] -->|RDP over Bastion| BASTION --> MGMT
-    MGMT -->|Upload-Isos.ps1 (MI)| SA
-    HOST -->|pull ISOs + write logs (MI)| SA
-    HOST -->|Azure Monitor Agent + DCR| LA
-    WL -->|egress| NAT
-    HOST -. progress tags / cluster .-> ARM
+
+    OPERATOR["Operator"] -->|"RDP over Bastion"| BASTION
+    BASTION --> MGMT
+    MGMT -->|"Upload-Isos.ps1 using MI"| STORAGE
+    HOST -->|"Pull ISOs and write logs using MI"| STORAGE
+    HOST -->|"Azure Monitor Agent and DCR"| LOGS
+    WORKLOAD -->|"egress"| NAT
+    HOST -.->|"progress tags and cluster"| LOCAL
 ```
 
 **Diagram key:** solid arrows are network and data paths; the dotted arrow is the Arc
@@ -77,29 +79,37 @@ The RBAC assignments, made in
 
 ```mermaid
 flowchart TB
-    subgraph HOST["apex-host (Hyper-V)"]
-        subgraph SW1["ApexLocal-Internal · 192.168.1.0/24 (management/fabric)"]
-            RTR["apexlocal-rtr (router)<br/>gateway 192.168.1.1<br/>RRAS RoutingOnly + WinNAT"]
-            DC["apexlocal-dc<br/>forest apexlocal.local<br/>DNS + NTP · 192.168.1.254"]
-            N1["apexlocal-n1 · .11<br/>96 GB · TPM/SecureBoot<br/>+ StorageA/StorageB"]
-            N2["apexlocal-n2 · .12 · 96 GB"]
-            N3["apexlocal-n3 · .13 · 96 GB"]
+    subgraph HOST["apex-host: Hyper-V"]
+        subgraph INTERNAL["ApexLocal-Internal: 192.168.1.0/24"]
+            ROUTER["apexlocal-rtr: router<br>gateway 192.168.1.1<br>RRAS RoutingOnly + WinNAT"]
+            DC["apexlocal-dc<br>forest apexlocal.local<br>DNS + NTP · 192.168.1.254"]
+            NODE1["apexlocal-n1: 192.168.1.11<br>96 GB · TPM/SecureBoot<br>StorageA + StorageB"]
+            NODE2["apexlocal-n2: 192.168.1.12<br>96 GB"]
+            NODE3["apexlocal-n3: 192.168.1.13<br>96 GB"]
         end
-        subgraph SW2["ApexLocal-NAT · 192.168.128.0/24 (host WinNAT uplink)"]
-            HNAT["host 192.168.128.1 + New-NetNat"]
+        subgraph NAT_NETWORK["ApexLocal-NAT: 192.168.128.0/24"]
+            HOST_NAT["host: 192.168.128.1<br>New-NetNat"]
         end
     end
-    subgraph EXTERNAL["External (Azure + Internet)"]
-        INET["Internet / Azure"]
+    subgraph EXTERNAL["External: Azure and Internet"]
+        INTERNET["Internet / Azure"]
         ARC["Arc-enabled servers"]
-        CLUSTER["Azure Local cluster<br/>(validate -> deploy)"]
+        CLUSTER["Azure Local cluster<br>validate then deploy"]
     end
-    N1 & N2 & N3 -->|gw .1| RTR
-    DC -->|gw .1| RTR
-    RTR -->|.10 -> .1| HNAT -->|host Azure NIC| INET
-    N1 & N2 & N3 -->|Arc connect| ARC
+
+    NODE1 -->|"gateway .1"| ROUTER
+    NODE2 -->|"gateway .1"| ROUTER
+    NODE3 -->|"gateway .1"| ROUTER
+    DC -->|"gateway .1"| ROUTER
+    ROUTER -->|"192.168.128.10 to .1"| HOST_NAT
+    HOST_NAT -->|"host Azure NIC"| INTERNET
+    NODE1 -->|"Arc connect"| ARC
+    NODE2 -->|"Arc connect"| ARC
+    NODE3 -->|"Arc connect"| ARC
     ARC --> CLUSTER
-    DC -. DNS/NTP/OU .-> N1 & N2 & N3
+    DC -.->|"DNS, NTP, and OU"| NODE1
+    DC -.->|"DNS, NTP, and OU"| NODE2
+    DC -.->|"DNS, NTP, and OU"| NODE3
 ```
 
 **Diagram key:** the nested host (left) contains two Hyper-V virtual switches: the internal
@@ -119,28 +129,28 @@ the Azure Local storage intent.
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Op as Operator
-    participant Dep as deploy-selfhosted.sh
-    participant ARM as Azure (ARM)
-    participant Host as apex-host (CSE)
-    participant SA as Storage (iso-images)
-    participant Box as apex-mgmt jumpbox
+    participant Operator
+    participant Deploy as deploy-selfhosted.sh
+    participant Azure as Azure ARM
+    participant Host as apex-host CSE
+    participant Storage as Storage iso-images
+    participant Jumpbox as apex-mgmt jumpbox
 
-    Op->>Dep: run with approved password env + immutable artifact SHA
-    Dep->>ARM: deploy main.bicep (storage, network, Bastion, NAT, LA, 2 VMs, RBAC)
-    ARM->>Host: CustomScriptExtension -> Bootstrap.ps1
-    Host->>Host: pool disks -> V:, install Hyper-V, autologon, reboot
-    Host->>Host: Phase 2 — internal + NAT switches, then WAIT for ISOs
-    Op->>Box: RDP over Bastion, download both ISOs
-    Box->>SA: Upload-Isos.ps1 -> both ISOs + SHA-256 manifest (MI)
-    Host->>SA: validate manifest + pull and hash both ISOs (MI)
-    Host->>Host: Convert-ApexIsoToVhdx x2 (bootable VHDX)
-    Host->>Host: New-ApexRouterVM (gateway 192.168.1.1, RRAS + WinNAT)
-    Host->>Host: New-ApexDomainController (forest + DNS + NTP)
-    Host->>Host: New-ApexLocalNode x3 (static IPs, storage NICs, time sync)
-    Host->>ARM: OS-bundled Invoke-AzStackHciArcInitialization -> Arc machines
-    Host->>ARM: Start-ApexLocalClusterDeployment (Validate -> Deploy)
-    ARM-->>Op: cluster Succeeded / Connected (monitor-selfhosted.sh)
+    Operator->>Deploy: Run with approved password environment and immutable artifact SHA
+    Deploy->>Azure: Deploy main.bicep: storage, network, Bastion, NAT, LA, VMs, RBAC
+    Azure->>Host: CustomScriptExtension runs Bootstrap.ps1
+    Host->>Host: Pool disks to V:, install Hyper-V, autologon, reboot
+    Host->>Host: Create internal and NAT switches, then wait for ISOs
+    Operator->>Jumpbox: RDP over Bastion and download both ISOs
+    Jumpbox->>Storage: Upload-Isos.ps1 uploads ISOs and SHA-256 manifest using MI
+    Host->>Storage: Validate manifest, pull, and hash both ISOs using MI
+    Host->>Host: Convert-ApexIsoToVhdx twice to create bootable VHDXs
+    Host->>Host: Create router VM with gateway 192.168.1.1, RRAS, and WinNAT
+    Host->>Host: Create domain controller with forest, DNS, and NTP
+    Host->>Host: Create three nodes with static IPs, storage NICs, and time sync
+    Host->>Azure: Invoke-AzStackHciArcInitialization creates Arc machines
+    Host->>Azure: Start-ApexLocalClusterDeployment validates and deploys
+    Azure-->>Operator: Cluster succeeds and connects; monitor-selfhosted.sh reports status
 ```
 
 **Diagram key:** this sequence runs top to bottom. The only operator action after starting the
