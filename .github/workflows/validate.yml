@@ -177,7 +177,8 @@ jobs:
                 echo "::error file=$f::broken relative link -> $link"
                 fail=1
               fi
-            done < <(grep -oE '\]\([^)]+\)' "$f" | sed -E 's/^\]\(//; s/\)$//')
+            done < <(awk '/^```/ { inblock = !inblock; next } !inblock' "$f" \
+              | grep -oE '\]\([^)]+\)' | sed -E 's/^\]\(//; s/\)$//')
           done < <(git ls-files 'docs/**/*.md' 'README.md' 'CHANGELOG.md' 'ATTRIBUTION.md' \
             | grep -vE '^docs/upstream/|^docs/azure-local-sff/upstream/|^docs/plans/')
           exit $fail

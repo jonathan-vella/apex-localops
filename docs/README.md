@@ -94,6 +94,7 @@ Central (self-hosted and the SFF host), with Azure Hybrid Benefit on.
 | Guide | What's inside |
 | --- | --- |
 | [Overview](selfhosted/overview.md) | The clean-room topology, the RBAC model, and the end-to-end build flow. |
+| [Runbook](selfhosted/runbook.md) | The full path in one place: build the cluster, deploy workloads (VMs, SQL, AVD, AKS), verify, and tear down to $0. |
 | [Quickstart](selfhosted/quickstart.md) | Register providers, deploy, stage the two ISOs from the jumpbox, monitor the build, and confirm success. |
 | [Sizing and cost](selfhosted/sizing.md) | Fixed release topology, regional quota, cost control, and the build time budget. |
 | [Troubleshooting](selfhosted/troubleshooting.md) | Evidence collection, supported cluster-only recovery, secret cleanup, and full redeployment boundaries. |

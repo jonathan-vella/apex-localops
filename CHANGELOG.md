@@ -13,6 +13,10 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ### Added
 
+- **End-to-end runbook.** [docs/selfhosted/runbook.md](docs/selfhosted/runbook.md) covers the
+  whole path in one place: build the cluster, deploy workloads (images, network, WS2025 VMs,
+  SQL, AVD, AKS + sample app), verify each piece, and tear down to $0. The workloads phase and
+  teardown were previously undocumented.
 - **AKS (Arc) is now a workloads stage.** `./scripts/deploy-workloads-selfhosted.sh --stage aks`
   creates the cluster on a routable logical network (derived from the cluster's `*-InfraLNET`,
   node pool `.130-.150`, control-plane IP `.129` outside the pool as AKS requires). Deploy the
@@ -27,6 +31,9 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
 
 ### Changed
 
+- **The CI relative-link check no longer scans fenced code blocks.** It matched `](` inside code
+  samples and reported them as broken links, so any documented snippet containing that sequence
+  (for example a PowerShell cast followed by a parenthesis) would fail the build.
 - **Host storage resized so the nested cluster has usable capacity.** The host now pools
   **8 × 1024 GB** Premium data disks (was 12 × 256 GB) and each nested node gets **4 × 600 GB**
   capacity disks (was 4 × 170 GB). That lifts usable nested capacity from ~400 GB to **~2.1 TB**.

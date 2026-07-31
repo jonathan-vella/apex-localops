@@ -323,6 +323,7 @@ For failure evidence and supported recovery points, see
 
 ## Next steps
 
+- Deploy workloads on the cluster and tear it down again: [Self-hosted runbook](runbook.md).
 - Plan capacity and cost: [Self-hosted sizing and cost](sizing.md).
 - Review the topology and RBAC model: [Self-hosted overview](overview.md).
 - See the release gate and evidence schema: [Self-hosted validation](validation.md).

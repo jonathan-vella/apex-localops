@@ -4,7 +4,7 @@ set -euo pipefail
 #
 # cleanup-selfhosted.sh - Tear down the SELF-HOSTED Azure Local lab (stops all billing).
 #
-# Deletes the entire resource group. The cluster host, its 12 Premium data disks,
+# Deletes the entire resource group. The cluster host, its 8 Premium data disks,
 # Bastion, and the NAT Gateway all bill continuously even when nested VMs are off,
 # so deleting the RG is the only way to reach $0. Deleting the RG also removes the
 # Arc-projected Azure Local cluster + node resources it created.
