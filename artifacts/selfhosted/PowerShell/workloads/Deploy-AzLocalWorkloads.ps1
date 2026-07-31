@@ -160,6 +160,9 @@ switch ($Stage) {
         Ensure-WorkloadLogicalNetwork -Config $Config -CustomLocationId $cl -WhatIf:$WhatIfPreference | Out-Null
         New-WorkloadAksCluster -Config $Config -CustomLocationId $cl -WhatIf:$WhatIfPreference | Out-Null
         if (-not $WhatIfPreference) {
+            # Give the operator working kubectl access even when no Entra admin group was resolved.
+            try { New-AksClusterConnectToken -Config $Config | Out-Null }
+            catch { Write-Host "  WARNING: cluster-connect token bootstrap failed: $($_.Exception.Message)" -ForegroundColor Yellow }
             Write-Host "  Sample app: ./scripts/deploy-aks-sample-app.sh --name $($Config.Aks.ClusterName) -g $($Config.ResourceGroup)" -ForegroundColor DarkGray
         }
     }

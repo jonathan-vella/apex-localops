@@ -180,6 +180,10 @@
     AdminGroupObjectId = ''          # Entra group granted Kubernetes admin. Blank => the wrapper resolves
                                      # one via scripts/ensure-admin-group.sh (LOCALSELF_AKS_ADMIN_GROUP_ID).
                                      # Create-time only: it cannot be added to an existing cluster.
+    # Arc cluster-connect service-account token auth. Works on an EXISTING cluster and needs no
+    # Entra directory rights, so it is the fallback when no admin group could be resolved.
+    ClusterConnectSaName = 'apex-cluster-connect'
+    BootstrapVmKey       = 'WindowsServer2025_1'   # a VM on the cluster's subnet; reaches the API server
     SampleAppManifest  = 'artifacts/aks/sample-app/hello-app.yaml'
   }
 }

@@ -81,6 +81,16 @@ proxy_log="$(mktemp)"
 kubecfg="$(mktemp)"
 proxy_args=(--name "$CLUSTER_NAME" --resource-group "$RESOURCE_GROUP" --file "$kubecfg")
 [[ -n "$PROXY_PORT" ]] && proxy_args+=(--port "$PROXY_PORT")
+# Service-account token auth (aka.ms/cluster-connect): lets the proxy in without an Entra group or
+# a Kubernetes RBAC binding for the caller. Written by the 'aks' workloads stage.
+TOKEN_FILE="${LOCALSELF_AKS_TOKEN_FILE:-$HOME/.apex-localops/aks-token}"
+if [[ -z "${LOCALSELF_AKS_TOKEN:-}" && -f "$TOKEN_FILE" ]]; then
+  LOCALSELF_AKS_TOKEN="$(cat "$TOKEN_FILE")"
+fi
+if [[ -n "${LOCALSELF_AKS_TOKEN:-}" ]]; then
+  echo "Using service-account token authentication."
+  proxy_args+=(--token "$LOCALSELF_AKS_TOKEN")
+fi
 az connectedk8s proxy "${proxy_args[@]}" >"$proxy_log" 2>&1 &
 proxy_pid=$!
 cleanup_proxy() {

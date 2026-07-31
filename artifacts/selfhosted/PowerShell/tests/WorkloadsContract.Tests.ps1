@@ -49,6 +49,18 @@ Describe 'Self-hosted workloads config' {
     $config.Aks.NodeCount | Should -BeGreaterThan 0
   }
 
+  It 'bootstraps cluster-connect service-account token auth for AKS' {
+    $config.Aks.ClusterConnectSaName | Should -Not -BeNullOrEmpty
+    $config.Vms[$config.Aks.BootstrapVmKey] | Should -Not -BeNullOrEmpty
+    # The admin kubeconfig is a credential: it must ride as an encrypted protected parameter.
+    $moduleSource | Should -Match 'ProtectedParameters\s+@\{\s*Kubeconfig'
+    $moduleSource | Should -Match 'kubernetes\.io/service-account-token'
+    $moduleSource | Should -Match 'clusterrolebinding'
+    # The stored token must not be world-readable.
+    $moduleSource | Should -Match 'chmod 600'
+    $orchestratorSource | Should -Match 'New-AksClusterConnectToken'
+  }
+
   It 'defines the three Gen2 marketplace images (WS2025 smalldisk)' {
     $config.Images.WindowsServer2025.Urn | Should -Be 'microsoftwindowsserver:windowsserver:2025-datacenter-azure-edition-smalldisk:latest'
     $config.Images.Sql2022.Urn | Should -Be 'microsoftsqlserver:sql2022-ws2022:standard-gen2:latest'

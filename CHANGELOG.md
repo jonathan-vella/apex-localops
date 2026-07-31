@@ -17,6 +17,13 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
   creates the cluster on a routable logical network (derived from the cluster's `*-InfraLNET`,
   node pool `.130-.150`, control-plane IP `.129` outside the pool as AKS requires). Deploy the
   sample app afterwards with `scripts/deploy-aks-sample-app.sh --name <cluster> -g <rg>`.
+- **Automated cluster-connect authentication.** The `aks` stage now bootstraps
+  [service-account token authentication](https://learn.microsoft.com/azure/azure-arc/kubernetes/cluster-connect#service-account-token-authentication-option)
+  and stores the token in a git-ignored `~/.apex-localops/aks-token` (mode `0600`);
+  `deploy-aks-sample-app.sh` picks it up automatically. This matters because
+  `--aad-admin-group-object-ids` can only be set **at cluster creation**, so a cluster created
+  without it otherwise has no Kubernetes admin at all — and unlike the Entra group path, the
+  token needs no directory permissions, so it works in locked-down tenants.
 
 ### Changed
 

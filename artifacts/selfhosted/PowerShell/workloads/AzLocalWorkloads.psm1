@@ -760,8 +760,108 @@ function New-WorkloadAksCluster {
     return $aks.ClusterName
 }
 
+# Runs on a workload VM that can reach the AKS API server. Single-quoted so every $ below is
+# evaluated remotely; the admin kubeconfig arrives as an encrypted protected parameter.
+$script:AksTokenBootstrapScript = @'
+param([string]$Kubeconfig, [string]$SaName, [string]$Namespace, [string]$KubectlVersion)
+$ErrorActionPreference = 'Stop'
+$dir = 'C:\aksconnect'
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+$kc = Join-Path $dir 'admin.kubeconfig'
+$yamlPath = Join-Path $dir 'sa-token-secret.yaml'
+$kubectl = Join-Path $dir 'kubectl.exe'
+try {
+  Set-Content -LiteralPath $kc -Value $Kubeconfig -Encoding ascii
+  if (-not (Test-Path $kubectl)) {
+    # curl.exe enforces a hard timeout; Invoke-WebRequest can hang and leave a truncated binary.
+    & curl.exe -L --fail --silent --show-error --max-time 300 --retry 3 --retry-all-errors -o $kubectl "https://dl.k8s.io/release/$KubectlVersion/bin/windows/amd64/kubectl.exe"
+    if ($LASTEXITCODE -ne 0) { throw "kubectl download failed: exit $LASTEXITCODE" }
+  }
+  $env:KUBECONFIG = $kc
+  # kubectl create is not idempotent; ignore AlreadyExists and let the token read prove success.
+  & $kubectl create serviceaccount $SaName -n $Namespace 2>&1 | Out-Null
+  & $kubectl create clusterrolebinding ($SaName + '-binding') --clusterrole cluster-admin --serviceaccount ($Namespace + ':' + $SaName) 2>&1 | Out-Null
+  $secret = $SaName + '-token'
+  @(
+    'apiVersion: v1'
+    'kind: Secret'
+    'metadata:'
+    ('  name: ' + $secret)
+    ('  namespace: ' + $Namespace)
+    '  annotations:'
+    ('    kubernetes.io/service-account.name: ' + $SaName)
+    'type: kubernetes.io/service-account-token'
+  ) | Set-Content -LiteralPath $yamlPath -Encoding ascii
+  & $kubectl apply -f $yamlPath 2>&1 | Out-Null
+  # The token controller fills the secret asynchronously.
+  $token = ''
+  for ($i = 0; $i -lt 30; $i++) {
+    $b64 = (& $kubectl get secret $secret -n $Namespace -o 'jsonpath={.data.token}' 2>$null)
+    if ($b64) { $token = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64)); break }
+    Start-Sleep -Seconds 2
+  }
+  if (-not $token) { throw 'the service-account token secret was never populated' }
+  $token
+}
+finally {
+  Remove-Item -LiteralPath $kc, $yamlPath -Force -ErrorAction SilentlyContinue
+}
+'@
+
+function New-AksClusterConnectToken {
+    <# Bootstrap Arc cluster-connect SERVICE-ACCOUNT TOKEN auth, per
+       learn.microsoft.com/azure/azure-arc/kubernetes/cluster-connect#service-account-token-authentication-option.
+       Unlike --aad-admin-group-object-ids (create-time only) this works on an existing cluster and
+       needs no Entra directory permissions. The admin kubeconfig only resolves from the cluster's
+       own subnet, so the service account, binding and token secret are created through a run
+       command on a workload VM that can reach the API server. The token is written to a
+       git-ignored file (0600) and returned; it is never written to a log. #>
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]$Config,
+        [string]$ViaVmName,
+        [string]$TokenPath
+    )
+    $aks = $Config.Aks
+    if (-not $ViaVmName) { $ViaVmName = $Config.Vms[$aks.BootstrapVmKey].Name }
+    if (-not $TokenPath) {
+        $TokenPath = if ($env:LOCALSELF_AKS_TOKEN_FILE) { $env:LOCALSELF_AKS_TOKEN_FILE }
+        else { Join-Path (Join-Path $HOME '.apex-localops') 'aks-token' }
+    }
+    if (-not $PSCmdlet.ShouldProcess($aks.ClusterName, 'bootstrap cluster-connect service-account token')) { return }
+
+    # Match kubectl to the cluster so we stay inside the supported one-minor version skew.
+    $inst = Invoke-Az -Args @('rest', '--method', 'get', '--url',
+        "https://management.azure.com/subscriptions/$($Config.SubscriptionId)/resourceGroups/$($Config.ResourceGroup)/providers/Microsoft.Kubernetes/connectedClusters/$($aks.ClusterName)/providers/Microsoft.HybridContainerService/provisionedClusterInstances/default?api-version=2024-01-01")
+    $k8sVersion = if ($inst -and $inst.properties.kubernetesVersion) { 'v' + $inst.properties.kubernetesVersion } else { 'v1.33.5' }
+
+    $adminFile = New-TemporaryFile
+    try {
+        $null = Invoke-Az -MustSucceed -Args @('aksarc', 'get-credentials', '-g', $Config.ResourceGroup,
+            '-n', $aks.ClusterName, '--admin', '--file', $adminFile.FullName, '--overwrite-existing')
+        $adminKubeconfig = Get-Content -Raw -LiteralPath $adminFile.FullName
+
+        Write-Step "Bootstrapping cluster-connect token for '$($aks.ClusterName)' via '$ViaVmName' (kubectl $k8sVersion)..."
+        $token = ([string](Invoke-ArcRunCommand -Config $Config -VmName $ViaVmName -Script $script:AksTokenBootstrapScript `
+                    -Parameters @{ SaName = $aks.ClusterConnectSaName; Namespace = 'default'; KubectlVersion = $k8sVersion } `
+                    -ProtectedParameters @{ Kubeconfig = $adminKubeconfig } `
+                    -TimeoutSeconds 900)).Trim()
+    }
+    finally {
+        Remove-Item -LiteralPath $adminFile.FullName -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($token -notmatch '^[A-Za-z0-9\-_\.]+$') { throw "cluster-connect token bootstrap did not return a token for '$($aks.ClusterName)'." }
+    $dir = Split-Path -Parent $TokenPath
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    Set-Content -LiteralPath $TokenPath -Value $token -NoNewline
+    if (-not $IsWindows) { & chmod 600 $TokenPath }
+    Write-Step "Cluster-connect token stored at $TokenPath (service account '$($aks.ClusterConnectSaName)')." 'OK'
+    return $token
+}
+
 Export-ModuleMember -Function `
     Ensure-MarketplaceImage, Wait-ImageReady, Ensure-WorkloadLogicalNetwork, `
     New-WorkloadVm, Get-WorkloadVmInstance, Get-VmDomainJoinState, Wait-VmAgentConnected, Set-SqlStoragePaths, `
-    Add-AvdSessionHost, New-WorkloadAksCluster, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
+    Add-AvdSessionHost, New-WorkloadAksCluster, New-AksClusterConnectToken, Resolve-ClusterContext, Resolve-CustomLocationId, Resolve-AdminPassword, `
     Invoke-ArcRunCommand, Sync-ClusterNodeTime, Get-ClusterNodeNames, Get-VmHostNode, Invoke-GuestDomainJoin
