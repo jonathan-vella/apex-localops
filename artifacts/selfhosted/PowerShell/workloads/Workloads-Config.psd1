@@ -171,19 +171,19 @@
   # instance). ControlPlaneIp is a single reserved address OUTSIDE the lnet pool, per the AKS
   # requirement that it not overlap the pool, infra IPs, or load-balancer addresses.
   Aks                  = @{
-    ClusterName        = 'apexlocal-aks'
-    LogicalNetworkKey  = 'Aks'
-    ControlPlaneIp     = ''          # derived: .129 of the InfraLNET /24 (just below the .130-.150 pool)
-    ControlPlaneCount  = 1
-    NodeCount          = 2
-    NodeVmSize         = 'Standard_A4_v2'
-    AdminGroupObjectId = ''          # Entra group granted Kubernetes admin. Blank => the wrapper resolves
-                                     # one via scripts/ensure-admin-group.sh (LOCALSELF_AKS_ADMIN_GROUP_ID).
-                                     # Create-time only: it cannot be added to an existing cluster.
+    ClusterName          = 'apexlocal-aks'
+    LogicalNetworkKey    = 'Aks'
+    ControlPlaneIp       = ''          # derived: .129 of the InfraLNET /24 (just below the .130-.150 pool)
+    ControlPlaneCount    = 1
+    NodeCount            = 2
+    NodeVmSize           = 'Standard_A4_v2'
+    AdminGroupObjectId   = ''          # Entra group granted Kubernetes admin. Blank => the wrapper resolves
+    # one via scripts/ensure-admin-group.sh (LOCALSELF_AKS_ADMIN_GROUP_ID).
+    # Create-time only: it cannot be added to an existing cluster.
     # Arc cluster-connect service-account token auth. Works on an EXISTING cluster and needs no
     # Entra directory rights, so it is the fallback when no admin group could be resolved.
     ClusterConnectSaName = 'apex-cluster-connect'
     BootstrapVmKey       = 'WindowsServer2025_1'   # a VM on the cluster's subnet; reaches the API server
-    SampleAppManifest  = 'artifacts/aks/sample-app/hello-app.yaml'
+    SampleAppManifest    = 'artifacts/aks/sample-app/hello-app.yaml'
   }
 }
