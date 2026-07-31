@@ -61,7 +61,7 @@ flowchart TB
                 H3["node 3"]
             end
             Mgmt["Domain Controller · RRAS/BGP router<br/>(nested VMs built from ISOs)"]
-            Pool["12 × 256 GB P30 disks<br/>Storage Spaces Direct pool"]
+            Pool["8 × 1024 GB P30 disks<br/>Storage Spaces Direct pool"]
         end
     end
 

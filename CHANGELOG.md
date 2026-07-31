@@ -29,8 +29,17 @@ in `infra/bicep/azlocal-selfhosted/main.bicepparam` for reproducible deploys.
   without it otherwise has no Kubernetes admin at all — and unlike the Entra group path, the
   token needs no directory permissions, so it works in locked-down tenants.
 
+### Removed
+
+- **The standalone `infra/bicep/azlocal-vm/` module.** A repo sweep found it referenced by
+  nothing: no script invoked it, no Bicep module imported it, no user-facing doc linked it, and
+  neither the Bicep nor the ShellCheck CI job covered it. Its capability is already provided by
+  the workloads orchestrator plus `azlocal-selfhosted/workloads/vm.bicep`.
+
 ### Changed
 
+- **The CI shell checks now cover `.devcontainer/`.** `bash -n` and ShellCheck only scanned
+  `scripts/`, so the dev container's `post-create.sh` and `post-start.sh` were never validated.
 - **The CI relative-link check no longer scans fenced code blocks.** It matched `](` inside code
   samples and reported them as broken links, so any documented snippet containing that sequence
   (for example a PowerShell cast followed by a parenthesis) would fail the build.

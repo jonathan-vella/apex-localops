@@ -87,7 +87,7 @@ jobs:
 
       - name: Syntax check (bash -n)
         run: |
-          for s in scripts/*.sh; do
+          for s in scripts/*.sh .devcontainer/*.sh; do
             bash -n "$s" && echo "ok: $s"
           done
 
@@ -95,6 +95,13 @@ jobs:
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
         with:
           scandir: ./scripts
+          severity: warning
+
+      # Owned scripts also live outside scripts/; scandir takes a single path, hence a second step.
+      - name: ShellCheck (dev container)
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
+        with:
+          scandir: ./.devcontainer
           severity: warning
 
   powershell:

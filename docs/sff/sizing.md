@@ -132,7 +132,7 @@ Verify with: `az vm show -g rg-sff-host-swc01 -n LocalSFF-Host --query licenseTy
 | | Self-hosted (3-node) | **SFF** |
 | --- | --- | --- |
 | Host VM | `Standard_E64s_v6` (64 / 512) | `Standard_D16s_v5` (16 / 64) |
-| Data disks | 12 × 256 GB P30 (3 TB) | 1 × 1024 GB Premium |
+| Data disks | 8 × 1024 GB P30 (8 TB) | 1 × 1024 GB Premium |
 | Est. 24×7 | ~$7,850/mo | ~$700–900/mo (~1/10th) |
 | Nested payload | 3-node Azure Local cluster + DC + router | One or two ROE SFF test VMs (two by default) |
 

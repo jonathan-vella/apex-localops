@@ -15,7 +15,8 @@ applyTo: "infra/bicep/**/*.bicep"
 ## Scope
 
 Owned templates live under `infra/bicep/` (`azlocal-selfhosted`, `azlocal-sff`,
-`aks-baremetal`, `azlocal-vm`). Each profile has a `main.bicep` plus `host/`, `network/`, `mgmt/` modules.
+`aks-baremetal`). Each profile has a `main.bicep`; the host-based profiles add `host/`,
+`network/`, and `mgmt/` modules.
 
 ## Authoring rules
 

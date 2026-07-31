@@ -122,6 +122,12 @@ Everything here runs from your client through
 Each image downloads for 30–120 minutes. The WS2025 **smalldisk** image is 30 GB; the SQL 2022
 and Win11 AVD images are 127 GB fixed VHDs, so skip the ones you do not need.
 
+> [!NOTE]
+> Three more stages exist that this walkthrough does not use: `prereqs` (register
+> `Microsoft.EdgeMarketplace` and assign the Arc Resource Manager role), `insights` (Azure Local
+> Insights via the monitoring agent and a data collection rule), and `all-vms` (a shortcut for
+> `images` + `network` + `wait` + `ws2025`). Run the script with `--help` for the full list.
+
 ### Step 2 — Tenant logical network
 
 ```bash
