@@ -129,28 +129,28 @@ the Azure Local storage intent.
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Operator
-    participant Deploy as deploy-selfhosted.sh
-    participant Azure as Azure ARM
-    participant Host as apex-host CSE
-    participant Storage as Storage iso-images
-    participant Jumpbox as apex-mgmt jumpbox
+    participant OP as Operator
+    participant DEP as Deploy script
+    participant ARM as Azure ARM
+    participant HOST as Cluster host
+    participant SA as Storage account
+    participant BOX as Management jumpbox
 
-    Operator->>Deploy: Run with approved password environment and immutable artifact SHA
-    Deploy->>Azure: Deploy main.bicep: storage, network, Bastion, NAT, LA, VMs, RBAC
-    Azure->>Host: CustomScriptExtension runs Bootstrap.ps1
-    Host->>Host: Pool disks to V:, install Hyper-V, autologon, reboot
-    Host->>Host: Create internal and NAT switches, then wait for ISOs
-    Operator->>Jumpbox: RDP over Bastion and download both ISOs
-    Jumpbox->>Storage: Upload-Isos.ps1 uploads ISOs and SHA-256 manifest using MI
-    Host->>Storage: Validate manifest, pull, and hash both ISOs using MI
-    Host->>Host: Convert-ApexIsoToVhdx twice to create bootable VHDXs
-    Host->>Host: Create router VM with gateway 192.168.1.1, RRAS, and WinNAT
-    Host->>Host: Create domain controller with forest, DNS, and NTP
-    Host->>Host: Create three nodes with static IPs, storage NICs, and time sync
-    Host->>Azure: Invoke-AzStackHciArcInitialization creates Arc machines
-    Host->>Azure: Start-ApexLocalClusterDeployment validates and deploys
-    Azure-->>Operator: Cluster succeeds and connects; monitor-selfhosted.sh reports status
+    OP->>DEP: Start deployment
+    DEP->>ARM: Deploy infrastructure
+    ARM->>HOST: Run Bootstrap.ps1
+    HOST->>HOST: Configure disks and Hyper-V
+    HOST->>HOST: Create switches and wait for ISOs
+    OP->>BOX: Connect through Bastion and download ISOs
+    BOX->>SA: Upload ISOs and checksum manifest
+    HOST->>SA: Validate manifest and download ISOs
+    HOST->>HOST: Convert ISOs to bootable VHDXs
+    HOST->>HOST: Create router VM
+    HOST->>HOST: Create domain controller
+    HOST->>HOST: Create three Azure Local nodes
+    HOST->>ARM: Initialize Arc machines
+    HOST->>ARM: Validate and deploy the cluster
+    ARM-->>OP: Report connected cluster
 ```
 
 **Diagram key:** this sequence runs top to bottom. The only operator action after starting the
