@@ -5,7 +5,7 @@ ms.topic: overview
 author: ronmiab
 ms.author: robess
 ms.service: azure-local
-ms.date: 07/21/2026
+ms.date: 07/29/2026
 ms.subservice: hyperconverged
 ---
 
@@ -17,7 +17,7 @@ This article lists the features and improvements that are available in hyperconv
 
 ## Features and improvements in 2607
 
-The July 2026 release of hyperconverged deployments of Azure Local is version **12.2607.1003.69**. For more information, see [Release information summary](./release-information-23h2.md).
+The July 2026 release of hyperconverged deployments of Azure Local is version **12.2607.1003.71**. For more information, see [Release information summary](./release-information-23h2.md).
 
 This release includes various reliability improvements and bug fixes.
 
@@ -165,7 +165,7 @@ This release includes various reliability improvements and bug fixes.
 
 - **Deployment performance improvements**: Deployment duration is now consistent for clusters of up to 8 nodes, with an overall time reduction of up to 40%.
 
-- **Rack aware clustering**: Rack‑aware clustering now supports deployments using local identity with Azure Key Vault. For more information, see [Generally available or supported services](./deploy/deployment-local-identity-with-key-vault.md#generally-available-or-supported-services).
+- **Rack aware clustering**: Rack‑aware clustering now supports deployments using local identity with Azure Key Vault. For more information, see [Generally available or supported services](./deploy/deployment-local-identity-with-key-vault-overview.md#generally-available-or-supported-services).
 
 - **GPU acceleration for Azure Local VMs general availability**: GPU acceleration for Azure Local VMs is now generally available. Azure Local supports attaching or detaching full GPUs (DDA) or GPU partitions (GPU‑P) to Azure Local VMs during creation or as a Day‑2 operation using the Azure CLI or Azure portal. For more information, see [Manage GPUs via Discrete Device Assignment](./manage/gpu-manage-via-device.md).
 

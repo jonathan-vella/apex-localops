@@ -38,7 +38,7 @@
             href: public/external-key-management.md
           - name: Confidential computing
             href: public/confidential-computing.md
-          - name: Regulated Environment Management (REM)
+          - name: Sovereign Control Panel (SCP)
             href: public/regulated-environment-management.md
         - name: Sovereign Landing Zone
           items: 
