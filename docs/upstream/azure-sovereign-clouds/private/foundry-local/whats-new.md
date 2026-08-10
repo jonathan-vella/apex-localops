@@ -8,7 +8,7 @@ appliesto:
 ms.topic: whats-new
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 07/20/2026
+ms.date: 07/31/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want to know what's new in Foundry Local on Azure Local so that I can plan upgrades and take advantage of new capabilities.
 ---
@@ -18,6 +18,30 @@ customer intent: As a platform engineer or developer, I want to know what's new 
 This article summarizes new features, improvements, and important updates for Foundry Local on Azure Local. Use this information to stay current with the latest capabilities and plan your deployments.
 
 [!INCLUDE [foundry-local-preview](includes/foundry-local-preview.md)]
+
+## August 2026
+
+### Release of extension version `2607`
+
+This release adds model evaluation, multi-GPU model parallelism for vLLM deployments, and enhancements to automatic GPU inference tuning for Foundry Local on Azure Local.
+
+#### Model evaluation
+
+You can now evaluate a deployed model directly on the cluster by uploading a test dataset, running evaluators, and downloading structured results. Evaluations run entirely in your environment, so no data leaves the cluster. Choose natural language processing (NLP) evaluators for text-matching metrics such as F1, BLEU, and ROUGE, or quality evaluators that use a second deployed model as a judge to score signals such as coherence, fluency, relevance, and similarity. A new Datasets API manages evaluation dataset uploads. Evaluation is also supported in disconnected environments.
+
+For more information, see [Evaluate a model](how-to-evaluate-model.md) and [Evaluate a model in disconnected environments](disconnected-operations/how-to-evaluate-model-disconnected.md).
+
+#### Model parallelism for multi-GPU inference
+
+vLLM deployments now support model parallelism to distribute a single model replica across multiple GPUs when a model exceeds a single GPU's memory or performance capacity. Use tensor parallelism (TP) to partition model weights across GPUs, pipeline parallelism (PP) to assign layer groups to different GPUs, or combine both. Set `tensor_parallel_size` and `pipeline_parallel_size` on the deployment to control the topology.
+
+For more information, see [Model parallelism for multi-GPU inference](concept-model-parallelism.md).
+
+#### Enhanced automatic GPU inference tuning
+
+The vLLM planner now validates the selected model and serving configuration against the GPUs allocated to the deployment during startup. It profiles runtime memory requirements with the installed vLLM runtime, auto-fits the maximum model context length when you don't specify one, and applies the resulting settings. This behavior provides a more accurate, memory-safe starting point for GPU deployments.
+
+For more information, see [Automatic GPU inference tuning](concept-gpu-inference-planner.md).
 
 ## July 2026
 

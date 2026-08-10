@@ -71,4 +71,4 @@ National, regional, and local governments, and regulated industries like energy,
 - [Sovereign Landing Zone](overview-sovereign-landing-zone.md)
 - [Data Guardian](data-guardian.md)
 - [External Key Management](external-key-management.md)
-- [Regulated Environment Management](regulated-environment-management.md)
+- [Sovereign Control Panel](sovereign-control-panel.md)

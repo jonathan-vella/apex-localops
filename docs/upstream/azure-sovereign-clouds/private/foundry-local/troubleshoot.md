@@ -161,6 +161,30 @@ kubectl describe modeldeployment <deployment-name> -n foundry-local-operator
 kubectl logs -n foundry-local-operator deployment/inference-operator-api --tail=500
 ```
 
+## Evaluation fails with model or judge unreachable
+
+If an evaluation reaches the `Failed` phase with a message about model or judge connectivity, verify that the model deployment pods referenced in the evaluation (both the model under test and the judge model, if used) are running.
+
+```bash
+kubectl get pods -n foundry-local-operator
+```
+
+Common causes:
+
+- The model pod crashed or was evicted. Check pod events by using `kubectl describe pod`.
+- The model is still loading. Large models can take several minutes to become ready after deployment.
+
+## Pods stay Pending due to node pod limit
+
+If pods stay in `Pending` state and the node has available CPU and memory, the node might have reached its `maxPods` limit. This setting controls the maximum number of pods a node can run. When system components consume most of the available slots, new pods can't be scheduled.
+
+```bash
+kubectl describe node <NODE_NAME>
+```
+
+Check the `Non-terminated Pods` count against the node's `Allocatable` pod limit. If the node is full, consider using a node pool with a higher `maxPods` value.
+
+
 ## Related content
 
 - [Known issues for Foundry Local on Azure Local](known-issues.md)

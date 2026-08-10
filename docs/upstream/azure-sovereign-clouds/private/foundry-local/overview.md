@@ -40,6 +40,7 @@ The following capabilities highlight what you can do with Foundry Local on Azure
 - Operate in disconnected environments where internet connectivity isn't available, with a deployment model consistent with connected scenarios.
 - Secure endpoint access using API keys, Microsoft Entra ID authentication, and TLS-enabled gateway API patterns.
 - Sync model catalog metadata so teams can discover and deploy supported models consistently.
+- Evaluate deployed models against test datasets with structured quality scores stored locally on the cluster.
 
 ## Architecture summary
 
@@ -49,6 +50,7 @@ Foundry Local on Azure Local runs on an Arc-enabled Kubernetes cluster and is de
 - A **Model** resource defines model metadata. Models can come from the Foundry catalog or from your own registry.
 - A **ModelDeployment** resource defines runtime intent, such as scaling profile and endpoint exposure.
 - The platform can synchronize model catalog metadata into the cluster for discoverability and version consistency.
+- An **Evaluation Job** runs evaluations against deployed models. The operator spawns the job, which calls the model under test, scores responses, and stores results locally on the cluster.
 - Inference traffic is exposed through internal services or Kubernetes Gateway API, protected with API key, Entra ID token validation, and authentication and TLS.
 
 The following diagram shows how these components work together. An Arc-enabled Kubernetes cluster runs the Foundry Local extension and inference operator, which manage model and model deployment resources. Applications call secured inference endpoints through gateway API by using API keys or Entra ID tokens.

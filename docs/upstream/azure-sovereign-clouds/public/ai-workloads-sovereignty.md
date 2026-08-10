@@ -16,7 +16,7 @@ ms.collection:
 
 Artificial intelligence (AI) workloads introduce unique sovereignty considerations. These workloads often involve large volumes of sensitive data, model assets that can embed regulated information, and inference operations that might produce or transform sensitive output. Designing AI solutions in Sovereign Public Cloud requires consistent application of sovereign controls across the AI lifecycle - from data sourcing and labeling to training, fine-tuning, deployment, inference, monitoring, and retirement.
 
-This article provides guidance to help you align AI workloads with sovereignty objectives - data, operational, and technological - using capabilities available in the Microsoft cloud ecosystem. It complements broader guidance on [How to implement workloads in Sovereign Public Cloud](overview-implement-workloads.md) and specific capabilities such as [External Key Management](external-key-management.md), [Confidential Computing](confidential-computing.md), [Data Guardian](data-guardian.md), and [Regulated Environment Management (REM)](regulated-environment-management.md).
+This article provides guidance to help you align AI workloads with sovereignty objectives - data, operational, and technological - using capabilities available in the Microsoft cloud ecosystem. It complements broader guidance on [How to implement workloads in Sovereign Public Cloud](overview-implement-workloads.md) and specific capabilities such as [External Key Management](external-key-management.md), [Confidential Computing](confidential-computing.md), [Data Guardian](data-guardian.md), and [Sovereign Control Panel (SCP)](sovereign-control-panel.md).
 
 ## Why AI sovereignty matters
 
@@ -27,7 +27,7 @@ AI sovereignty is essential for organizations that must meet regulatory, legal, 
 | Data residency and localization | Ensures that training, fine-tuning, and inference data (and derived artifacts such as embeddings, vector indexes, or model snapshots) are stored and processed within approved regions that align with legal or policy requirements. |
 | Encryption and key control | Applies encryption in transit, at rest, and (where applicable) in use. Uses customer-managed keys (CMK) or external key management (EKM) to retain ownership of cryptographic material for sensitive datasets and model artifacts. |
 | Confidential processing | Reduces exposure of plaintext data or model parameters to platform operators by using confidential computing options where feasible (for example, confidential VMs or confidential containers for training or inference components). |
-| Operational oversight | Provides auditable, policy-driven access approvals for provider operations (Data Guardian) and enforces consistent deployment guardrails (REM and policy portfolios). |
+| Operational oversight | Provides auditable, policy-driven access approvals for provider operations (Data Guardian) and enforces consistent deployment guardrails (SCP and policy portfolios). |
 | Model provenance and supply chain | Tracks origin, version, and integrity of models, fine-tuning datasets, prompt templates, and reinforcement learning artifacts to help mitigate tampering risk. |
 | Responsible and compliant use | Embeds content filtering, logging, evaluation, and red-team processes aligned with responsible AI and sector regulatory expectations. |
 
@@ -62,7 +62,7 @@ Protect high-sensitivity training and inference workloads by using [Confidential
 
 ### Operational oversight and environment governance
 
-Use [Data Guardian](data-guardian.md) for supervised provider operations in regulated regions and REM (as it matures) for unified configuration, deployment, and monitoring of sovereign AI environments. Combine with Azure Policy initiatives (Level 2 and Level 3) to enforce encryption at rest and confidential compute enablement for specified resource types.
+Use [Data Guardian](data-guardian.md) for supervised provider operations in regulated regions and SCP for unified configuration, deployment, and monitoring of sovereign AI environments. Combine with Azure Policy initiatives (Level 2 and Level 3) to enforce encryption at rest and confidential compute enablement for specified resource types.
 
 ### Identity, access, and segmentation
 
@@ -141,7 +141,7 @@ AI sovereignty is achieved by consistently extending existing sovereign controls
 - [External Key Management](external-key-management.md)
 - [Confidential Computing](confidential-computing.md)
 - [Data Guardian](data-guardian.md)
-- [Regulated Environment Management](regulated-environment-management.md)
+- [Sovereign Control Panel](sovereign-control-panel.md)
 - [Encryption overview](/azure/security/fundamentals/encryption-overview)
 - [Confidential computing](/azure/confidential-computing/overview)
 - [EU data boundary](/privacy/eudb/eu-data-boundary-learn)

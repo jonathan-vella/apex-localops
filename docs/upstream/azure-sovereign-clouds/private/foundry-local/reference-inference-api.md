@@ -8,7 +8,7 @@ appliesto:
 ms.topic: reference
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 04/30/2026
+ms.date: 07/24/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer or developer, I want a reference of Foundry inference API surfaces, operations, and response patterns so that I can correctly discover, call, and troubleshoot APIs in Foundry Local on Azure Local.
 ---
@@ -399,6 +399,185 @@ This table shows how InferenceServices fields map to ModelDeployment fields.
 | Compute field | hardware | spec.compute |
 | Model source field | modelSource.foundry / modelSource.byo | spec.model.ref / catalog / custom |
 | Gateway API field | gateway API | spec.endpoint |
+
+### Datasets
+
+The Datasets API manages evaluation dataset uploads and metadata. Datasets are stored on a persistent volume and used as input for evaluation runs.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| **POST** | /api/v1/datasets | Upload a dataset (multipart form: `name`, `format`, `file`) |
+| **GET** | /api/v1/datasets | List all datasets |
+| **GET** | /api/v1/datasets/{name} | Get a specific dataset status |
+| **DELETE** | /api/v1/datasets/{name} | Delete a dataset |
+
+#### Upload dataset — request body (multipart/form-data)
+
+Send these fields as multipart form data when you upload a dataset.
+
+| Field | Type | Req. | Description |
+| --- | --- | --- | --- |
+| **name** | string | **Yes** | Unique name (DNS label format: lowercase, numbers, hyphens) |
+| **format** | enum | **Yes** | Dataset file format: `jsonl` or `csv` |
+| **file** | file | **Yes** | The dataset file. Must contain `query` and `ground_truth` columns. Max 1 MB. |
+
+#### Dataset status fields
+
+A dataset status response includes the following fields.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| **name** | string | Dataset name |
+| **format** | string | File format (`jsonl` or `csv`) |
+| **phase** | enum | `Pending`, `Ready`, or `Error` |
+| **rowCount** | integer or null | Number of data rows (populated when phase is `Ready`) |
+| **sizeBytes** | integer or null | File size in bytes |
+| **message** | string or null | Error message (when phase is `Error`) |
+
+#### Upload dataset — example
+
+The following example uploads a JSONL dataset that contains two rows.
+
+```json
+POST /api/v1/datasets
+Content-Type: multipart/form-data; boundary=...
+
+--boundary
+Content-Disposition: form-data; name="name"
+
+eval-dataset
+--boundary
+Content-Disposition: form-data; name="format"
+
+jsonl
+--boundary
+Content-Disposition: form-data; name="file"; filename="dataset.jsonl"
+Content-Type: application/octet-stream
+
+{"query": "What is the largest planet in our solar system?", "ground_truth": "Jupiter"}
+{"query": "What atoms compose water?", "ground_truth": "Hydrogen and oxygen"}
+--boundary--
+```
+
+#### Get dataset — response
+
+A successful request returns the dataset status as JSON.
+
+```json
+{
+  "name": "eval-dataset",
+  "format": "jsonl",
+  "phase": "Ready",
+  "rowCount": 50,
+  "sizeBytes": 4320,
+  "message": null
+}
+```
+
+### Evaluations
+
+The Evaluations API manages evaluation runs. An evaluation run scores a deployed model's responses against a dataset by using NLP metrics or a judge model.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| **POST** | /api/v1/evaluations | Submit a new evaluation run |
+| **GET** | /api/v1/evaluations | List all evaluation runs |
+| **GET** | /api/v1/evaluations/{name} | Get evaluation status and metrics |
+| **DELETE** | /api/v1/evaluations/{name} | Delete an evaluation run |
+| **GET** | /api/v1/evaluations/{name}/results | Download per-row results (JSON or CSV) |
+
+#### Create evaluation — request body
+
+Include the following fields in the request body when you submit an evaluation run.
+
+| Field | Type | Req. | Description |
+| --- | --- | --- | --- |
+| **name** | string | **Yes** | Unique name (DNS label format) |
+| **datasetRef** | string | **Yes** | Name of an uploaded dataset (must be in `Ready` phase) |
+| **modelRef** | string | **Yes** | Deployment name of the model under test (must be `Running`) |
+| **judgeModelRef** | string | No* | Deployment name of the judge model. *Required when any quality evaluator is included. |
+| **evaluators** | string[] | **Yes** | 1 to 10 evaluator names. Values: `f1_score`, `bleu`, `gleu`, `rouge`, `meteor`, `coherence`, `fluency`, `relevance`, `similarity`, `response_completeness`. |
+
+#### Create evaluation — example
+
+The following example creates an evaluation that scores a model with three evaluators.
+
+```json
+POST /api/v1/evaluations
+Content-Type: application/json
+
+{
+  "name": "quality-eval",
+  "datasetRef": "eval-dataset",
+  "modelRef": "phi-4-mini",
+  "judgeModelRef": "gpt-oss-20b",
+  "evaluators": ["coherence", "fluency", "f1_score"]
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "name": "quality-eval",
+  "phase": "Pending"
+}
+```
+
+#### Evaluation status fields
+
+An evaluation status response includes the following fields.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| **name** | string | Evaluation name |
+| **datasetRef** | string | Referenced dataset name |
+| **modelRef** | string | Model under test deployment name |
+| **judgeModelRef** | string or null | Judge model deployment name |
+| **evaluators** | string[] | List of evaluators used |
+| **phase** | enum | `Pending`, `Running`, `Succeeded`, or `Failed` |
+| **message** | string or null | Status or error message |
+| **metrics** | object or null | Aggregate scores per evaluator (when `Succeeded`) |
+| **startTime** | string or null | ISO 8601 timestamp when evaluation started |
+| **completionTime** | string or null | ISO 8601 timestamp when evaluation completed |
+| **resultsAvailable** | boolean | Whether per-row results can be downloaded |
+
+#### Get evaluation — response
+
+A successful request returns the evaluation status and metrics as JSON.
+
+```json
+{
+  "name": "quality-eval",
+  "datasetRef": "eval-dataset",
+  "modelRef": "phi-4-mini",
+  "judgeModelRef": "gpt-oss-20b",
+  "evaluators": ["coherence", "fluency", "f1_score"],
+  "phase": "Succeeded",
+  "metrics": {
+    "coherence": 4.2,
+    "fluency": 3.8,
+    "f1_score": 0.85
+  },
+  "startTime": "2026-07-20T10:05:00Z",
+  "completionTime": "2026-07-20T10:06:30Z",
+  "resultsAvailable": true
+}
+```
+
+#### Download results
+
+Use the `format` query parameter to choose the output format.
+
+| Parameter | Value | Description |
+| --- | --- | --- |
+| **format** | `json` (default) | Returns aggregate metrics and per-row scores |
+| **format** | `csv` | Returns per-row results only (no aggregate metrics) |
+
+```http
+GET /api/v1/evaluations/{name}/results
+GET /api/v1/evaluations/{name}/results?format=csv
+```
 
 ## Data-plane API surfaces
 

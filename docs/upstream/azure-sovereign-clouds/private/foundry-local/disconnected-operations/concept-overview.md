@@ -53,6 +53,8 @@ In disconnected environments, extension availability, certificate management, mo
 
 * **GPU dependency packaging**: In disconnected Autonomous environments, mirror `nvidia/k8s-device-plugin:v0.11.0` into `edgeartifacts` at the path expected by the auto-deployed DaemonSet.
 
+* **Model evaluation**: Evaluations run fully on the cluster. No evaluation data leaves the disconnected environment.
+
 ## Capacity considerations for disconnected clusters
 
 When you size a disconnected cluster, include baseline capacity for both model serving and supporting components.
@@ -75,6 +77,7 @@ At a high level:
 - For catalog models, a **cache job** pulls model artifacts from the local **EdgeArtifacts container registry** instead of fetching from the Foundry cloud catalog. You populate this registry by importing Foundry model expansion packs before installation.
 - You can pull **BYO models** from a customer-managed OCI-compatible container registry within the disconnected environment.
 - Applications call inference endpoints through internal services or gateway API routes. Authentication integrates with your local Active Directory infrastructure instead of relying on public Microsoft Entra ID endpoints.
+- You can evaluate deployed models against test datasets by using NLP metrics or a second model as a judge. Evaluation data stays on the cluster and doesn't leave the environment.
 
 The following diagram shows how these components work together in a disconnected environment.
 

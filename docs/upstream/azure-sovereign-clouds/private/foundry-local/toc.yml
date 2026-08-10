@@ -39,6 +39,8 @@ items:
       href: how-to-deploy-model.md
     - name: Deploy a bring-your-own model
       href: how-to-deploy-custom-model.md
+    - name: Evaluate a model
+      href: how-to-evaluate-model.md
   - name: Run inference
     items:
     - name: Models
@@ -57,6 +59,8 @@ items:
       href: concept-inference-runtimes.md
     - name: Automatic GPU inference tuning
       href: concept-gpu-inference-planner.md
+    - name: Parallelism for multi-GPU inference
+      href: concept-model-parallelism.md
     - name: Run inference
       href: how-to-run-inference.md
   - name: Troubleshoot
@@ -81,6 +85,8 @@ items:
         href: disconnected-operations/how-to-deploy-first-model.md
       - name: Expand model catalog
         href: disconnected-operations/how-to-expand-catalog.md
+      - name: Evaluate a model
+        href: disconnected-operations/how-to-evaluate-model-disconnected.md
     - name: Troubleshoot
       href: disconnected-operations/how-to-troubleshoot.md
   - name: Reference

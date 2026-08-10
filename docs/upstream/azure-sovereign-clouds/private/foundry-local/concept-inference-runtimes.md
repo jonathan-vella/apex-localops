@@ -164,5 +164,6 @@ For more information, see [Predictive models](concept-inference-operator.md#pred
 
 - [Inference operator and model lifecycle](concept-inference-operator.md)
 - [Automatic GPU inference tuning in Foundry Local on Azure Local](concept-gpu-inference-planner.md)
+- [Model parallelism for multi-GPU inference in Foundry Local on Azure Local](concept-model-parallelism.md)
 - [Foundry Local multi-node Kubernetes deployment](concept-multi-node-deployment.md)
 - [Run inference on Foundry Local on Azure Local](how-to-run-inference.md)

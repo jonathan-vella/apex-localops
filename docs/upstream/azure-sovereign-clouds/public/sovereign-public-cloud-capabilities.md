@@ -56,7 +56,7 @@ For more information, see [Confidential Computing](confidential-computing.md) an
 
 Sovereign Control Panel (SCP) is a unified Azure portal experience for viewing, managing, and evaluating sovereignty posture across tenant resources. It aggregates sovereignty signals into a centralized and intuitive console for end users and reviewers to view and verify sovereignty requirements.
 
-For more information, see [Sovereign Control Panel](regulated-environment-management.md).
+For more information, see [Sovereign Control Panel](sovereign-control-panel.md).
 
 ## Choose the right capability for your goal
 
@@ -78,6 +78,6 @@ Sovereign Public Cloud capabilities are most effective when used with policy‑a
 - [External Key Management](external-key-management.md)  
 - [Data Guardian](data-guardian.md)  
 - [Confidential Computing](confidential-computing.md)  
-- [Sovereign Control Panel](regulated-environment-management.md)
+- [Sovereign Control Panel](sovereign-control-panel.md)
 - [Discover Microsoft Sovereign Cloud (product overview and EU focus)](../microsoft-sovereign-cloud.md)
 - [Sovereign Landing Zone overview](overview-sovereign-landing-zone.md)

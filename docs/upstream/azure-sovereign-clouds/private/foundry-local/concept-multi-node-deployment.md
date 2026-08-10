@@ -46,4 +46,5 @@ Foundry Local supports both customer-managed models (Models-as-a-Platform) and M
 
 - [Inference operator and model lifecycle](concept-inference-operator.md)
 - [Inference runtimes in Foundry Local on Azure Local](concept-inference-runtimes.md)
+- [Model parallelism for multi-GPU inference in Foundry Local on Azure Local](concept-model-parallelism.md)
 - [ModelDeployment and operator configuration reference for Foundry Local](reference-model-deployment-operator.md)

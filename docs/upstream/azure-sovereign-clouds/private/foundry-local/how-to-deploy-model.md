@@ -209,6 +209,7 @@ curl -k -s https://localhost:8080/api/v1/namespaces/foundry-local-operator/deplo
 
 ## Related content
 
+- [Model parallelism for multi-GPU inference in Foundry Local on Azure Local](concept-model-parallelism.md)
 - [Run inference on Foundry Local on Azure Local](how-to-run-inference.md)
 - [Package and deploy a bring-your-own model on Foundry Local](how-to-deploy-custom-model.md)
 - [Deploy Foundry Local as an Azure Arc extension](deploy-foundry-local-arc-extension.md)

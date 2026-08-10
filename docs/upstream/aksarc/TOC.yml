@@ -226,8 +226,6 @@
               href: connectivity-troubleshoot.md
             - name: MetalLB speaker pods don't run on tainted nodes
               href: troubleshoot-metallb-speaker-taint.md
-            - name: Refresh cluster proxy settings after an HTTP proxy update
-              href: refresh-cluster-proxy-settings.md
           - name: Storage
             items:
             - name: Issues after deleting storage volumes
@@ -293,7 +291,7 @@
           href: /azure/adaptive-cloud
         - name: Azure Arc Jumpstart
           href: https://azurearcjumpstart.com/azure_arc_jumpstart/azure_arc_k8s/aks_stack_hci/
-        - name: AKS enabled by Arc roadmap
+        - name: AKS Hybrid and Edge roadmap
           href: https://github.com/Azure/aksArc/projects
   - name: Multi-rack
     items:

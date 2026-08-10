@@ -86,6 +86,8 @@ The following table lists the minimum and recommended worker node capacity. Use 
 | Worker node count | 1 | 2+ (high availability or GPU pool separation) |
 
 Don't use the `az aksarc create` default worker size `Standard_A4_v2` (8 GiB). Use at least `Standard_D4s_v3`.
+The minimum capacity required for successful installation is 6 GB of RAM (Memory) and 3 vCPU cores.
+This requirement doesn't count any other workload currently running on the cluster, including Arc's, trust and cert managers, Istio, and others.
 
 If you run multireplica `vLLM` deployments, reserve extra capacity for one Endpoint Picker (EPP) pod per ModelDeployment (about 512 MiB request and 2 GiB limit). For more information, see [ModelDeployment and operator configuration reference](reference-model-deployment-operator.md) and [Multi-node deployment support](concept-multi-node-deployment.md).
 

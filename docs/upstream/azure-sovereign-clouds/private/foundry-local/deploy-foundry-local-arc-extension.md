@@ -8,7 +8,7 @@ appliesto:
 ms.topic: how-to
 ms.author: cwatson
 author: cwatson-cat
-ms.date: 06/10/2026
+ms.date: 07/24/2026
 ai-usage: ai-assisted
 customer intent: As a platform engineer, I want to deploy Foundry Local as an Azure Arc extension so that I can run AI inference workloads on my Azure Arc–enabled Kubernetes cluster.
 ---
@@ -208,6 +208,10 @@ You can configure the following optional parameters during inference operator in
 | `entraAuth.enabled` | Boolean. When enabled, the Entra Auth SDK sidecar and msi-adapter sidecar are injected into inference pods for JWT validation and ARM RBAC authorization. When disabled, `entraAuth.tenantId` and `entraAuth.clientId` parameters are optional. Default: `true`. For more information, see [Configure authentication for Foundry Local enabled by Azure Arc](how-to-configure-authentication.md). If you intend to use [Agentic Retrieval in Foundry Local](/azure/azure-arc/edge-rag/overview) later, you must enable Entra ID authentication for the Foundry Local extension.|
 | `watch.namespaces` | Array of strings. Configure this parameter if you want the operator to manage resources across multiple namespaces. By default, the operator manages the `foundry-local-operator` namespace where models and inference workloads are deployed. Pass the installation command as: `--config watch.namespaces[0]="NS1" --config watch.namespaces[1]="NS2"`. For more information, see [Namespace configuration for model deployments](concept-inference-operator.md#namespace-configuration-for-model-deployments). |
 | `storeModel.cacheJob.resources` | The StoreModel cache job is configured with default memory values of 16Gi for requests and 32Gi for limits. These settings are established due to the typically large size of models, as downloading and caching them requires substantial memory to prevent out-of-memory (OOM) issues. In environments with limited hardware resources, or when working exclusively with smaller models, you can install the Foundry Local extension with reduced memory allocations for the model cache job: `--config storeModel.cacheJob.resources.requests.memory="<value lower than 16Gi>"  --config storeModel.cacheJob.resources.limits.memory="<value lower than 32Gi>"`. **Ensure that the requests value doesn't exceed the limits value.** For more information on StoreModel, see [Model caching](concept-model-caching.md). |
+| `evaluation.enabled` | Boolean. Enables model evaluation capabilities, including dataset upload, evaluation runs, and results download. When disabled, persistent storage isn't provisioned and new evaluation requests are rejected. Default: `true`. |
+| `evaluation.pvc.accessMode` | Access mode for the evaluation persistent volume. `ReadWriteOnce` (default) requires evaluation components to run on a single node. `ReadWriteMany` is recommended if your cluster has a RWX-capable StorageClass, as it allows evaluation pods to run on any node. **Note:** This value is set at installation time and can't be modified with extension update. To change the access mode, delete and reinstall the extension. |
+| `evaluation.pvc.storageClassName` | StorageClass name for the evaluation persistent volume. Required when `evaluation.pvc.accessMode` is set to `ReadWriteMany`. Example: `azurefile`. |
+| `model-store.registry.storage.size` | Capacity of the local model-store registry PVC — the single shared volume that holds all cached model artifacts on the cluster. Default is 100Gi, which suits small/medium models; For large GPU/vLLM models (such as Devstral or Magistral), where each one can take more than 100 GB, consider enlarging this value. The recommendation is to configure it as the total size of all models you'll host plus about 20-30% headroom. |
 
 **Configure Inference API exposure**
 The `api.exposure` Helm value controls how the Foundry Local Inference API control-plane endpoint is exposed. This value
