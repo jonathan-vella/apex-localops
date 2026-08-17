@@ -15,7 +15,7 @@ ms.collection:
 
 # What is Data Guardian?
 
-Data Guardian is a sovereignty feature in the Sovereign Public Cloud that provides enhanced operational oversight and control. It ensures that remote access by Microsoft personnel to systems in defined regions like the EU+EFTA is subject to strict approval and monitoring by authorized European-resident personnel. All such access is logged in a tamper-evident ledger.
+Data Guardian is a sovereignty feature in the Sovereign Public Cloud that provides enhanced operational oversight and control. It ensures that remote access by Microsoft personnel to systems in defined regions like the EU+EFTA is subject to strict monitoring by authorized European-resident personnel. All such access is logged in a tamper-evident ledger.
 
 This capability helps governments and regulated industries meet operational sovereignty requirements while retaining the benefits of the hyperscale cloud model.
 
@@ -23,9 +23,11 @@ This capability helps governments and regulated industries meet operational sove
 
 The following reasons explain why Data Guardian is important for customers seeking sovereignty in the public cloud:
 
-- **Operational sovereignty**: Customers gain confidence that Microsoft’s operational activities in regions are supervised locally and can't occur without explicit approval.
-- **Transparency and accountability**: Every approved access session is logged to an immutable ledger, creating an auditable record for compliance and security reviews. The immutable ledger leverages [Azure confidential ledger](/azure/confidential-ledger/overview) for writing entries in a tamper evident manner.
-- **Risk reduction**: By enforcing human-in-the-loop approval and regional oversight, Data Guardian mitigates the risks of unauthorized or unmonitored access to production systems.
+- **Operational sovereignty**: Customers gain confidence that Microsoft’s operational activities in regions are supervised locally.
+
+- **Transparency and accountability**: Every session is logged to an immutable ledger, creating an auditable record for compliance and security reviews. The immutable ledger leverages [Azure confidential ledger](/azure/confidential-ledger/overview) for writing entries in a tamper evident manner.
+- **Risk reduction**: By enforcing human-in-the-loop regional oversight, Data Guardian mitigates the risks of unauthorized or unmonitored access to production systems.
+
 - **Compliance alignment**: Supports regulatory requirements for operational transparency and local oversight.
 - **Trust and assurance**: Reinforces Microsoft’s commitment to digital sovereignty and European Digital Commitments.
 
