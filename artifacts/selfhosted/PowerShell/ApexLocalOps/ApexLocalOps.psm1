@@ -1039,7 +1039,9 @@ function New-ApexDomainController {
   $domainCred = New-Object System.Management.Automation.PSCredential(
     "$($dom.NetBiosName)\Administrator", $LocalAdminCredential.Password)
   Start-Sleep -Seconds 60
-  Wait-ApexVMReady -VmName $dom.DcHostName -Credential $domainCred -TimeoutMinutes 30 | Out-Null
+  # Promotion reboots the guest and can leave PowerShell Direct unavailable while
+  # AD DS finishes initialization; allow that transition its own longer window.
+  Wait-ApexVMReady -VmName $dom.DcHostName -Credential $domainCred -TimeoutMinutes 45 | Out-Null
 
   # Configure authoritative time (M5). The supported Microsoft AD preparation
   # tool owns OU and deployment-account creation in the next orchestration stage.
@@ -1277,7 +1279,8 @@ function Set-ApexNodeTimeSync {
   Disable-VMIntegrationService -VMName $VmName -Name 'Time Synchronization' -ErrorAction SilentlyContinue
   Invoke-Command -VMName $VmName -Credential $Credential -ScriptBlock {
     param($dc)
-    w32tm /config /manualpeerlist:"$dc,0x9" /syncfromflags:manual /update | Out-Null
+    # Azure Local nodes are NTP clients; 0x8 is the documented Windows Time client mode.
+    w32tm /config /manualpeerlist:"$dc,0x8" /syncfromflags:manual /update | Out-Null
     Restart-Service w32time -ErrorAction SilentlyContinue
 
     # Setting the source is not the same as being in sync. A freshly built node needs a
@@ -1713,27 +1716,53 @@ function Test-ApexEnvironmentReadiness {
     $timeDeadline = (Get-Date).AddMinutes(30)
     $pending = @()
     $unreachable = @{}
+    $lastBootTimes = @{}
     do {
       $pending = @()
       foreach ($node in $Nodes) {
-        $state = ''
+        $state = $null
         try {
           $state = Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
             -ScriptBlock {
-            # Nudge rather than wait out w32time's own poll interval.
-            w32tm /resync /force 2>&1 | Out-Null
-            (w32tm /query /status 2>&1) | Out-String
-          } -ErrorAction Stop
+            param($dc)
+            $bootTime = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+            $status = (w32tm /query /status 2>&1) | Out-String
+            $source = (w32tm /query /source 2>&1).Trim()
+            [pscustomobject]@{
+              BootTime = $bootTime
+              Status   = $status
+              Source   = $source
+              Stripchart = (w32tm /stripchart /computer:$dc /samples:3 /dataonly 2>&1) | Out-String
+            }
+          } -ArgumentList $Config.Domain.DcIpAddress -ErrorAction Stop
           $unreachable.Remove($node.Name)
         }
         catch {
           $state = ''
           $unreachable[$node.Name] = $_.Exception.Message
         }
-        $sourceOk = $state -match 'Source:\s*(?!Local CMOS Clock)\S'
-        $syncOk = ($state -match 'Last Successful Sync Time:') -and
-        ($state -notmatch 'Last Successful Sync Time:\s*unspecified')
-        if (-not ($sourceOk -and $syncOk)) { $pending += $node.Name }
+        $bootChanged = $state -and $lastBootTimes.ContainsKey($node.Name) -and
+          $lastBootTimes[$node.Name] -ne $state.BootTime
+        if ($state) { $lastBootTimes[$node.Name] = $state.BootTime }
+        $sourceOk = $state.Source -match "^$([regex]::Escape($Config.Domain.DcIpAddress))(,0x8)?$"
+        $syncOk = ($state.Status -match 'Last Successful Sync Time:') -and
+          ($state.Status -notmatch 'Last Successful Sync Time:\s*unspecified')
+        $stripchartOk = $state.Stripchart -notmatch 'error occurred|No such host|No time data was available'
+        if ($bootChanged -or -not ($sourceOk -and $syncOk -and $stripchartOk)) {
+          $pending += $node.Name
+          try {
+            Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
+              -ScriptBlock {
+              param($dc)
+              w32tm /config /manualpeerlist:"$dc,0x8" /syncfromflags:manual /update | Out-Null
+              Restart-Service w32time -ErrorAction Stop
+              w32tm /resync /force 2>&1 | Out-Null
+            } -ArgumentList $Config.Domain.DcIpAddress -ErrorAction Stop
+          }
+          catch {
+            $unreachable[$node.Name] = $_.Exception.Message
+          }
+        }
       }
       if ($pending.Count -gt 0) {
         # A node we cannot reach is not a node with a bad clock; saying so saves the
@@ -1764,9 +1793,28 @@ function Test-ApexEnvironmentReadiness {
       $consecutive = 0
       do {
         try {
-          Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
-            -ScriptBlock { $env:COMPUTERNAME } -ErrorAction Stop | Out-Null
-          $consecutive++
+          $probe = Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
+            -ScriptBlock {
+            [pscustomobject]@{
+              ComputerName = $env:COMPUTERNAME
+              BootTime     = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+            }
+          } -ErrorAction Stop
+          if ($lastBootTimes[$node.Name] -ne $probe.BootTime) {
+            $lastBootTimes[$node.Name] = $probe.BootTime
+            $consecutive = 0
+            Write-ApexLog "Node '$($node.Name)' restarted during readiness; reapplying NTP configuration." -Level WARN
+            Invoke-Command -ComputerName $node.Name -Credential $networkAdminCredential `
+              -ScriptBlock {
+              param($dc)
+              w32tm /config /manualpeerlist:"$dc,0x8" /syncfromflags:manual /update | Out-Null
+              Restart-Service w32time -ErrorAction Stop
+              w32tm /resync /force 2>&1 | Out-Null
+            } -ArgumentList $Config.Domain.DcIpAddress -ErrorAction Stop
+          }
+          else {
+            $consecutive++
+          }
         }
         catch {
           $consecutive = 0

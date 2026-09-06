@@ -351,8 +351,14 @@ fi
 preflight
 
 if [[ -z "${LOCALSELF_ADMIN_PASSWORD:-}" ]]; then
-  echo "ERROR: set LOCALSELF_ADMIN_PASSWORD after preflight and rerun." >&2
-  exit 1
+  password_file="${HOME}/.apex-localops/admin-password"
+  if [[ -f "$password_file" ]]; then
+    LOCALSELF_ADMIN_PASSWORD=$(<"$password_file")
+    export LOCALSELF_ADMIN_PASSWORD
+  else
+    echo "ERROR: set LOCALSELF_ADMIN_PASSWORD or create ${password_file} after preflight and rerun." >&2
+    exit 1
+  fi
 fi
 validate_password "$LOCALSELF_ADMIN_PASSWORD"
 trap 'unset LOCALSELF_ADMIN_PASSWORD' EXIT

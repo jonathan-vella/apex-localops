@@ -413,7 +413,9 @@ Describe 'Self-hosted orchestration safety' {
     # so the settle is now explicit: one successful probe is not enough.
     $moduleSource | Should -Match 'did not answer three consecutive WinRM probes'
     $moduleSource | Should -Match 'All nodes answer WinRM consistently'
-    $moduleSource.Contains("'Source:\s*(?!Local CMOS Clock)\S'") | Should -BeTrue
+    $moduleSource | Should -Match '\$sourceOk = \$state\.Source -match'
+    $moduleSource | Should -Match 'w32tm /stripchart /computer:\$dc /samples:3 /dataonly'
+    $moduleSource | Should -Match 'restarted during readiness; reapplying NTP configuration'
     # The wait must precede the first validator.
     $waitIndex = $moduleSource.IndexOf('Waiting for node clock sync')
     $firstValidator = $moduleSource.IndexOf("Invoke-ValidationStep -Name 'Connectivity'")
@@ -991,6 +993,10 @@ Describe 'Self-hosted orchestration safety' {
     $moduleSource.Contains('Last Successful Sync Time:\s*unspecified') | Should -BeTrue
     $moduleSource | Should -Match '\$deadline = \(Get-Date\)\.AddMinutes\(10\)'
     $moduleSource | Should -Match 'Hyper-V time synchronization is still enabled'
+    $moduleSource | Should -Match 'manualpeerlist:"\$dc,0x8"'
+    $moduleSource | Should -Match 'Get-CimInstance -ClassName Win32_OperatingSystem'
+    $moduleSource | Should -Match '\$lastBootTimes'
+    $moduleSource | Should -Match 'w32tm /stripchart /computer:\$dc /samples:3 /dataonly'
   }
 
   It 'declares success only after authoritative cluster state is healthy' {
