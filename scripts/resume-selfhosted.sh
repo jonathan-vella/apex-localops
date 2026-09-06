@@ -6,7 +6,7 @@ set -euo pipefail
 
 RESOURCE_GROUP="rg-apexlocal"
 HOST_VM="ApexLocal-Host"
-ARTIFACT_REF=""
+ARTIFACT_REF="main"
 START_AT_STAGE=""
 RUN_COMMAND_NAME="ApexLocalBuildResume"
 STAGES=(HostFabric Isos BaseImages Router DomainController ActiveDirectory Nodes Readiness Arc ClusterDeploy)
@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   printf '%s\n' \
-    'Usage: resume-selfhosted.sh --stage <name> --artifact-ref <immutable-sha-or-tag> [options]' \
+    'Usage: resume-selfhosted.sh --stage <name> [--artifact-ref <ref>] [options]' \
     '  --resource-group, -g <name>' \
     '  --host-vm <name>' \
     '  --help, -h' \
@@ -52,7 +52,7 @@ if [[ "$stage_is_valid" != "true" ]]; then
 fi
 
 [[ "$ARTIFACT_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || {
-  echo "ERROR: --artifact-ref must be an immutable candidate SHA or release tag." >&2
+  echo "ERROR: --artifact-ref must be a valid branch, tag, or commit reference." >&2
   exit 2
 }
 command -v az >/dev/null 2>&1 || { echo "ERROR: Azure CLI not found." >&2; exit 1; }
@@ -88,7 +88,7 @@ SCRIPT_URI="${RAW_BASE}/Resume-ApexLocalCluster.ps1"
 for artifact in Resume-ApexLocalCluster.ps1 New-ApexLocalCluster.ps1 ApexLocal-Config.psd1 \
   ModuleVersions.psd1 ApexLocalOps/ApexLocalOps.psm1 ApexLocalOps/ApexLocalOps.psd1; do
   curl --fail --silent --show-error --location --head "${RAW_BASE}/${artifact}" >/dev/null || {
-    echo "ERROR: runtime artifact not reachable at the immutable ref: ${RAW_BASE}/${artifact}" >&2
+    echo "ERROR: runtime artifact not reachable: ${RAW_BASE}/${artifact}" >&2
     exit 1
   }
 done

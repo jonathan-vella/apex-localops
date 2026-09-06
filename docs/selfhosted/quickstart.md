@@ -86,7 +86,7 @@ whole lab from one command — deployment and ISO staging back to back:
 ```bash
 export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
 ./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal \
-  --location swedencentral --artifact-ref <candidate-commit-sha> \
+  --location swedencentral \
   --accept-azure-local-license-terms \
   --accept-windows-server-evaluation-terms
 ```
@@ -97,13 +97,14 @@ yourself in step 3:
 ```bash
 export LOCALSELF_ADMIN_PASSWORD='<approved-lab-password>'
 ./scripts/deploy-selfhosted.sh --resource-group rg-apexlocal \
-  --location swedencentral --artifact-ref <candidate-commit-sha>
+  --location swedencentral
 ```
 
-Use an immutable pushed candidate commit SHA until the `v1.3.0-rc.1` release tag exists. The
-script runs mandatory preflight before reading the password or creating the resource group,
-then runs what-if and deploys the hardened storage account, network, Bastion, NAT Gateway, Log
-Analytics, jumpbox, and cluster host. ARM finishes in about 15–20 minutes.
+The script pulls runtime artifacts from the repository's current `main` branch. Use
+`--artifact-ref <branch-or-commit>` only when you need to reproduce a specific revision. It runs
+mandatory preflight before reading the password or creating the resource group, then runs
+what-if and deploys the hardened storage account, network, Bastion, NAT Gateway, Log Analytics,
+jumpbox, and cluster host. ARM finishes in about 15–20 minutes.
 
 **Azure Hybrid Benefit is enabled by default.** Both Azure VMs deploy with
 `licenseType = Windows_Server`, billing Windows Server at the Hybrid Benefit rate instead of the

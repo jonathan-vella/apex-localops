@@ -7,7 +7,7 @@ RESOURCE_GROUP="rg-apexlocal"
 VM_NAME="ApexLocal-Mgmt"
 STORAGE_ACCOUNT=""
 CONTAINER="iso-images"
-ARTIFACT_REF=""
+ARTIFACT_REF="main"
 AZURE_LOCAL_RELEASE_CODE="2607"
 ACCEPT_AZURE_LOCAL_TERMS=false
 ACCEPT_WINDOWS_SERVER_TERMS=false
@@ -18,7 +18,7 @@ GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
 
 usage() {
   printf '%s\n' \
-    'Usage: stage-selfhosted-isos.sh --artifact-ref <immutable-sha-or-tag> [options]' \
+    'Usage: stage-selfhosted-isos.sh [--artifact-ref <ref>] [options]' \
     '  --accept-azure-local-license-terms' \
     '  --accept-windows-server-evaluation-terms' \
     '  --resource-group, -g <name>' \
@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$ARTIFACT_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || {
-  echo 'ERROR: --artifact-ref must be an immutable candidate SHA or release tag.' >&2
+  echo 'ERROR: --artifact-ref must be a valid branch, tag, or commit reference.' >&2
   exit 2
 }
 [[ "$AZURE_LOCAL_RELEASE_CODE" =~ ^[0-9]{4}$ ]] || {
@@ -83,7 +83,7 @@ for path in \
   artifacts/selfhosted/PowerShell/Get-ApexWindowsServerIso.ps1 \
   artifacts/selfhosted/PowerShell/Upload-Isos.ps1; do
   curl --fail --silent --show-error --location --head "${TEMPLATE_BASE_URL}${path}" >/dev/null || {
-    echo "ERROR: immutable staging artifact is unavailable: ${TEMPLATE_BASE_URL}${path}" >&2
+    echo "ERROR: staging artifact is unavailable: ${TEMPLATE_BASE_URL}${path}" >&2
     exit 1
   }
 done

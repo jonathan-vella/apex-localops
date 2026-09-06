@@ -10,7 +10,7 @@ RESOURCE_GROUP="rg-apexlocal"
 LOCATION="swedencentral"
 WHAT_IF_ONLY=false
 RUN_MONITOR=true
-ARTIFACT_REF="v1.3.0-rc.1"
+ARTIFACT_REF="main"
 CLUSTER_NAME="apexlocal"
 ENABLE_AZURE_HYBRID_BENEFIT=true
 # Artifact source: where the in-VM bootstrap pulls runtime scripts from. Defaults to the
@@ -75,7 +75,7 @@ usage() {
     '  --no-monitor' \
     '  --resource-group, -g <name>' \
     '  --location, -l <swedencentral|germanywestcentral>' \
-    '  --artifact-ref <immutable-sha-or-tag>' \
+    '  --artifact-ref <ref>                  Optional branch, tag, or commit to reproduce a specific revision' \
     '  --cluster-name <name>' \
     '  --disable-azure-hybrid-benefit   Bill Windows Server at the license-included (PAYG) rate' \
     '  --accept-azure-local-license-terms' \
@@ -302,7 +302,7 @@ preflight() {
   fi
 
   if (( failures == 0 )); then
-    echo "  [ok]   immutable runtime artifact set reachable"
+    echo "  [ok]   runtime artifact set reachable"
   else
     echo "Preflight found $failures blocking issue(s). No resources were created." >&2
     exit 1

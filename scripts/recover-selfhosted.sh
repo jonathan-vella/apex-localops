@@ -6,7 +6,7 @@ set -euo pipefail
 
 RESOURCE_GROUP="rg-apexlocal"
 HOST_VM="ApexLocal-Host"
-ARTIFACT_REF=""
+ARTIFACT_REF="main"
 MODE="ValidateDeploy"
 RUN_COMMAND_NAME="ApexLocalClusterRecovery"
 # Artifact source (override via env when recovering from a fork).
@@ -15,7 +15,7 @@ GITHUB_REPO="${GITHUB_REPO:-apex-localops}"
 
 usage() {
   printf '%s\n' \
-    'Usage: recover-selfhosted.sh --artifact-ref <immutable-sha-or-tag> [options]' \
+    'Usage: recover-selfhosted.sh [--artifact-ref <ref>] [options]' \
     '  --mode <ValidateDeploy|DeployOnly>' \
     '  --resource-group, -g <name>' \
     '  --host-vm <name>' \
@@ -41,7 +41,7 @@ done
   exit 2
 }
 [[ "$ARTIFACT_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || {
-  echo "ERROR: --artifact-ref must be an immutable candidate SHA or release tag." >&2
+  echo "ERROR: --artifact-ref must be a valid branch, tag, or commit reference." >&2
   exit 2
 }
 [[ -n "${LOCALSELF_ADMIN_PASSWORD:-}" ]] || {
@@ -61,7 +61,7 @@ az account show >/dev/null 2>&1 || { echo "ERROR: not logged in to Azure." >&2; 
 VM_LOCATION=$(az vm show -g "$RESOURCE_GROUP" -n "$HOST_VM" --query location -o tsv)
 SCRIPT_URI="https://raw.githubusercontent.com/${GITHUB_ACCOUNT}/${GITHUB_REPO}/${ARTIFACT_REF}/artifacts/selfhosted/PowerShell/Recover-ApexLocalCluster.ps1"
 curl --fail --silent --show-error --location --head "$SCRIPT_URI" >/dev/null || {
-  echo "ERROR: recovery artifact is not reachable at the immutable ref: $SCRIPT_URI" >&2
+  echo "ERROR: recovery artifact is not reachable: $SCRIPT_URI" >&2
   exit 1
 }
 
